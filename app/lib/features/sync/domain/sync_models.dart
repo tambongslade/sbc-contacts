@@ -153,3 +153,92 @@ class SyncSummary {
   final int currentMatches;
   final DateTime? lastSyncAt;
 }
+
+/// One member already written (or attempted) to a device — "Mes contacts SBC"
+/// (cahier §16). `status` mirrors the backend SyncStatus enum.
+class SyncedContact {
+  const SyncedContact({
+    required this.memberSbcId,
+    required this.status,
+    this.name,
+    this.firstName,
+    this.profession,
+    this.city,
+    this.country,
+    this.avatarUrl,
+    this.phoneNumber,
+    this.syncedAt,
+  });
+
+  factory SyncedContact.fromJson(Map<String, dynamic> json) => SyncedContact(
+        memberSbcId: (json['memberSbcId'] ?? '').toString(),
+        status: (json['status'] ?? 'PENDING').toString(),
+        name: json['name'] as String?,
+        firstName: json['firstName'] as String?,
+        profession: json['profession'] as String?,
+        city: json['city'] as String?,
+        country: json['country'] as String?,
+        avatarUrl: json['avatarUrl'] as String?,
+        phoneNumber: json['phoneNumber'] as String?,
+        syncedAt: json['syncedAt'] == null
+            ? null
+            : DateTime.tryParse(json['syncedAt'].toString()),
+      );
+
+  final String memberSbcId;
+  final String status;
+  final String? name;
+  final String? firstName;
+  final String? profession;
+  final String? city;
+  final String? country;
+  final String? avatarUrl;
+  final String? phoneNumber;
+  final DateTime? syncedAt;
+
+  String get displayName {
+    final n = [firstName, name].where((e) => e != null && e.isNotEmpty).join(' ').trim();
+    return n.isEmpty ? 'Membre SBC' : n;
+  }
+
+  String get location =>
+      [city, country].whereType<String>().where((e) => e.isNotEmpty).join(', ');
+}
+
+/// One synchronisation run, for the history view (cahier §17).
+class SyncRunEntry {
+  const SyncRunEntry({
+    required this.id,
+    required this.status,
+    required this.matchCount,
+    required this.syncedCount,
+    required this.failedCount,
+    this.error,
+    this.startedAt,
+    this.finishedAt,
+  });
+
+  factory SyncRunEntry.fromJson(Map<String, dynamic> json) => SyncRunEntry(
+        id: (json['id'] ?? '').toString(),
+        status: (json['status'] ?? 'PENDING').toString(),
+        matchCount: (json['matchCount'] as num?)?.toInt() ?? 0,
+        syncedCount: (json['syncedCount'] as num?)?.toInt() ?? 0,
+        failedCount: (json['failedCount'] as num?)?.toInt() ?? 0,
+        error: json['error'] as String?,
+        startedAt: json['startedAt'] == null
+            ? null
+            : DateTime.tryParse(json['startedAt'].toString()),
+        finishedAt: json['finishedAt'] == null
+            ? null
+            : DateTime.tryParse(json['finishedAt'].toString()),
+      );
+
+  final String id;
+  final String status;
+  final int matchCount;
+  final int syncedCount;
+  final int failedCount;
+  final String? error;
+  final DateTime? startedAt;
+  final DateTime? finishedAt;
+}

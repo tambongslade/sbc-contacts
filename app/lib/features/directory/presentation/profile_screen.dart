@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sbc_contacts/shared/widgets/skeletons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:simple_icons/simple_icons.dart';
@@ -24,7 +25,7 @@ class ProfileScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Profil')),
       body: async.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const ListSkeleton(),
         error: (e, _) => EmptyState(
           icon: Icons.person_off,
           title: 'Profil indisponible',

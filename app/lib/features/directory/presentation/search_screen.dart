@@ -7,6 +7,7 @@ import 'package:sbc_contacts/features/directory/data/directory_repository.dart';
 import 'package:sbc_contacts/features/directory/presentation/filter_sheet.dart';
 import 'package:sbc_contacts/shared/widgets/empty_state.dart';
 import 'package:sbc_contacts/shared/widgets/member_card.dart';
+import 'package:sbc_contacts/shared/widgets/skeletons.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -103,7 +104,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _buildBody(SearchState state, SearchController notifier) {
     if (state.loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const CardListSkeleton();
     }
     if (state.subscriptionRequired) {
       return const EmptyState(

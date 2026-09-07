@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:sbc_contacts/shared/widgets/skeletons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
-import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/features/sync/application/sync_controllers.dart';
 import 'package:sbc_contacts/features/sync/domain/sync_models.dart';
 import 'package:sbc_contacts/shared/widgets/empty_state.dart';
 
+/// Synchronisation home (cahier §10, §16, §17): the dashboard counters, the
+/// saved criteria, and the way into "Mes contacts SBC" and the history.
 class SyncScreen extends ConsumerWidget {
   const SyncScreen({super.key});
 
@@ -16,7 +18,16 @@ class SyncScreen extends ConsumerWidget {
     final criteria = ref.watch(criteriaControllerProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Synchronisation')),
+      appBar: AppBar(
+        title: const Text('Synchronisation'),
+        actions: [
+          IconButton(
+            tooltip: 'Historique',
+            icon: const Icon(Icons.history),
+            onPressed: () => context.push('/sync/history'),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/criteria/new'),
         icon: const Icon(Icons.add),
@@ -29,33 +40,50 @@ class SyncScreen extends ConsumerWidget {
             ..invalidate(criteriaControllerProvider);
         },
         child: ListView(
-          padding: const EdgeInsets.only(bottom: 88),
+          padding: const EdgeInsets.only(bottom: 96),
           children: [
             summary.when(
-              loading: () => const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator()),
-              ),
+              loading: SummarySkeleton.new,
               error: (e, _) => const SizedBox.shrink(),
               data: (s) => _SummaryCard(summary: s),
             ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: Text('Mes critères', style: TextStyle(fontWeight: FontWeight.w700)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: OutlinedButton.icon(
+                onPressed: () => context.push('/sync/contacts'),
+                icon: const Icon(Icons.contact_page_outlined),
+                label: const Text('Mes contacts SBC'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(46),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Text(
+                'Mes critères',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
             ),
             criteria.when(
-              loading: () => const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator()),
+              loading: () => const CardListSkeleton(rows: 3),
+              error: (e, _) => EmptyState(
+                icon: Icons.error_outline,
+                title: 'Erreur',
+                message: e.toString(),
+                action: FilledButton(
+                  onPressed: () => ref.invalidate(criteriaControllerProvider),
+                  child: const Text('Réessayer'),
+                ),
               ),
-              error: (e, _) =>
-                  EmptyState(icon: Icons.error_outline, title: 'Erreur', message: e.toString()),
               data: (list) {
                 if (list.isEmpty) {
                   return const EmptyState(
                     icon: Icons.tune,
                     title: 'Aucun critère',
-                    message: 'Définis les catégories de membres à synchroniser.',
+                    message:
+                        'Définis les catégories de membres à enregistrer : pays, '
+                        'région, profession, centres d\'intérêt, âge.',
                   );
                 }
                 return Column(
@@ -76,27 +104,49 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     Widget stat(String label, int value, IconData icon, Color color) => Expanded(
           child: Column(
             children: [
               Icon(icon, color: color),
               const Gap(4),
-              Text('$value', style: Theme.of(context).textTheme.titleLarge),
-              Text(label, style: Theme.of(context).textTheme.labelSmall, textAlign: TextAlign.center),
+              Text('$value', style: theme.textTheme.titleLarge),
+              Text(
+                label,
+                style: theme.textTheme.labelSmall,
+                textAlign: TextAlign.center,
+              ),
             ],
           ),
         );
-    final scheme = Theme.of(context).colorScheme;
+
     return Card(
       margin: const EdgeInsets.all(16),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-        child: Row(
+        child: Column(
           children: [
-            stat('Synchronisés', summary.syncedCount, Icons.check_circle, scheme.secondary),
-            stat('En attente', summary.pendingCount, Icons.schedule, scheme.tertiary),
-            stat('Correspondances', summary.currentMatches, Icons.group, scheme.primary),
-            stat('Critères', summary.activeCriteria, Icons.tune, scheme.onSurfaceVariant),
+            Row(
+              children: [
+                stat('Synchronisés', summary.syncedCount, Icons.check_circle,
+                    scheme.secondary),
+                stat('En attente', summary.pendingCount, Icons.schedule,
+                    scheme.tertiary),
+                stat('Correspondances', summary.currentMatches, Icons.group,
+                    scheme.primary),
+                stat('Critères', summary.activeCriteria, Icons.tune,
+                    scheme.onSurfaceVariant),
+              ],
+            ),
+            if (summary.failedCount > 0) ...[
+              const Gap(10),
+              Text(
+                '${summary.failedCount} échec(s) — voir Mes contacts SBC',
+                style: theme.textTheme.bodySmall?.copyWith(color: scheme.error),
+              ),
+            ],
           ],
         ),
       ),
@@ -110,71 +160,67 @@ class _CriteriaTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final desc = [
+    final theme = Theme.of(context);
+    final bits = [
       ...criteria.countries,
       ...criteria.cities,
       ...criteria.professions,
-    ].take(4).join(', ');
+      ...criteria.interests,
+    ];
+    final desc = bits.isEmpty ? 'Tous les membres' : bits.take(4).join(' · ');
+    final more = bits.length > 4 ? ' +${bits.length - 4}' : '';
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: ListTile(
-        title: Text(criteria.label, style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text(desc.isEmpty ? 'Tous les membres' : desc),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Chip(
-              label: Text('${criteria.lastMatchCount}'),
-              visualDensity: VisualDensity.compact,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    criteria.label,
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                Chip(
+                  label: Text('${criteria.lastMatchCount}'),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+            const Gap(2),
+            Text(
+              '$desc$more',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const Gap(4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton.icon(
+                  onPressed: () => context.push('/criteria/${criteria.id}'),
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text('Modifier'),
+                ),
+                const Gap(4),
+                // Was hidden behind a long-press, which nobody would find.
+                FilledButton.icon(
+                  onPressed: () => context.push(
+                    '/sync/review/${criteria.id}?label=${Uri.encodeComponent(criteria.label)}',
+                  ),
+                  icon: const Icon(Icons.sync, size: 18),
+                  label: const Text('Synchroniser'),
+                ),
+              ],
             ),
           ],
         ),
-        onTap: () => context.push('/criteria/${criteria.id}'),
-        onLongPress: () => _runSync(context, ref, criteria),
       ),
-    );
-  }
-
-  /// Start a run, write matches to the phone book, and report outcomes (§10/§15).
-  Future<void> _runSync(BuildContext context, WidgetRef ref, SyncCriteria c) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final repo = ref.read(syncRepositoryProvider);
-    final contacts = ref.read(contactServiceProvider);
-
-    if (!await contacts.requestPermission()) {
-      messenger.showSnackBar(const SnackBar(content: Text('Permission contacts refusée')));
-      return;
-    }
-    SyncRunStart run;
-    try {
-      run = await repo.startRun(criteriaId: c.id);
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Échec: $e')));
-      return;
-    }
-
-    final results = <Map<String, dynamic>>[];
-    for (final t in run.items.where((t) => !t.alreadySynced)) {
-      final r = await contacts.addSbcContact(
-        firstName: t.firstName ?? t.displayName,
-        lastName: t.name,
-        phone: t.phoneNumber,
-        profession: t.profession,
-        city: t.city,
-        country: t.country,
-      );
-      results.add({
-        'memberSbcId': t.memberSbcId,
-        if (r.deviceContactId != null) 'deviceContactId': r.deviceContactId,
-        'status': r.success ? 'SYNCED' : 'FAILED',
-      });
-    }
-    if (results.isNotEmpty) {
-      await repo.reportRun(run.syncRunId, results);
-    }
-    ref.invalidate(syncSummaryProvider);
-    messenger.showSnackBar(
-      SnackBar(content: Text('${results.length} contact(s) synchronisé(s)')),
     );
   }
 }

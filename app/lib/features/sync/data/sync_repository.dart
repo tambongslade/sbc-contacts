@@ -55,9 +55,24 @@ class SyncRepository {
   Future<SyncSummary> summary() async =>
       SyncSummary.fromJson(await _api.get('/sync/summary') as Map<String, dynamic>);
 
-  Future<Paginated<Map<String, dynamic>>> history({int page = 1, int limit = 20}) async {
+  Future<Paginated<SyncRunEntry>> history({int page = 1, int limit = 20}) async {
     final data = await _api.get('/sync/history', query: {'page': page, 'limit': limit})
         as Map<String, dynamic>;
-    return Paginated.fromJson(data, (j) => j);
+    return Paginated.fromJson(data, SyncRunEntry.fromJson);
+  }
+
+  /// "Mes contacts SBC" (cahier §16); [status] filters on the backend enum
+  /// (PENDING / SYNCED / FAILED / STALE).
+  Future<Paginated<SyncedContact>> syncedContacts({
+    String? status,
+    int page = 1,
+    int limit = 30,
+  }) async {
+    final data = await _api.get('/sync/contacts', query: {
+      'page': page,
+      'limit': limit,
+      if (status != null) 'status': status,
+    }) as Map<String, dynamic>;
+    return Paginated.fromJson(data, SyncedContact.fromJson);
   }
 }

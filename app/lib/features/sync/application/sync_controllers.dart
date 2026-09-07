@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sbc_contacts/core/providers/core_providers.dart';
+import 'package:sbc_contacts/core/network/paginated.dart';
+import 'package:sbc_contacts/features/directory/domain/member.dart';
 import 'package:sbc_contacts/features/sync/domain/sync_models.dart';
 
 /// Saved criteria list.
@@ -34,6 +36,28 @@ final criteriaControllerProvider =
 /// "Mes contacts SBC" summary.
 final syncSummaryProvider = FutureProvider<SyncSummary>(
   (ref) => ref.watch(syncRepositoryProvider).summary(),
+);
+
+/// "Mes contacts SBC" list (cahier §16); [status] filters on the backend enum.
+final syncedContactsProvider =
+    FutureProvider.family<Paginated<SyncedContact>, String?>(
+  (ref, status) => ref.watch(syncRepositoryProvider).syncedContacts(status: status),
+);
+
+/// Synchronisation history (cahier §17).
+final syncHistoryProvider = FutureProvider<Paginated<SyncRunEntry>>(
+  (ref) => ref.watch(syncRepositoryProvider).history(),
+);
+
+/// Members matching a saved criteria, for the review-and-select screen (§10).
+///
+/// Deliberately the read-only endpoint: opening the screen to look must not
+/// create a SyncRun. Starting a run happens only when the member presses
+/// "Synchroniser", otherwise the history (§17) fills with phantom runs that
+/// synced nothing.
+final criteriaMatchesProvider =
+    FutureProvider.family<Paginated<Member>, String>(
+  (ref, criteriaId) => ref.watch(syncRepositoryProvider).matches(criteriaId),
 );
 
 /// Live match-count preview for an in-progress (unsaved) criteria form.

@@ -7,12 +7,38 @@ import 'package:sbc_contacts/features/directory/presentation/profile_screen.dart
 import 'package:sbc_contacts/features/home/home_shell.dart';
 import 'package:sbc_contacts/features/sync/application/sync_controllers.dart';
 import 'package:sbc_contacts/features/sync/presentation/criteria_edit_screen.dart';
+import 'package:sbc_contacts/shared/widgets/sbc_logo.dart';
+import 'package:sbc_contacts/features/sync/presentation/synced_contacts_screen.dart';
+import 'package:sbc_contacts/features/sync/presentation/sync_review_screen.dart';
+import 'package:sbc_contacts/features/sync/presentation/sync_history_screen.dart';
 
+/// Shown while the stored session is being restored.
+///
+/// Android 12+ crops its native splash icon to a circle, so the full lockup
+/// cannot appear there — this is the first moment the wordmark can be shown,
+/// and it carries straight on from the native splash's white ground.
 class _SplashScreen extends StatelessWidget {
   const _SplashScreen();
+
   @override
-  Widget build(BuildContext context) =>
-      const Scaffold(body: Center(child: CircularProgressIndicator()));
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            SbcLogo(height: 110),
+            SizedBox(height: 28),
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// Resolves a criteria id from the loaded list for editing.
@@ -54,6 +80,15 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/profile/:sbcId',
         builder: (_, s) => ProfileScreen(sbcId: s.pathParameters['sbcId']!),
+      ),
+      GoRoute(path: '/sync/history', builder: (_, __) => const SyncHistoryScreen()),
+      GoRoute(path: '/sync/contacts', builder: (_, __) => const SyncedContactsScreen()),
+      GoRoute(
+        path: '/sync/review/:id',
+        builder: (_, s) => SyncReviewScreen(
+          criteriaId: s.pathParameters['id']!,
+          label: s.uri.queryParameters['label'] ?? 'Synchronisation',
+        ),
       ),
       GoRoute(path: '/criteria/new', builder: (_, __) => const CriteriaEditScreen()),
       GoRoute(
