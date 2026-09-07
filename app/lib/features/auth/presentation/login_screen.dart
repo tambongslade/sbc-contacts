@@ -5,6 +5,7 @@ import 'package:sbc_contacts/core/config/app_config.dart';
 import 'package:sbc_contacts/core/network/api_exception.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
+import 'package:sbc_contacts/shared/widgets/sbc_logo.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Human-readable reason for a failed login (surfaces the backend message).
@@ -69,19 +70,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 84,
-                  height: 84,
-                  decoration: const BoxDecoration(
-                    gradient: SbcColors.brandArc,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.contacts, color: Colors.white, size: 40),
-                ),
-                const Gap(20),
-                Text('SBC Contacts', style: theme.textTheme.headlineSmall
-                    ?.copyWith(fontWeight: FontWeight.w800)),
-                const Gap(6),
+                const SbcLogo(height: 96),
+                const Gap(18),
                 Text(
                   'Ton réseau SBC, directement dans ton téléphone.',
                   style: theme.textTheme.bodyMedium

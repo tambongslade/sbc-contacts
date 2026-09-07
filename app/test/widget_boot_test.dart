@@ -6,6 +6,7 @@ import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/core/storage/token_storage.dart';
 import 'package:sbc_contacts/main.dart';
 import 'package:sbc_contacts/shared/widgets/empty_state.dart';
+import 'package:sbc_contacts/shared/widgets/sbc_logo.dart';
 
 void main() {
   setUpAll(() => GoogleFonts.config.allowRuntimeFetching = false);
@@ -35,6 +36,6 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('Se connecter avec SBC'), findsOneWidget);
-    expect(find.text('SBC Contacts'), findsOneWidget);
+    expect(find.byType(SbcLogo), findsOneWidget);
   });
 }

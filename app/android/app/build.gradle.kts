@@ -6,7 +6,8 @@ plugins {
 
 android {
     namespace = "com.sbc.sbc_contacts"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37
+    compileSdkMinor = 0
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

@@ -29,7 +29,6 @@ analyzer:
     unnecessary_lambdas: ignore
     prefer_const_constructors: ignore
     sort_constructors_first: ignore
-    flutter_style_todos: ignore
     document_ignores: ignore
 
 linter:
