@@ -39,26 +39,48 @@ export class DirectoryService {
 
   async search(userId: string, query: SearchQueryDto): Promise<PaginatedResult<MemberView>> {
     const accessToken = await this.sbcTokens.getValidAccessToken(userId);
-    const term = query.search?.trim();
+    const page = await this.getHydratedPage(userId, accessToken, query);
 
-    let page: HydratedPage;
-    if (term && !query.profession) {
-      // A free-text term should match NAME or PROFESSION. SBC can't OR the two
-      // params in one call, so we query both and merge (profession first — far
-      // more useful for a directory: "designer" -> 235, not just 4 name hits).
-      const [byProfession, byName] = await Promise.all([
-        this.fetchHydrated(userId, accessToken, { ...query, search: undefined, profession: term }),
-        this.fetchHydrated(userId, accessToken, query),
-      ]);
-      page = this.mergeHydrated(byProfession, byName);
-    } else {
-      page = await this.fetchHydrated(userId, accessToken, query);
-    }
+    // Warm the NEXT page's cache in the background so scrolling doesn't wait on
+    // SBC. Fire-and-forget — never blocks or fails this response.
+    this.prefetchNextPage(userId, accessToken, query, page);
 
     // Annotate fresh on every call (favorite/sync state changes; it's a cheap
     // indexed read) — but the expensive SBC call + upsert are cache-served.
     const annotated = await this.members.annotate(userId, page.rows);
     return paginate(annotated, page.total, page.page, page.limit);
+  }
+
+  /** Resolve one page (handling the name+profession merge), cache-served. */
+  private getHydratedPage(
+    userId: string,
+    accessToken: string,
+    query: SearchQueryDto,
+  ): Promise<HydratedPage> {
+    const term = query.search?.trim();
+    if (term && !query.profession) {
+      // A free-text term should match NAME or PROFESSION. SBC can't OR the two
+      // params in one call, so we query both and merge (profession first — far
+      // more useful for a directory: "designer" -> 235, not just 4 name hits).
+      return Promise.all([
+        this.fetchHydrated(userId, accessToken, { ...query, search: undefined, profession: term }),
+        this.fetchHydrated(userId, accessToken, query),
+      ]).then(([byProfession, byName]) => this.mergeHydrated(byProfession, byName));
+    }
+    return this.fetchHydrated(userId, accessToken, query);
+  }
+
+  private prefetchNextPage(
+    userId: string,
+    accessToken: string,
+    query: SearchQueryDto,
+    current: HydratedPage,
+  ): void {
+    const totalPages = current.limit > 0 ? Math.ceil(current.total / current.limit) : 0;
+    if (current.page >= totalPages) return; // already the last page
+    const next = { ...query, page: current.page + 1 } as SearchQueryDto;
+    // Fire-and-forget: populate the next page's cache, swallow any error.
+    void this.getHydratedPage(userId, accessToken, next).catch(() => undefined);
   }
 
   /**
