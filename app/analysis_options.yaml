@@ -1,0 +1,38 @@
+include: package:very_good_analysis/analysis_options.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+  errors:
+    # Keep the strict set, but don't fail the build on documentation/style-only
+    # lints while the app is under active construction.
+    public_member_api_docs: ignore
+    lines_longer_than_80_chars: ignore
+    always_use_package_imports: ignore
+    flutter_style_todos: ignore
+    one_member_abstracts: ignore
+    avoid_positional_boolean_parameters: ignore
+    prefer_int_literals: ignore
+    cascade_invocations: ignore
+    avoid_dynamic_calls: ignore
+    unnecessary_type_name_in_constructor: ignore
+    unnecessary_underscores: ignore
+    use_null_aware_elements: ignore
+    avoid_catches_without_on_clauses: ignore
+    unnecessary_raw_strings: ignore
+    async_return_with_no_await: ignore
+    inference_failure_on_untyped_parameter: ignore
+    inference_failure_on_collection_literal: ignore
+    avoid_redundant_argument_values: ignore
+    unnecessary_lambdas: ignore
+    prefer_const_constructors: ignore
+    sort_constructors_first: ignore
+    flutter_style_todos: ignore
+    document_ignores: ignore
+
+linter:
+  rules:
+    public_member_api_docs: false
+    lines_longer_than_80_chars: false

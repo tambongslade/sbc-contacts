@@ -1,0 +1,28 @@
+# dependencies
+node_modules/
+
+# build
+dist/
+build/
+
+# env & secrets
+.env
+.env.*
+!.env.example
+
+# logs
+logs/
+*.log
+npm-debug.log*
+
+# test / coverage
+coverage/
+.nyc_output/
+
+# ide / os
+.idea/
+.vscode/
+.DS_Store
+
+# prisma
+prisma/*.db

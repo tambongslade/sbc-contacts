@@ -1,0 +1,37 @@
+# ── Node / backend ──
+node_modules/
+backend/node_modules/
+backend/dist/
+backend/coverage/
+
+# ── Environment / secrets ──
+.env
+.env.*
+!.env.example
+
+# ── Flutter / app ──
+app/.dart_tool/
+app/build/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/android/.gradle/
+app/android/local.properties
+app/android/key.properties
+app/ios/Pods/
+app/ios/.symlinks/
+**/GeneratedPluginRegistrant.*
+.dart_tool/
+build/
+
+# ── Logs / tmp ──
+*.log
+*.tmp
+
+# ── OS / IDE ──
+.DS_Store
+.idea/
+.vscode/
+*.iml
+
+# ── Prisma local artifacts ──
+*.db

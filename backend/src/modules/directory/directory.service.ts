@@ -1,0 +1,74 @@
+import { Injectable } from '@nestjs/common';
+import { Member } from '@prisma/client';
+import { createHash } from 'crypto';
+import { PaginatedResult, paginate } from '../../common/dto/pagination.dto';
+import { RedisService } from '../../infrastructure/cache/redis.service';
+import { SbcExportResult, SbcSearchData } from '../sbc-client/interfaces/sbc.interface';
+import { SbcClientService } from '../sbc-client/sbc-client.service';
+import { SbcTokenService } from '../auth/services/sbc-token.service';
+import { MembersService } from '../members/members.service';
+import { MemberView } from '../members/member.view';
+import { SearchQueryDto } from './dto/search-query.dto';
+
+/**
+ * Directory = read-through proxy over SBC's per-member contacts search. Results
+ * are cached briefly in Redis, hydrated into the Member mirror, and annotated
+ * with the caller's favorite/sync state. Entitlement (subscription/scope) is
+ * enforced by SBC on every call and surfaces as 403 (cahier §20 in the guide).
+ */
+@Injectable()
+export class DirectoryService {
+  private static readonly SEARCH_TTL = 60; // seconds
+
+  constructor(
+    private readonly sbcTokens: SbcTokenService,
+    private readonly sbc: SbcClientService,
+    private readonly members: MembersService,
+    private readonly cache: RedisService,
+  ) {}
+
+  async search(userId: string, query: SearchQueryDto): Promise<PaginatedResult<MemberView>> {
+    const accessToken = await this.sbcTokens.getValidAccessToken(userId);
+
+    const cacheKey = `dir:search:${userId}:${this.hashQuery(query)}`;
+    const data = await this.cache.getOrSet<SbcSearchData>(cacheKey, DirectoryService.SEARCH_TTL, () =>
+      this.sbc.searchContacts(accessToken, query),
+    );
+
+    // Hydrate the mirror and map SBC ids -> our member rows (order preserved).
+    const rows = await this.members.upsertMany(data.items);
+    const bySbcId = new Map(rows.map((r) => [r.sbcId, r]));
+    const ordered = data.items.map((i) => bySbcId.get(i.id)).filter((m): m is Member => Boolean(m));
+
+    const annotated = await this.members.annotate(userId, ordered);
+    return paginate(annotated, data.total, data.page, data.limit);
+  }
+
+  async getProfile(userId: string, sbcId: string): Promise<MemberView> {
+    // Served from the mirror (no SBC get-by-id endpoint exists); populated by search.
+    const member = await this.members.getBySbcIdOrThrow(sbcId);
+    const [annotated] = await this.members.annotate(userId, [member]);
+    return annotated;
+  }
+
+  async export(userId: string, query: SearchQueryDto): Promise<SbcExportResult> {
+    const accessToken = await this.sbcTokens.getValidAccessToken(userId);
+    return this.sbc.exportContacts(accessToken, query);
+  }
+
+  private hashQuery(query: SearchQueryDto): string {
+    const normalized = {
+      search: query.search ?? '',
+      country: query.country ?? '',
+      city: query.city ?? '',
+      profession: query.profession ?? '',
+      sex: query.sex ?? '',
+      ageMin: query.ageMin ?? '',
+      ageMax: query.ageMax ?? '',
+      interests: [...(query.interests ?? [])].sort(),
+      page: query.page,
+      limit: query.limit,
+    };
+    return createHash('sha1').update(JSON.stringify(normalized)).digest('hex');
+  }
+}

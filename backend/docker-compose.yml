@@ -1,0 +1,65 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sbc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sbc}
+      POSTGRES_DB: ${POSTGRES_DB:-sbc_contacts}
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-sbc}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - '6379:6379'
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      target: runtime
+    restart: unless-stopped
+    env_file: .env
+    # Host 3001 -> container 3001 (3000 is taken on this host).
+    ports:
+      - '3001:3001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: sh -c "npx prisma migrate deploy && node dist/main.js"
+
+  worker:
+    build:
+      context: .
+      target: runtime
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Phase 4 introduces the dedicated worker entrypoint (BullMQ processors).
+    command: ['node', 'dist/main.js']
+
+volumes:
+  pgdata:
+  redisdata:

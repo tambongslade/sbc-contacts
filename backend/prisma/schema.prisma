@@ -1,0 +1,347 @@
+// SBC Contacts — Prisma schema
+// This backend is an SSO CLIENT of SBC. It does NOT own the member base.
+// The `Member` table is a MIRROR/CACHE of SBC members: hydrated cache-through
+// from proxied per-member searches today, and ready for webhook/bulk import
+// the moment SBC exposes those channels. Everything else is app-owned data.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Identity & sessions
+// ─────────────────────────────────────────────────────────────
+
+/// A user of SBC Contacts, identified 1:1 with an SBC account. We never
+/// create an independent credential (cahier §4) — auth is delegated to SBC SSO.
+enum Role {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  sbcUserId String   @unique // SBC's user id (source of truth for identity)
+  role      Role     @default(USER)
+
+  // Cached profile snapshot from /api/sso/userinfo (refreshed on login).
+  name              String?
+  email             String?
+  phoneNumber       String?
+  country           String?
+  avatarUrl         String?
+  subscriptionTypes String[] @default([])
+  isActivated       Boolean  @default(false)
+
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime? // soft delete
+
+  sbcToken       SbcToken?
+  sessions       AppSession[]
+  criteria       SyncCriteria[]
+  favorites      Favorite[]
+  syncRuns       SyncRun[]
+  syncedContacts SyncedContact[]
+  notifications  Notification[]
+  devices        Device[]
+  addedByMe      AddedEvent[]    @relation("actor")
+
+  @@index([deletedAt])
+  @@map("users")
+}
+
+/// SBC access/refresh tokens, ENCRYPTED at rest (AES-256-GCM).
+/// One current pair per user; rotated on every /sso/refresh (rolling refresh).
+model SbcToken {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @unique @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  accessTokenEnc   String // ciphertext
+  refreshTokenEnc  String // ciphertext
+  scope            String
+  accessExpiresAt  DateTime
+  refreshExpiresAt DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("sbc_tokens")
+}
+
+/// Our OWN app session for the Flutter client: a refresh-token family with
+/// rotation + reuse detection. Access tokens are stateless JWTs (not stored).
+model AppSession {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  refreshTokenHash String    @unique // sha-256 of the issued refresh token
+  familyId         String    @db.Uuid // rotation family; reuse of a rotated token revokes the family
+  deviceId         String?
+  userAgent        String?
+  ip               String?
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  replacedById     String?   @db.Uuid
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("app_sessions")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  SBC member mirror (cache)
+// ─────────────────────────────────────────────────────────────
+
+enum MemberSource {
+  SEARCH_CACHE // hydrated opportunistically from a proxied search
+  WEBHOOK // pushed by SBC (future)
+  BULK_IMPORT // batch import (future)
+}
+
+/// Denormalised, best-effort copy of SBC member fields the directory shows.
+/// Authoritative data always lives in SBC; this is a queryable cache and the
+/// substrate for criteria-matching. TTL/`staleAfter` governs re-fetch.
+model Member {
+  id        String @id @default(uuid()) @db.Uuid
+  sbcId     String @unique // SBC member id
+
+  name        String?
+  firstName   String?
+  profession  String?
+  city        String?
+  country     String?
+  sex         String?
+  age         Int?
+  interests   String[] @default([])
+  skills      String[] @default([])
+  avatarUrl   String?
+  phoneNumber String?
+
+  source      MemberSource @default(SEARCH_CACHE)
+  lastSeenAt  DateTime     @default(now()) // last time SBC confirmed this record
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  favoritedBy    Favorite[]
+  syncedContacts SyncedContact[]
+
+  @@index([country, city])
+  @@index([profession])
+  @@index([sex, age])
+  @@map("members")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Saved sync criteria & sync operations
+// ─────────────────────────────────────────────────────────────
+
+/// A named set of matching criteria (cahier §10). The matching worker
+/// re-evaluates active criteria and raises NEW_MATCH notifications.
+model SyncCriteria {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  label       String
+  countries   String[] @default([])
+  cities      String[] @default([])
+  professions String[] @default([])
+  interests   String[] @default([])
+  sex         String?
+  ageMin      Int?
+  ageMax      Int?
+
+  isActive        Boolean   @default(true)
+  lastCheckedAt   DateTime?
+  lastResultHash  String? // fingerprint of the last match set, for cheap diffing
+  lastMatchCount  Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, isActive])
+  @@map("sync_criteria")
+}
+
+enum SyncRunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+/// One synchronisation operation, for the history view (cahier §17).
+model SyncRun {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  criteriaId  String?       @db.Uuid
+  deviceId    String?
+  status      SyncRunStatus @default(PENDING)
+  matchCount  Int           @default(0)
+  syncedCount Int           @default(0)
+  failedCount Int           @default(0)
+  error       String?
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([userId, startedAt])
+  @@map("sync_runs")
+}
+
+enum SyncStatus {
+  PENDING
+  SYNCED
+  FAILED
+  STALE // SBC data changed since last write to the device
+}
+
+/// Tracks which SBC members a user has written to which device, powering
+/// dedup (cahier §15), "Mes contacts SBC" (§16) and identification (§14).
+model SyncedContact {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  memberId String @db.Uuid
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  deviceId        String?
+  deviceContactId String? // native contact id returned by the phone
+  status          SyncStatus @default(PENDING)
+  syncedAt        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, memberId, deviceId])
+  @@index([userId, status])
+  @@map("synced_contacts")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Favorites, notifications, events, audit
+// ─────────────────────────────────────────────────────────────
+
+/// Cahier §18.
+model Favorite {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  memberId String @db.Uuid
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, memberId])
+  @@index([userId])
+  @@map("favorites")
+}
+
+enum NotificationType {
+  NEW_MATCH // a new member matches a saved criteria (§11)
+  NEW_CORRESPONDENCE // new correspondences available (§19)
+  SYNC_AVAILABLE // pending contacts ready to sync
+  SYNC_ERROR // a sync failed
+}
+
+/// In-app notification store (cahier §19). Push/SMS/email are dispatched via
+/// the notifications abstraction on top of these rows.
+model Notification {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type    NotificationType
+  title   String
+  body    String
+  data    Json?
+  readAt  DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+/// "Qui m'a ajouté ?" — only recorded when technically confirmable (cahier §21).
+model AddedEvent {
+  id      String @id @default(uuid()) @db.Uuid
+  actorId String @db.Uuid
+  actor   User   @relation("actor", fields: [actorId], references: [id], onDelete: Cascade)
+
+  targetMemberSbcId String
+  confirmedAt       DateTime @default(now())
+
+  @@index([targetMemberSbcId])
+  @@map("added_events")
+}
+
+/// Reusable audit trail for sensitive business actions (brief §11).
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @db.Uuid
+  action     String // e.g. "criteria.update", "sync.run"
+  resource   String // e.g. "SyncCriteria:<id>"
+  before     Json?
+  after      Json?
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+enum Platform {
+  ANDROID
+  IOS
+}
+
+/// Push registration for notifications.
+model Device {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  platform  Platform
+  pushToken String?
+  lastSeenAt DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@unique([userId, pushToken])
+  @@map("devices")
+}
+
+/// Idempotency + audit for inbound SBC webhooks (cahier §11 / brief §20).
+/// Ready now; consumed once SBC emits new/updated-member events.
+model WebhookEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  externalId  String   @unique // provider event id — dedup key for idempotency
+  type        String
+  payload     Json
+  signature   String?
+  processedAt DateTime?
+  error       String?
+  createdAt   DateTime @default(now())
+
+  @@index([type])
+  @@map("webhook_events")
+}
