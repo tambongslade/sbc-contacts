@@ -35,21 +35,31 @@ pm2 restart sbc-contacts-api --update-env
 (symlinked into `sites-enabled/`) — a plain reverse proxy to `localhost:3031`,
 added alongside the existing sites without touching them.
 
-## ⚠️ One manual step before SSO login works
+## SSO status
 
-The backend is running, but "Log in with SBC" needs a **real SBC client**. An SBC
-operator must register this app and give us the client secret (see
-`SSO_INTEGRATION_GUIDE.md`):
+The backend currently **reuses SBC Live's registered SSO client** (`client_id=sbc-live`,
+its secret, and redirect `https://sniperbusinesscenterlive.com/auth/callback`). Verified
+against production SBC: a token exchange with a bad code returns SBC's real
+`400 "Invalid … authorization code"` (a `401` would mean a bad client), so the client
+credentials are accepted and **login works end-to-end** once a real authorization code
+is presented.
 
-```bash
-cd user-service   # on the SBC platform
-npx ts-node src/scripts/seed-sso-client.ts \
-  --clientId=sbc-contacts \
-  --name="SBC Contacts" \
-  --redirectUri=sbccontacts://auth/callback \
-  --scope=profile.read --scope=contacts.read
-```
+**Two limitations of reusing the sbc-live client:**
 
-Then put the printed secret into `backend/.env` as `SBC_SSO_CLIENT_SECRET=...` and
-`pm2 restart sbc-contacts-api`. Until then, health/directory endpoints work but the
-SSO code exchange will fail (placeholder secret).
+1. **`contacts.read` is not granted to `sbc-live`** (its scopes are
+   `profile.read payments.write referrals.read`). So login works, but the **directory /
+   search feature returns `403 INSUFFICIENT_SCOPE`** until an SBC operator either adds
+   `contacts.read` to the `sbc-live` client, or seeds a dedicated `sbc-contacts` client:
+   ```bash
+   cd user-service   # on the SBC platform
+   npx ts-node src/scripts/seed-sso-client.ts \
+     --clientId=sbc-contacts --name="SBC Contacts" \
+     --redirectUri=<mobile-or-web-callback> \
+     --scope=profile.read --scope=contacts.read
+   ```
+   Then set `SBC_SSO_CLIENT_ID` / `SBC_SSO_CLIENT_SECRET` in `backend/.env` and
+   `pm2 restart sbc-contacts-api`.
+
+2. **The redirect_uri is a web URL**, not a mobile deep link. The app's manual
+   "J'ai un code" entry works today; a seamless mobile flow needs the deep link
+   (`sbccontacts://auth/callback`) registered as an allowed redirect for the client.

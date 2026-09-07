@@ -21,15 +21,22 @@ class AppConfig {
     defaultValue: 'https://sniperbuisnesscenter.com/sso/authorize',
   );
 
+  // Reusing SBC Live's registered SSO client for now (see DEPLOYMENT.md).
   static const String ssoClientId = String.fromEnvironment(
     'SBC_SSO_CLIENT_ID',
-    defaultValue: 'sbc-contacts',
+    defaultValue: 'sbc-live',
   );
 
+  // Must exactly match a redirect_uri registered for the client on SBC's side.
   static const String ssoRedirectUri = String.fromEnvironment(
     'SBC_SSO_REDIRECT_URI',
-    defaultValue: 'sbccontacts://auth/callback',
+    defaultValue: 'https://sniperbusinesscenterlive.com/auth/callback',
   );
 
-  static const String ssoScopes = 'profile.read contacts.read';
+  // sbc-live is only granted profile.read here (not contacts.read) — the
+  // directory needs contacts.read added to the client on SBC's side.
+  static const String ssoScopes = String.fromEnvironment(
+    'SBC_SSO_SCOPES',
+    defaultValue: 'profile.read',
+  );
 }
