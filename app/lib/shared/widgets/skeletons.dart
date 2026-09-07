@@ -73,39 +73,60 @@ class _Stat extends StatelessWidget {
 }
 
 /// Skeleton for a card list (search results, criteria).
+///
+/// Mirrors the real member-card geometry — same margins, same avatar size,
+/// same trailing actions — so nothing shifts when the data lands.
 class CardListSkeleton extends StatelessWidget {
-  const CardListSkeleton({this.rows = 5, super.key});
+  const CardListSkeleton({this.rows = 5, this.hasActions = true, super.key});
+
   final int rows;
+  final bool hasActions;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Skeletonizer(
-      child: Column(
-        children: [
-          for (var i = 0; i < rows; i++)
-            const Card(
-              margin: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              child: Padding(
-                padding: EdgeInsets.all(12),
-                child: Row(
-                  children: [
-                    CircleAvatar(radius: 22),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Nom du membre'),
-                          SizedBox(height: 4),
-                          Text('Profession · Région'),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+      child: ListView.builder(
+        padding: const EdgeInsets.only(top: 8),
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: rows,
+        itemBuilder: (context, i) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
               ),
             ),
-        ],
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+              child: Row(
+                children: [
+                  const CircleAvatar(radius: 23),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Nom du membre SBC'),
+                        SizedBox(height: 4),
+                        Text('Profession · Région'),
+                      ],
+                    ),
+                  ),
+                  if (hasActions) ...[
+                    const Icon(Icons.circle, size: 24),
+                    const SizedBox(width: 12),
+                    const Icon(Icons.circle, size: 46),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:sbc_contacts/features/sync/application/sync_controllers.dart';
 import 'package:sbc_contacts/features/sync/application/sync_runner.dart';
-import 'package:sbc_contacts/core/network/paginated.dart';
 import 'package:sbc_contacts/features/directory/domain/member.dart';
 import 'package:sbc_contacts/shared/widgets/empty_state.dart';
 import 'package:sbc_contacts/shared/widgets/member_avatar.dart';

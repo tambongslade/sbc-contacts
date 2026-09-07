@@ -27,6 +27,13 @@ class _FilterSheetState extends State<FilterSheet> {
   late double _ageMin = (widget.initial.ageMin ?? 18).toDouble();
   late double _ageMax = (widget.initial.ageMax ?? 65).toDouble();
 
+  /// The age range is only sent once the member has actually moved it.
+  /// Sending the 18–65 default unasked silently hid every member outside it —
+  /// and the active-filter chips would then always show an age the member
+  /// never chose.
+  late bool _ageTouched =
+      widget.initial.ageMin != null || widget.initial.ageMax != null;
+
   void _apply() {
     Navigator.of(context).pop(
       SearchFilters(
@@ -36,8 +43,8 @@ class _FilterSheetState extends State<FilterSheet> {
         city: widget.initial.city,
         profession: _profession,
         sex: _sex,
-        ageMin: _ageMin.round(),
-        ageMax: _ageMax.round(),
+        ageMin: _ageTouched ? _ageMin.round() : null,
+        ageMax: _ageTouched ? _ageMax.round() : null,
         interests: _interests.toList(),
       ),
     );
@@ -45,7 +52,8 @@ class _FilterSheetState extends State<FilterSheet> {
 
   int get _activeCount =>
       [_country, _region, _profession, _sex].where((v) => v != null).length +
-      (_interests.isEmpty ? 0 : 1);
+      (_interests.isEmpty ? 0 : 1) +
+      (_ageTouched ? 1 : 0);
 
   @override
   Widget build(BuildContext context) {
@@ -64,16 +72,22 @@ class _FilterSheetState extends State<FilterSheet> {
           children: [
             Row(
               children: [
-                Text('Filtres', style: theme.textTheme.titleLarge),
-                const Gap(8),
-                if (_activeCount > 0)
-                  Chip(
-                    label: Text('$_activeCount actif${_activeCount > 1 ? 's' : ''}'),
-                    visualDensity: VisualDensity.compact,
-                  ),
+                Text(
+                  'Filtres',
+                  style: theme.textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const Gap(10),
+                if (_activeCount > 0) _ActiveCountPill(count: _activeCount),
               ],
             ),
-            const Gap(14),
+            const Gap(4),
+            Text(
+              'Les filtres se combinent entre eux.',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const Gap(16),
 
             // Country is picked by name but sent as its ISO code.
             _CodePicker(
@@ -102,9 +116,9 @@ class _FilterSheetState extends State<FilterSheet> {
               onChanged: (v) => setState(() => _profession = v),
             ),
 
-            const Gap(16),
-            Text('Sexe', style: theme.textTheme.labelLarge),
-            const Gap(6),
+            const Gap(20),
+            const _SectionLabel('Sexe'),
+            const Gap(8),
             Wrap(
               spacing: 8,
               children: [
@@ -122,9 +136,9 @@ class _FilterSheetState extends State<FilterSheet> {
               ],
             ),
 
-            const Gap(16),
-            Text("Centres d'intérêt", style: theme.textTheme.labelLarge),
-            const Gap(6),
+            const Gap(20),
+            const _SectionLabel("Centres d'intérêt"),
+            const Gap(8),
             Wrap(
               spacing: 8,
               runSpacing: 4,
@@ -140,10 +154,30 @@ class _FilterSheetState extends State<FilterSheet> {
               ],
             ),
 
-            const Gap(16),
-            Text(
-              'Âge : ${_ageMin.round()} – ${_ageMax.round()} ans',
-              style: theme.textTheme.labelLarge,
+            const Gap(20),
+            Row(
+              children: [
+                const _SectionLabel('Âge'),
+                const Spacer(),
+                Text(
+                  _ageTouched
+                      ? '${_ageMin.round()} – ${_ageMax.round()} ans'
+                      : 'Tous les âges',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: _ageTouched
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (_ageTouched)
+                  IconButton(
+                    tooltip: 'Ne pas filtrer par âge',
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                    onPressed: () => setState(() => _ageTouched = false),
+                  ),
+              ],
             ),
             RangeSlider(
               min: 16,
@@ -154,23 +188,90 @@ class _FilterSheetState extends State<FilterSheet> {
               onChanged: (v) => setState(() {
                 _ageMin = v.start;
                 _ageMax = v.end;
+                _ageTouched = true;
               }),
             ),
 
-            const Gap(16),
+            const Gap(20),
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => Navigator.of(context).pop(const SearchFilters()),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
                     child: const Text('Réinitialiser'),
                   ),
                 ),
                 const Gap(12),
                 Expanded(
-                  child: FilledButton(onPressed: _apply, child: const Text('Appliquer')),
+                  flex: 2,
+                  child: FilledButton(
+                    onPressed: _apply,
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                    child: const Text('Appliquer'),
+                  ),
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Group heading — one consistent weight for every section of the sheet.
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Text(
+      text,
+      style: theme.textTheme.labelLarge?.copyWith(
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.3,
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+    );
+  }
+}
+
+/// How many filters are currently set — stated as a number, never as a colour.
+class _ActiveCountPill extends StatelessWidget {
+  const _ActiveCountPill({required this.count});
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.28),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.tune_rounded, size: 14, color: theme.colorScheme.primary),
+            const Gap(6),
+            Text(
+              '$count actif${count > 1 ? 's' : ''}',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ],
         ),
