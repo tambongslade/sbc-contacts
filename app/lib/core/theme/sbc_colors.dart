@@ -27,6 +27,10 @@ class SbcColors {
   static const Color info = Color(0xFF3B82F6);
   static const Color live = Color(0xFFE5484D);
 
+  /// WhatsApp brand green — used only for the "contacter sur WhatsApp"
+  /// affordance, so the action is recognisable at a glance (cahier §8).
+  static const Color whatsapp = Color(0xFF25D366);
+
   // Surfaces
   static const Color bgLight = Color(0xFFF4F7FD);
   static const Color surfaceLight = Color(0xFFFFFFFF);

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
+import 'package:simple_icons/simple_icons.dart';
 import 'package:sbc_contacts/core/providers/core_providers.dart';
+import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/directory/domain/member.dart';
 import 'package:sbc_contacts/shared/services/whatsapp.dart';
 import 'package:sbc_contacts/shared/widgets/empty_state.dart';
@@ -76,8 +78,13 @@ class _ProfileBody extends ConsumerWidget {
                 onPressed: member.phoneNumber == null
                     ? null
                     : () => openWhatsApp(member.phoneNumber!),
-                icon: const Icon(Icons.chat),
+                icon: const Icon(SimpleIcons.whatsapp, size: 20),
                 label: const Text('WhatsApp'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: SbcColors.whatsapp,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(48),
+                ),
               ),
             ),
             const Gap(12),

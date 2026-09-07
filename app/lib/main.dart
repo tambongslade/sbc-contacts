@@ -31,6 +31,10 @@ class _SbcContactsAppState extends ConsumerState<SbcContactsApp> {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
+      // SBC Contacts is a light-ground product: the brand lockup and the
+      // directory cards are designed on the light surface, so the app does
+      // not follow the phone's dark mode.
+      themeMode: ThemeMode.light,
       routerConfig: router,
     );
   }

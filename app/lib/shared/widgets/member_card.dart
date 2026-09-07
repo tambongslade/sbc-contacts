@@ -5,8 +5,8 @@ import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/features/directory/application/search_controller.dart';
 import 'package:sbc_contacts/features/directory/domain/member.dart';
 import 'package:sbc_contacts/features/favorites/application/favorites_controller.dart';
-import 'package:sbc_contacts/shared/services/whatsapp.dart';
 import 'package:sbc_contacts/shared/widgets/member_avatar.dart';
+import 'package:sbc_contacts/shared/widgets/whatsapp_button.dart';
 
 class MemberCard extends ConsumerWidget {
   const MemberCard({required this.member, this.onTap, super.key});
@@ -63,13 +63,7 @@ class MemberCard extends ConsumerWidget {
                 ),
               ),
               _FavoriteButton(member: member),
-              IconButton(
-                tooltip: 'WhatsApp',
-                icon: const Icon(Icons.chat, color: Color(0xFF25D366)),
-                onPressed: member.phoneNumber == null
-                    ? null
-                    : () => openWhatsApp(member.phoneNumber!),
-              ),
+              WhatsAppButton(phoneNumber: member.phoneNumber),
             ],
           ),
         ),

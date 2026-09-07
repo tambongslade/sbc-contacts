@@ -1,4 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Adding an SBC member to the phone book (cahier §9, §12). READ is
+         required as well as WRITE: duplicate detection (§15) has to look the
+         number up before creating anything. Both are runtime permissions —
+         the app asks, and handles refusal. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS"/>
+    <uses-permission android:name="android.permission.WRITE_CONTACTS"/>
+
     <application
         android:label="SBC Contacts"
         android:name="${applicationName}"

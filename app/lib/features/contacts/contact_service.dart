@@ -14,8 +14,20 @@ class ContactWriteResult {
 class ContactService {
   Future<bool> requestPermission() async {
     final status = await FlutterContacts.permissions.request(PermissionType.readWrite);
-    return status == PermissionStatus.granted || status == PermissionStatus.limited;
+    return _isUsable(status);
   }
+
+  /// Current status without prompting — lets the UI explain itself before the
+  /// system dialog appears, and lets it stay quiet once access is granted.
+  Future<PermissionStatus> checkPermission() =>
+      FlutterContacts.permissions.check(PermissionType.readWrite);
+
+  Future<bool> hasPermission() async => _isUsable(await checkPermission());
+
+  /// iOS 18 "limited" means the member picked specific contacts to share; that
+  /// is still enough to create and dedup, so treat it as usable.
+  static bool _isUsable(PermissionStatus s) =>
+      s == PermissionStatus.granted || s == PermissionStatus.limited;
 
   /// True if a contact with this phone number already exists on the device
   /// (cahier §15 duplicate detection — the authoritative check is native).

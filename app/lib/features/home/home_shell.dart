@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sbc_contacts/features/auth/presentation/account_screen.dart';
+import 'package:sbc_contacts/features/contacts/contacts_permission_gate.dart';
 import 'package:sbc_contacts/features/directory/presentation/search_screen.dart';
 import 'package:sbc_contacts/features/favorites/presentation/favorites_screen.dart';
 import 'package:sbc_contacts/features/notifications/application/notifications_controller.dart';
@@ -16,6 +17,16 @@ class HomeShell extends ConsumerStatefulWidget {
 
 class _HomeShellState extends ConsumerState<HomeShell> {
   int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Ask for contacts access once the shell is on screen, so the member sees
+    // the app behind the explanation rather than a bare system dialog.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ContactsPermissionGate.ensure(context, ref);
+    });
+  }
 
   static const _screens = [
     SearchScreen(),
