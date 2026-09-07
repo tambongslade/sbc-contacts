@@ -1,4 +1,4 @@
-import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { RequestMethod, ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -30,8 +30,11 @@ async function bootstrap(): Promise<void> {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
 
-  // URI versioning: /api/v1/... (brief §17).
-  app.setGlobalPrefix(apiPrefix);
+  // URI versioning: /api/v1/... (brief §17). The SSO callback bridge lives at
+  // the bare /auth/callback (SBC's registered redirect_uri), so it's excluded.
+  app.setGlobalPrefix(apiPrefix, {
+    exclude: [{ path: 'auth/callback', method: RequestMethod.GET }],
+  });
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
 
   // Global validation: whitelist + reject unknown props + transform (brief §7).

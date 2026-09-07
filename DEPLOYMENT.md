@@ -37,29 +37,30 @@ added alongside the existing sites without touching them.
 
 ## SSO status
 
-The backend currently **reuses SBC Live's registered SSO client** (`client_id=sbc-live`,
-its secret, and redirect `https://sniperbusinesscenterlive.com/auth/callback`). Verified
-against production SBC: a token exchange with a bad code returns SBC's real
-`400 "Invalid … authorization code"` (a `401` would mean a bad client), so the client
-credentials are accepted and **login works end-to-end** once a real authorization code
-is presented.
+The backend uses its **own dedicated SSO client** `sbc-contacts` (seeded on the SBC
+platform). Registered redirect URIs:
+`https://contacts.sniperbusinesscenterlive.com/auth/callback` **and**
+`sbccontacts://auth/callback`; allowed scopes `profile.read, contacts.read`. Verified
+against production SBC — a token exchange with a bad code returns SBC's real
+`400 "Invalid … authorization code"` (a `401` would mean a bad client), so our client is
+accepted and login works end-to-end with a real code. `contacts.read` is granted, so the
+directory works after login.
 
-**Two limitations of reusing the sbc-live client:**
+### Mobile login flow (seamless, no manual paste)
 
-1. **`contacts.read` is not granted to `sbc-live`** (its scopes are
-   `profile.read payments.write referrals.read`). So login works, but the **directory /
-   search feature returns `403 INSUFFICIENT_SCOPE`** until an SBC operator either adds
-   `contacts.read` to the `sbc-live` client, or seeds a dedicated `sbc-contacts` client:
-   ```bash
-   cd user-service   # on the SBC platform
-   npx ts-node src/scripts/seed-sso-client.ts \
-     --clientId=sbc-contacts --name="SBC Contacts" \
-     --redirectUri=<mobile-or-web-callback> \
-     --scope=profile.read --scope=contacts.read
-   ```
-   Then set `SBC_SSO_CLIENT_ID` / `SBC_SSO_CLIENT_SECRET` in `backend/.env` and
-   `pm2 restart sbc-contacts-api`.
+1. App opens `https://sniperbuisnesscenter.com/sso/authorize` with
+   `client_id=sbc-contacts`, `redirect_uri=https://contacts.sniperbusinesscenterlive.com/auth/callback`,
+   `scope=profile.read contacts.read`.
+2. After consent, SBC redirects the browser to our **callback bridge** —
+   `GET /auth/callback` on this backend (mounted at the bare path, excluded from the
+   `/api/v1` prefix). The bridge page redirects to `sbccontacts://auth/callback?code=...`
+   (with a copy-code fallback).
+3. The app receives the deep link (`app_links` + Android intent-filter), extracts the
+   code, and calls `POST /api/v1/auth/sso-callback` to exchange it for a session.
 
-2. **The redirect_uri is a web URL**, not a mobile deep link. The app's manual
-   "J'ai un code" entry works today; a seamless mobile flow needs the deep link
-   (`sbccontacts://auth/callback`) registered as an allowed redirect for the client.
+If the secret is ever rotated (re-running the seed upserts by clientId), update
+`SBC_SSO_CLIENT_SECRET` in `backend/.env` and `pm2 restart sbc-contacts-api`.
+
+> Android App Links (the `https://` intent-filter, `autoVerify`) will only auto-open
+> the app once `/.well-known/assetlinks.json` (with the signed APK's SHA-256) is hosted
+> on the domain. The `sbccontacts://` custom scheme works without that.

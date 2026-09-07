@@ -14,6 +14,7 @@ import { RedisModule } from './infrastructure/cache/redis.module';
 import { QueueModule } from './infrastructure/queue/queue.module';
 import { SbcClientModule } from './modules/sbc-client/sbc-client.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { SsoBridgeModule } from './modules/sso-bridge/sso-bridge.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { MembersModule } from './modules/members/members.module';
 import { DirectoryModule } from './modules/directory/directory.module';
@@ -88,6 +89,7 @@ const nodeEnv = process.env.NODE_ENV ?? 'development';
     AuditModule,
     SbcClientModule,
     AuthModule,
+    SsoBridgeModule,
     MembersModule,
     DirectoryModule,
     FavoritesModule,
