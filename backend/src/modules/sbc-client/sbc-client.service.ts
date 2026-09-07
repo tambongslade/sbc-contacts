@@ -77,8 +77,13 @@ export class SbcClientService {
       accessToken,
     );
     const normalized = this.normalizeSearch(raw, query);
+    const firstUser = Array.isArray((raw as { users?: unknown[] }).users)
+      ? (raw as { users: Array<Record<string, unknown>> }).users[0]
+      : undefined;
     this.logger.log(
-      `contacts/sso/search keys=[${Object.keys(raw ?? {}).join(',')}] -> ${normalized.items.length} items (total ${normalized.total})`,
+      `contacts/sso/search keys=[${Object.keys(raw ?? {}).join(',')}]` +
+        ` memberKeys=[${firstUser ? Object.keys(firstUser).join(',') : ''}]` +
+        ` -> ${normalized.items.length} items (total ${normalized.total})`,
     );
     return normalized;
   }
@@ -213,15 +218,17 @@ export class SbcClientService {
    */
   private normalizeSearch(raw: Record<string, unknown>, query: SbcContactQuery): SbcSearchData {
     const list =
+      (raw.users as unknown[]) ?? // SBC's actual key for the member list
       (raw.items as unknown[]) ??
       (raw.contacts as unknown[]) ??
       (raw.results as unknown[]) ??
+      (raw.data as unknown[]) ??
       (Array.isArray(raw) ? (raw as unknown[]) : []);
 
     const items = list.map((c) => this.normalizeContact(c as Record<string, unknown>));
     const page = Number(raw.page ?? query.page ?? 1);
-    const limit = Number(raw.limit ?? query.limit ?? items.length ?? 20);
-    const total = Number(raw.total ?? items.length);
+    const limit = Number(raw.limit ?? raw.pageSize ?? query.limit ?? items.length ?? 20);
+    const total = Number(raw.totalCount ?? raw.total ?? items.length); // SBC: totalCount
     const totalPages = Number(raw.totalPages ?? (limit ? Math.ceil(total / limit) : 0));
     const hasMore = raw.hasMore !== undefined ? Boolean(raw.hasMore) : page < totalPages;
 
