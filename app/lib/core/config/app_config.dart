@@ -10,7 +10,9 @@ class AppConfig {
 
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:3030/api/v1',
+    // Deployed backend. Override with --dart-define=API_BASE_URL=... for local
+    // dev (e.g. http://10.0.2.2:3030/api/v1 on the Android emulator).
+    defaultValue: 'https://contacts.sniperbusinesscenterlive.com/api/v1',
   );
 
   /// SBC "Log in with SBC" authorize URL + client params (frontend side).

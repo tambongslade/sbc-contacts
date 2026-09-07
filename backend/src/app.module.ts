@@ -32,7 +32,8 @@ const nodeEnv = process.env.NODE_ENV ?? 'development';
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
-      // Later files win: shared `.env` defaults, overridden by env-specific file.
+      // env-specific file listed last so it overrides the base `.env`.
+      // (On the deployed server, `.env` holds the active production config.)
       envFilePath: ['.env', `.env.${nodeEnv}`],
       validate: validateEnv,
       load: [() => configuration(validateEnv(process.env))],
