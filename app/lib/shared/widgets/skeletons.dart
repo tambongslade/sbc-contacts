@@ -92,20 +92,17 @@ class CardListSkeleton extends StatelessWidget {
         physics: const NeverScrollableScrollPhysics(),
         itemCount: rows,
         itemBuilder: (context, i) => Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: theme.colorScheme.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
-              ),
+              borderRadius: BorderRadius.circular(24),
             ),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+              padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
               child: Row(
                 children: [
-                  const CircleAvatar(radius: 23),
+                  const CircleAvatar(radius: 24),
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Column(

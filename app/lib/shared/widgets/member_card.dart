@@ -42,11 +42,12 @@ class MemberCard extends ConsumerWidget {
   }
 }
 
-/// Card shell: flat surface + hairline border instead of an elevated card.
+/// Card shell: a soft, near-pill surface floating on the tinted ground.
 ///
-/// A long scrolling list of drop shadows reads as noise (and costs a shadow
-/// per row on mid-range Android); a hairline keeps the rhythm calm and lets
-/// the avatar and the WhatsApp disc be the only saturated things on screen.
+/// One low-blur shadow per row rather than a hairline border — the border read
+/// as a table rule and flattened the list. The radius is deliberately large so
+/// the row reads as a discrete object, and the padding is generous: this list
+/// is scanned, not read, and whitespace is what makes it scannable.
 class _PressableRow extends StatefulWidget {
   const _PressableRow({
     required this.child,
@@ -63,6 +64,9 @@ class _PressableRow extends StatefulWidget {
 }
 
 class _PressableRowState extends State<_PressableRow> {
+  /// Near-pill: large enough that the row reads as an object, not a table cell.
+  static const double _radius = 24;
+
   bool _pressed = false;
 
   void _setPressed({required bool value}) {
@@ -73,32 +77,41 @@ class _PressableRowState extends State<_PressableRow> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
       child: AnimatedScale(
         // Just enough to acknowledge the touch; anything bigger reads as a bug.
         scale: _pressed ? 0.985 : 1,
         duration: const Duration(milliseconds: 110),
         curve: Curves.easeOut,
-        child: Material(
-          color: theme.colorScheme.surface,
-          clipBehavior: Clip.antiAlias,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
-            ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(_radius),
+            boxShadow: [
+              BoxShadow(
+                color: theme.colorScheme.shadow.withValues(alpha: 0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
-          child: Semantics(
-            button: widget.onTap != null,
-            label: widget.semanticLabel,
-            child: InkWell(
-              onTap: widget.onTap,
-              onTapDown: (_) => _setPressed(value: true),
-              onTapUp: (_) => _setPressed(value: false),
-              onTapCancel: () => _setPressed(value: false),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-                child: widget.child,
+          child: Material(
+            color: theme.colorScheme.surface,
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(_radius),
+            ),
+            child: Semantics(
+              button: widget.onTap != null,
+              label: widget.semanticLabel,
+              child: InkWell(
+                onTap: widget.onTap,
+                onTapDown: (_) => _setPressed(value: true),
+                onTapUp: (_) => _setPressed(value: false),
+                onTapCancel: () => _setPressed(value: false),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
+                  child: widget.child,
+                ),
               ),
             ),
           ),
@@ -121,7 +134,7 @@ class _MemberAvatarBlock extends StatelessWidget {
     final avatar = MemberAvatar(
       initials: member.initials,
       avatarUrl: member.avatarUrl,
-      radius: 23,
+      radius: 24,
     );
     if (!member.isSynced) return avatar;
 
