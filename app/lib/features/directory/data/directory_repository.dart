@@ -7,6 +7,7 @@ class SearchFilters {
   const SearchFilters({
     this.search,
     this.country,
+    this.region,
     this.city,
     this.profession,
     this.sex,
@@ -16,7 +17,12 @@ class SearchFilters {
   });
 
   final String? search;
+  /// ISO 3166-1 alpha-2 (e.g. "CM"), not a display name.
   final String? country;
+
+  /// The member's real location field in SBC — coarser than [city] and the
+  /// one that actually has data (658 distinct values across countries).
+  final String? region;
   final String? city;
   final String? profession;
   final String? sex;
@@ -27,6 +33,7 @@ class SearchFilters {
   bool get isEmpty =>
       (search == null || search!.isEmpty) &&
       country == null &&
+      region == null &&
       city == null &&
       profession == null &&
       sex == null &&
@@ -39,6 +46,7 @@ class SearchFilters {
         'limit': limit,
         if (search != null && search!.isNotEmpty) 'search': search,
         if (country != null) 'country': country,
+        if (region != null) 'region': region,
         if (city != null) 'city': city,
         if (profession != null) 'profession': profession,
         if (sex != null) 'sex': sex,
@@ -50,6 +58,7 @@ class SearchFilters {
   SearchFilters copyWith({
     String? search,
     String? country,
+    String? region,
     String? city,
     String? profession,
     String? sex,
@@ -61,6 +70,7 @@ class SearchFilters {
       SearchFilters(
         search: clearSearch ? null : (search ?? this.search),
         country: country ?? this.country,
+        region: region ?? this.region,
         city: city ?? this.city,
         profession: profession ?? this.profession,
         sex: sex ?? this.sex,

@@ -1,64 +1,230 @@
-/// Suggestion lists for the directory filters (cahier §6).
+/// Filter vocabularies for the directory (cahier §6).
 ///
-/// SBC exposes no facets endpoint, so these are curated seeds rather than a
-/// live vocabulary: they let a member pick instead of guessing spelling, which
-/// is the whole point — a typo in a free-text field silently returns nothing.
-/// Every field still accepts free text, so a value missing here is not a dead
-/// end. Replace these with a `GET /directory/facets` over the Member mirror
-/// once that exists, and keep them as the offline fallback.
+/// These are not guesses: they were sampled from the live SBC base (47,011
+/// members) and must be sent verbatim. Two traps are encoded here —
+///
+///  * SBC stores professions and interests **unaccented** ("Macon", not
+///    "Maçon"; "Cinema", not "Cinéma"). Sending the accented spelling matches
+///    nothing, with no error to explain why.
+///  * `sex` is "male"/"female"/"other", not "M"/"F".
+///
+/// Professions match partially and case-insensitively server-side, so a
+/// free-typed fragment still works; the lists exist so a member can pick the
+/// exact term instead of guessing it.
 class FilterOptions {
   const FilterOptions._();
 
-  /// SBC's base is Cameroonian first, then the rest of the francophone région.
-  static const List<String> countries = [
-    'Cameroun', "Côte d'Ivoire", 'Sénégal', 'Gabon', 'Congo',
-    'RD Congo', 'Bénin', 'Togo', 'Burkina Faso', 'Mali', 'Niger', 'Tchad',
-    'Centrafrique', 'Guinée', 'France', 'Belgique', 'Canada', 'États-Unis',
-  ];
-
-  /// Cities keyed by country; Cameroon is deliberately the detailed one.
-  static const Map<String, List<String>> citiesByCountry = {
-    'Cameroun': [
-      'Yaoundé', 'Douala', 'Bafoussam', 'Bamenda', 'Garoua', 'Maroua',
-      'Ngaoundéré', 'Bertoua', 'Buea', 'Limbe', 'Kribi', 'Ebolowa',
-      'Dschang', 'Kumba', 'Edéa', 'Nkongsamba',
-    ],
-    "Côte d'Ivoire": ['Abidjan', 'Yamoussoukro', 'Bouaké', 'San-Pédro'],
-    'Sénégal': ['Dakar', 'Thiès', 'Saint-Louis', 'Touba'],
-    'Gabon': ['Libreville', 'Port-Gentil'],
-    'Congo': ['Brazzaville', 'Pointe-Noire'],
-    'RD Congo': ['Kinshasa', 'Lubumbashi', 'Goma'],
-    'France': ['Paris', 'Lyon', 'Marseille', 'Lille', 'Toulouse'],
+  /// Wire values for `sex`, with the label shown to the member.
+  static const Map<String, String> sexes = {
+    'male': 'Homme',
+    'female': 'Femme',
+    'other': 'Autre',
   };
 
-  /// Includes the cahier's own worked examples (Maçon, Designer).
+  /// `country` is an ISO 3166-1 alpha-2 code on the wire, not a display name.
+  static const Map<String, String> countries = {
+    'CM': 'Cameroun',
+    'CI': "Côte d'Ivoire",
+    'TG': 'Togo',
+    'BJ': 'Bénin',
+    'CG': 'Congo',
+    'CD': 'RD Congo',
+    'SN': 'Sénégal',
+    'GA': 'Gabon',
+    'NE': 'Niger',
+    'ML': 'Mali',
+    'BF': 'Burkina Faso',
+    'TD': 'Tchad',
+    'CF': 'Centrafrique',
+    'GN': 'Guinée',
+    'FR': 'France',
+    'BE': 'Belgique',
+    'CA': 'Canada',
+    'US': 'États-Unis',
+  };
+
+  /// All 72 professions present in the base, most frequent first.
   static const List<String> professions = [
-    'Agriculteur', 'Architecte', 'Avocat', 'Boulanger', 'Chauffeur',
-    'Coiffeur', 'Commerçant', 'Comptable', 'Couturier', 'Cuisinier',
-    'Designer', 'Développeur', 'Électricien', 'Enseignant', 'Entrepreneur',
-    'Étudiant', 'Infirmier', 'Ingénieur', 'Journaliste', 'Maçon',
-    'Marketeur', 'Mécanicien', 'Médecin', 'Menuisier', 'Notaire',
-    'Photographe', 'Plombier', 'Restaurateur',
-    'Secrétaire', 'Soudeur', 'Technicien', 'Traducteur', 'Transporteur',
-    'Vendeur', 'Webdesigner',
+    'Etudiant(e)',
+    'Sans emploi',
+    'Etudiant·e',
+    'Vendeur/Vendeuse',
+    'Enseignant',
+    'Electricien',
+    'Macon',
+    'Technicien en electronique',
+    'Formateur professionnel',
+    'Travailleur social',
+    'Ingenieur civil',
+    'Ingenieur en informatique',
+    'Infirmier/Infirmiere',
+    'Responsable marketing',
+    'Agriculteur/Agricultrice',
+    'Designer graphique',
+    'Musicien',
+    'Comptable',
+    'Artiste (peintre, sculpteur)',
+    'Medecin',
+    'Plombier',
+    'Charpentier',
+    'Chef cuisinier',
+    'Pharmacien',
+    'Gestionnaire de produit',
+    'Photographe',
+    'Developpeur de logiciels',
+    'Logisticien',
+    'Ingenieur agronome',
+    'Architecte',
+    'Serveur/Serveuse',
+    'Gestionnaire de ressources naturelles',
+    'Charge de communication',
+    'Biologiste',
+    'Educateur specialise',
+    'Dentiste',
+    'Ecologiste',
+    'Conducteur de train',
+    'Analyste financier',
+    'Ecrivain',
+    'Realisateur',
+    'Psychologue',
+    'Chirurgien',
+    'Avocat',
+    'Chimiste',
+    'Analyste de marche',
+    'Ingenieur reseau',
+    'Gestionnaire de communaute',
+    "Gestionnaire d'hotel",
+    'Administrateur systeme',
+    'Barman/Barmane',
+    'Consultant en strategie',
+    "Architecte d'interieur",
+    'Chercheur scientifique',
+    'Journaliste',
+    'Kinesitherapeute',
+    'Conseiller en orientation',
+    'Animateur socioculturel',
+    "Consultant en technologies de l'information",
+    'Scientifique des donnees',
+    'Statisticien',
+    'Conseiller pedagogique',
+    'Juge',
+    'Specialiste en cybersecurite',
+    'Conseiller fiscal',
+    "Gestionnaire de chaine d'approvisionnement",
+    'Mediateur familial',
+    'Auditeur interne',
+    'Physicien',
+    'Redacteur web',
+    "Pilote d'avion",
+    "Professeur d'universite",
   ];
 
-  /// Includes the cahier's examples (Business, Marketing digital).
+  /// All 39 interests present in the base. Repeatable on the wire.
   static const List<String> interests = [
-    'Business', 'Marketing digital', 'Immobilier', 'Agriculture',
-    'Technologie', 'Finance', 'Formation', 'Import-Export', 'Mode',
-    'Santé', 'Sport', 'Musique', 'Voyage', 'Restauration',
-    'Transport', 'Énergie', 'Éducation', 'Artisanat',
+    'Football',
+    'Musique (instruments, chant)',
+    'Cinema',
+    'Lecture',
+    'Jeux video',
+    'Tourisme local et international',
+    'Basketball',
+    'Photographie',
+    'Apprentissage de nouvelles langues',
+    'Programmation',
+    'Danse',
+    'Electronique',
+    'Decouverte de nouvelles cultures',
+    'Course a pied',
+    'Cuisine du monde',
+    'Sciences de la vie',
+    'Fitness',
+    'Aide aux personnes defavorisees',
+    'Jeux de societe',
+    'Patisserie',
+    'Meditation',
+    "Protection de l'environnement",
+    'Nutrition',
+    "Decoration d'interieur",
+    'Medecine alternative',
+    'Robotique',
+    'Participation a des evenements caritatifs',
+    'Peinture et dessin',
+    'Theatre',
+    'Artisanat',
+    'Randonnees en nature',
+    'Stylisme',
+    'Natation',
+    'Enigmes et casse-tetes',
+    'Cyclisme',
+    'Degustation de vins',
+    'Randonnee',
+    'Astronomie',
+    'Yoga',
   ];
 
-  /// Cities for [country], falling back to every known city when the country
-  /// is unset or unknown — so the picker is never empty.
-  static List<String> citiesFor(String? country) {
-    if (country != null && citiesByCountry.containsKey(country)) {
-      return citiesByCountry[country]!;
-    }
-    return [
-      for (final list in citiesByCountry.values) ...list,
-    ]..sort();
-  }
+  /// The 60 most common of 658 regions. Because the tail is long and spans
+  /// many countries, region is offered as autocomplete over these plus free
+  /// text — a fixed dropdown would hide 598 valid values.
+  static const List<String> topRegions = [
+    'Centre',
+    'Maritime',
+    'Littoral',
+    'Abidjan',
+    'Ouest',
+    'Atlantique',
+    'Plateaux',
+    'Brazzaville',
+    'Ouémé',
+    'Kara',
+    'Pointe-Noire',
+    'Borgou',
+    "N'Djamena",
+    'Centrale',
+    'Dakar',
+    'Est',
+    'Hauts-Bassins',
+    'Estuaire',
+    'Niamey',
+    'Nord',
+    'Zou',
+    'Savanes',
+    'Sud',
+    'Mono',
+    'Bas-Sassandra',
+    'Centre-Ouest',
+    'Adamaoua',
+    'Bamako',
+    'Plateau',
+    'Couffo',
+    'Yamoussoukro',
+    'Extrême-Nord',
+    'Comoé',
+    'Lagunes',
+    'Collines',
+    'Sud-Ouest',
+    'Centre-Est',
+    'Boucle du Mouhoun',
+    'Kadiogo',
+    'Atacora',
+    'Alibori',
+    'Sassandra-Marahoué',
+    'Donga',
+    'Vallée du Bandama',
+    'Gôh-Djiboua',
+    'Ogooué-Maritime',
+    'Chari-Baguirmi',
+    'Montagnes',
+    'Kinshasa',
+    'Zinder',
+    'Centre-Nord',
+    'Zanzan',
+    'Bangui',
+    'Haut-Katanga',
+    'Haut-Ogooué',
+    'Congo',
+    'Ouaddaï',
+    'Thiès',
+    'Mayo-Kebbi Est',
+    'Logone Occidental',
+  ];
 }

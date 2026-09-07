@@ -5,10 +5,11 @@ import 'package:sbc_contacts/features/directory/domain/filter_options.dart';
 
 /// Bottom sheet for the combinable directory filters (cahier §6).
 ///
-/// Every field offers the known values rather than an empty box: a member
-/// looking for "Maçon" should not have to guess the accent, and a typo in a
-/// free-text field returns nothing with no explanation. Typing is still
-/// accepted, so a value outside the seed lists stays reachable.
+/// Values come from [FilterOptions], sampled from the live SBC base, so the
+/// member picks a term that exists rather than typing one that silently
+/// matches nothing. Profession and région still accept free text — profession
+/// matches partially server-side, and 598 of the 658 régions are outside the
+/// suggested list.
 class FilterSheet extends StatefulWidget {
   const FilterSheet({required this.initial, super.key});
   final SearchFilters initial;
@@ -19,7 +20,7 @@ class FilterSheet extends StatefulWidget {
 
 class _FilterSheetState extends State<FilterSheet> {
   late String? _country = widget.initial.country;
-  late String? _city = widget.initial.city;
+  late String? _region = widget.initial.region;
   late String? _profession = widget.initial.profession;
   late String? _sex = widget.initial.sex;
   late final Set<String> _interests = {...widget.initial.interests};
@@ -31,7 +32,8 @@ class _FilterSheetState extends State<FilterSheet> {
       SearchFilters(
         search: widget.initial.search,
         country: _country,
-        city: _city,
+        region: _region,
+        city: widget.initial.city,
         profession: _profession,
         sex: _sex,
         ageMin: _ageMin.round(),
@@ -42,7 +44,7 @@ class _FilterSheetState extends State<FilterSheet> {
   }
 
   int get _activeCount =>
-      [_country, _city, _profession, _sex].where((v) => v != null).length +
+      [_country, _region, _profession, _sex].where((v) => v != null).length +
       (_interests.isEmpty ? 0 : 1);
 
   @override
@@ -72,24 +74,23 @@ class _FilterSheetState extends State<FilterSheet> {
               ],
             ),
             const Gap(14),
-            _PickerField(
+
+            // Country is picked by name but sent as its ISO code.
+            _CodePicker(
               label: 'Pays',
               icon: Icons.public,
               value: _country,
-              options: FilterOptions.countries,
-              onChanged: (v) => setState(() {
-                _country = v;
-                // A city from the previous country would contradict the new one.
-                if (!FilterOptions.citiesFor(v).contains(_city)) _city = null;
-              }),
+              labels: FilterOptions.countries,
+              onChanged: (v) => setState(() => _country = v),
             ),
             const Gap(10),
             _PickerField(
-              label: 'Ville',
-              icon: Icons.location_city,
-              value: _city,
-              options: FilterOptions.citiesFor(_country),
-              onChanged: (v) => setState(() => _city = v),
+              label: 'Région',
+              icon: Icons.location_on_outlined,
+              value: _region,
+              options: FilterOptions.topRegions,
+              helper: 'Suggestions les plus fréquentes — tapez pour en chercher une autre',
+              onChanged: (v) => setState(() => _region = v),
             ),
             const Gap(10),
             _PickerField(
@@ -97,24 +98,30 @@ class _FilterSheetState extends State<FilterSheet> {
               icon: Icons.work_outline,
               value: _profession,
               options: FilterOptions.professions,
+              helper: 'Recherche partielle : « design » trouve « Designer graphique »',
               onChanged: (v) => setState(() => _profession = v),
             ),
+
             const Gap(16),
             Text('Sexe', style: theme.textTheme.labelLarge),
             const Gap(6),
             Wrap(
               spacing: 8,
               children: [
-                for (final s in <String?>[null, 'M', 'F'])
+                ChoiceChip(
+                  label: const Text('Tous'),
+                  selected: _sex == null,
+                  onSelected: (_) => setState(() => _sex = null),
+                ),
+                for (final e in FilterOptions.sexes.entries)
                   ChoiceChip(
-                    label: Text(
-                      switch (s) { 'M' => 'Homme', 'F' => 'Femme', _ => 'Tous' },
-                    ),
-                    selected: _sex == s,
-                    onSelected: (_) => setState(() => _sex = s),
+                    label: Text(e.value),
+                    selected: _sex == e.key,
+                    onSelected: (_) => setState(() => _sex = e.key),
                   ),
               ],
             ),
+
             const Gap(16),
             Text("Centres d'intérêt", style: theme.textTheme.labelLarge),
             const Gap(6),
@@ -132,6 +139,7 @@ class _FilterSheetState extends State<FilterSheet> {
                   ),
               ],
             ),
+
             const Gap(16),
             Text(
               'Âge : ${_ageMin.round()} – ${_ageMax.round()} ans',
@@ -148,6 +156,7 @@ class _FilterSheetState extends State<FilterSheet> {
                 _ageMax = v.end;
               }),
             ),
+
             const Gap(16),
             Row(
               children: [
@@ -170,8 +179,8 @@ class _FilterSheetState extends State<FilterSheet> {
   }
 }
 
-/// Suggests known values as the member types, and offers a browsable list for
-/// when they do not know what to type. Free text is still accepted.
+/// Free-text-capable picker: suggests known values while typing, and offers a
+/// searchable list to browse when the member does not know what to type.
 class _PickerField extends StatelessWidget {
   const _PickerField({
     required this.label,
@@ -179,12 +188,14 @@ class _PickerField extends StatelessWidget {
     required this.value,
     required this.options,
     required this.onChanged,
+    this.helper,
   });
 
   final String label;
   final IconData icon;
   final String? value;
   final List<String> options;
+  final String? helper;
   final ValueChanged<String?> onChanged;
 
   Future<void> _browse(BuildContext context) async {
@@ -213,6 +224,8 @@ class _PickerField extends StatelessWidget {
           focusNode: focusNode,
           decoration: InputDecoration(
             labelText: label,
+            helperText: helper,
+            helperMaxLines: 2,
             prefixIcon: Icon(icon),
             suffixIcon: IconButton(
               tooltip: 'Choisir dans la liste',
@@ -224,6 +237,38 @@ class _PickerField extends StatelessWidget {
           onSubmitted: (_) => onSubmit(),
         );
       },
+    );
+  }
+}
+
+/// Picker over a fixed code→label map: shows the label, emits the code.
+class _CodePicker extends StatelessWidget {
+  const _CodePicker({
+    required this.label,
+    required this.icon,
+    required this.value,
+    required this.labels,
+    required this.onChanged,
+  });
+
+  final String label;
+  final IconData icon;
+  final String? value;
+  final Map<String, String> labels;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String?>(
+      initialValue: value,
+      isExpanded: true,
+      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
+      items: [
+        const DropdownMenuItem<String?>(child: Text('Tous')),
+        for (final e in labels.entries)
+          DropdownMenuItem<String?>(value: e.key, child: Text('${e.value} (${e.key})')),
+      ],
+      onChanged: onChanged,
     );
   }
 }
