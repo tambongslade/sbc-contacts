@@ -2,9 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:sbc_contacts/core/config/app_config.dart';
+import 'package:sbc_contacts/core/network/api_exception.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+/// Human-readable reason for a failed login (surfaces the backend message).
+String loginErrorMessage(Object? error) {
+  if (error is ApiException) {
+    if (error.isSubscriptionRequired) {
+      return 'Abonnement SBC requis pour accéder aux contacts.';
+    }
+    if (error.statusCode == 400) {
+      return 'Code invalide, expiré ou déjà utilisé. Reconnecte-toi.';
+    }
+    return error.message;
+  }
+  return 'Échec de connexion. Vérifie ta connexion et réessaie.';
+}
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -98,8 +113,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 if (auth.hasError) ...[
                   const Gap(12),
                   Text(
-                    'Échec de connexion. Réessaie.',
+                    loginErrorMessage(auth.error),
                     style: TextStyle(color: theme.colorScheme.error),
+                    textAlign: TextAlign.center,
                   ),
                 ],
                 const Gap(12),
