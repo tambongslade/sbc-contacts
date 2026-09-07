@@ -191,6 +191,48 @@ export class SbcClientService {
     }
   }
 
+  // SBC filters country by ISO code (e.g. CM). Accept common names too so a
+  // free-text "Cameroun" from the app still works.
+  private static readonly COUNTRY_ISO: Record<string, string> = {
+    cameroun: 'CM',
+    cameroon: 'CM',
+    'cote divoire': 'CI',
+    'ivory coast': 'CI',
+    senegal: 'SN',
+    togo: 'TG',
+    benin: 'BJ',
+    congo: 'CG',
+    'congo brazzaville': 'CG',
+    'republique du congo': 'CG',
+    rdc: 'CD',
+    'congo kinshasa': 'CD',
+    'republique democratique du congo': 'CD',
+    tchad: 'TD',
+    chad: 'TD',
+    niger: 'NE',
+    mali: 'ML',
+    'burkina faso': 'BF',
+    burkina: 'BF',
+    gabon: 'GA',
+    centrafrique: 'CF',
+    'republique centrafricaine': 'CF',
+    guinee: 'GN',
+    guinea: 'GN',
+    mauritanie: 'MR',
+    france: 'FR',
+  };
+
+  private toIsoCountry(input?: string): string | undefined {
+    if (!input) return input;
+    const key = input
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '') // strip accents
+      .toLowerCase()
+      .replace(/[^a-z ]/g, '')
+      .trim();
+    return SbcClientService.COUNTRY_ISO[key] ?? input; // pass through ISO codes as-is
+  }
+
   private buildQuery(query: SbcContactQuery): string {
     const params = new URLSearchParams();
     const add = (k: string, v: unknown) => {
@@ -198,7 +240,7 @@ export class SbcClientService {
       params.append(k, String(v));
     };
     add('search', query.search);
-    add('country', query.country);
+    add('country', this.toIsoCountry(query.country));
     add('region', query.region);
     add('city', query.city);
     add('profession', query.profession);

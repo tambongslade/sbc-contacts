@@ -29,11 +29,21 @@ export class DirectoryService {
 
   async search(userId: string, query: SearchQueryDto): Promise<PaginatedResult<MemberView>> {
     const accessToken = await this.sbcTokens.getValidAccessToken(userId);
+    const term = query.search?.trim();
 
-    const cacheKey = `dir:search:${userId}:${this.hashQuery(query)}`;
-    const data = await this.cache.getOrSet<SbcSearchData>(cacheKey, DirectoryService.SEARCH_TTL, () =>
-      this.sbc.searchContacts(accessToken, query),
-    );
+    let data: SbcSearchData;
+    if (term && !query.profession) {
+      // A free-text term should match NAME or PROFESSION. SBC can't OR the two
+      // params in one call, so we query both and merge (profession first — far
+      // more useful for a directory: "designer" -> 235, not just 4 name hits).
+      const [byProfession, byName] = await Promise.all([
+        this.fetchContacts(userId, accessToken, { ...query, search: undefined, profession: term }),
+        this.fetchContacts(userId, accessToken, query),
+      ]);
+      data = this.mergeSearch(byProfession, byName);
+    } else {
+      data = await this.fetchContacts(userId, accessToken, query);
+    }
 
     // Hydrate the mirror and map SBC ids -> our member rows (order preserved).
     const rows = await this.members.upsertMany(data.items);
@@ -42,6 +52,35 @@ export class DirectoryService {
 
     const annotated = await this.members.annotate(userId, ordered);
     return paginate(annotated, data.total, data.page, data.limit);
+  }
+
+  private fetchContacts(
+    userId: string,
+    accessToken: string,
+    query: SearchQueryDto,
+  ): Promise<SbcSearchData> {
+    const cacheKey = `dir:search:${userId}:${this.hashQuery(query)}`;
+    return this.cache.getOrSet<SbcSearchData>(cacheKey, DirectoryService.SEARCH_TTL, () =>
+      this.sbc.searchContacts(accessToken, query),
+    );
+  }
+
+  /** Merge two result sets, de-duping by member id (profession matches first). */
+  private mergeSearch(a: SbcSearchData, b: SbcSearchData): SbcSearchData {
+    const seen = new Set<string>();
+    const items = [...a.items, ...b.items].filter((it) => {
+      if (!it.id || seen.has(it.id)) return false;
+      seen.add(it.id);
+      return true;
+    });
+    return {
+      items,
+      total: a.total + b.total, // approximate (upper bound; overlap is small)
+      page: a.page,
+      limit: a.limit,
+      totalPages: Math.max(a.totalPages, b.totalPages),
+      hasMore: a.hasMore || b.hasMore,
+    };
   }
 
   async getProfile(userId: string, sbcId: string): Promise<MemberView> {
