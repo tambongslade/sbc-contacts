@@ -51,10 +51,11 @@ export class SsoBridgeController {
   <h1>Connexion SBC</h1>
   ${
     hasCode
-      ? `<p>Ouverture de l'application SBC Contacts…</p>
-         <a class="btn" id="open" href="#">Ouvrir l'application</a>
-         <button class="btn sec" id="copy">Copier le code</button>
-         <code id="code"></code>`
+      ? `<p>Connexion réussie ✓<br/>Copie ce code et colle-le dans l'application
+         (bouton « J'ai un code »).</p>
+         <code id="code"></code>
+         <button class="btn" id="copy">Copier le code</button>
+         <a class="btn sec" id="open" href="#">Ouvrir l'application (si installée)</a>`
       : `<p class="err">Aucun code d'autorisation reçu. Réessaie depuis l'application.</p>`
   }
 </div>
@@ -64,9 +65,12 @@ export class SsoBridgeController {
     var deep = 'sbccontacts://auth/callback?code=' + encodeURIComponent(code) + (state ? '&state=' + encodeURIComponent(state) : '');
     document.getElementById('code').textContent = code;
     document.getElementById('open').href = deep;
-    document.getElementById('copy').onclick = function(){ navigator.clipboard && navigator.clipboard.writeText(code); this.textContent='Code copié'; };
-    // Attempt to open the app automatically.
-    setTimeout(function(){ window.location.href = deep; }, 400);
+    document.getElementById('copy').onclick = function(){
+      if (navigator.clipboard) { navigator.clipboard.writeText(code); }
+      this.textContent = 'Code copié ✓';
+    };
+    // NOTE: no auto-redirect — the code stays visible so it can be copied even
+    // when the app isn't installed (e.g. testing before store deployment).
   }
 </script>
 </body>
