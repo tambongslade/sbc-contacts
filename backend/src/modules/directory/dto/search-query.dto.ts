@@ -14,6 +14,11 @@ export class SearchQueryDto {
   @IsString()
   country?: string;
 
+  @ApiPropertyOptional({ description: "SBC province/region, e.g. 'Centre', 'Littoral'" })
+  @IsOptional()
+  @IsString()
+  region?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

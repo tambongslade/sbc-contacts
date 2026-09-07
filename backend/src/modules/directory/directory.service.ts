@@ -60,6 +60,7 @@ export class DirectoryService {
     const normalized = {
       search: query.search ?? '',
       country: query.country ?? '',
+      region: query.region ?? '',
       city: query.city ?? '',
       profession: query.profession ?? '',
       sex: query.sex ?? '',

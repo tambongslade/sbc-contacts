@@ -199,11 +199,13 @@ export class SbcClientService {
     };
     add('search', query.search);
     add('country', query.country);
+    add('region', query.region);
     add('city', query.city);
     add('profession', query.profession);
     add('sex', query.sex);
-    add('ageMin', query.ageMin);
-    add('ageMax', query.ageMax);
+    // SBC's age params are minAge/maxAge (not ageMin/ageMax).
+    add('minAge', query.ageMin);
+    add('maxAge', query.ageMax);
     add('page', query.page);
     add('limit', query.limit);
     (query.interests ?? []).forEach((i) => add('interests', i));

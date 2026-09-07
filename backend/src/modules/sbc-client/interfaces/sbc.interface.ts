@@ -71,6 +71,7 @@ export interface SbcSearchData {
 export interface SbcContactQuery {
   search?: string;
   country?: string;
+  region?: string;
   city?: string;
   profession?: string;
   sex?: string;
