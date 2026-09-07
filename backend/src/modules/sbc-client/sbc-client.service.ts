@@ -250,7 +250,8 @@ export class SbcClientService {
       name: pick('name', 'nom') as string | undefined,
       firstName: pick('firstName', 'prenom', 'prénom') as string | undefined,
       profession: pick('profession', 'metier', 'métier') as string | undefined,
-      city: pick('city', 'ville') as string | undefined,
+      // SBC uses `region` for location (no city on list items).
+      city: pick('city', 'ville', 'region', 'town') as string | undefined,
       country: pick('country', 'pays') as string | undefined,
       sex: pick('sex', 'sexe', 'gender') as string | undefined,
       age: pick('age') != null ? Number(pick('age')) : undefined,
