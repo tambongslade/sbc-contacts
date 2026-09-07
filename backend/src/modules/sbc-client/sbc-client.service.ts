@@ -76,7 +76,11 @@ export class SbcClientService {
       `/api/contacts/sso/search${this.buildQuery(query)}`,
       accessToken,
     );
-    return this.normalizeSearch(raw, query);
+    const normalized = this.normalizeSearch(raw, query);
+    this.logger.log(
+      `contacts/sso/search keys=[${Object.keys(raw ?? {}).join(',')}] -> ${normalized.items.length} items (total ${normalized.total})`,
+    );
+    return normalized;
   }
 
   /** The same list as a downloadable VCF (cahier §9). */
@@ -128,15 +132,21 @@ export class SbcClientService {
   }
 
   private async unwrap<T>(res: Response, path: string): Promise<T> {
-    let payload: SbcEnvelope<T> | undefined;
+    let payload: (SbcEnvelope<T> & Record<string, unknown>) | undefined;
     try {
-      payload = (await res.json()) as SbcEnvelope<T>;
+      payload = (await res.json()) as SbcEnvelope<T> & Record<string, unknown>;
     } catch {
       payload = undefined;
     }
 
-    if (res.ok && payload?.success) {
-      return payload.data;
+    // Any 2xx is a success. SBC's SSO endpoints wrap payloads in { success, data },
+    // but the contacts search (the first-party controller) returns its own shape.
+    // Return `data` when present, otherwise the raw body — the caller normalises it.
+    if (res.ok) {
+      if (payload && typeof payload === 'object' && 'data' in payload && payload.success !== false) {
+        return payload.data;
+      }
+      return payload as unknown as T;
     }
 
     this.mapError(res.status, path, payload?.message, payload?.code);
@@ -170,7 +180,9 @@ export class SbcClientService {
           code: code ?? 'FORBIDDEN',
         });
       default:
-        throw new BadGatewayException('Unexpected response from SBC');
+        throw new BadGatewayException(
+          `Unexpected response from SBC (status ${status})${message ? `: ${message}` : ''}`,
+        );
     }
   }
 
