@@ -31,7 +31,11 @@ class AppConfig {
   // captures the code and deep-links it into the app.
   static const String ssoRedirectUri = String.fromEnvironment(
     'SBC_SSO_REDIRECT_URI',
-    defaultValue: 'https://contacts.sniperbusinesscenterlive.com/auth/callback',
+    // The custom scheme, not the web bridge. flutter_web_auth_2 owns this
+    // scheme and captures the redirect itself, so the code never has to be
+    // copied by hand. Both URIs are registered for the sbc-contacts client;
+    // the https bridge stays available as the manual fallback.
+    defaultValue: 'sbccontacts://auth/callback',
   );
 
   // Native deep-link scheme (also registered) — used to hand the code to the app.
@@ -41,4 +45,8 @@ class AppConfig {
     'SBC_SSO_SCOPES',
     defaultValue: 'profile.read contacts.read',
   );
+
+  /// Scheme of [ssoRedirectUri] — flutter_web_auth_2 needs it to know which
+  /// redirect ends the session.
+  static String get ssoCallbackScheme => Uri.parse(ssoRedirectUri).scheme;
 }

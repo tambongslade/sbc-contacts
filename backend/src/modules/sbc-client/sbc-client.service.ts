@@ -32,6 +32,7 @@ export class SbcClientService {
   private readonly clientId: string;
   private readonly clientSecret: string;
   private readonly redirectUri: string;
+  private readonly allowedRedirectUris: string[];
   private static readonly TIMEOUT_MS = 10_000;
 
   constructor(config: ConfigService) {
@@ -39,16 +40,36 @@ export class SbcClientService {
     this.clientId = config.get<string>('sbc.clientId')!;
     this.clientSecret = config.get<string>('sbc.clientSecret')!;
     this.redirectUri = config.get<string>('sbc.redirectUri')!;
+    this.allowedRedirectUris = [
+      this.redirectUri,
+      ...(config.get<string>('sbc.extraRedirectUris') ?? '')
+          .split(',')
+          .map((u) => u.trim())
+          .filter((u) => u.length > 0),
+    ];
   }
 
-  /** Exchange a one-shot authorization code for SBC tokens + user profile. */
-  async exchangeCode(code: string): Promise<SbcTokenResponse> {
+  /**
+   * Exchange a one-shot authorization code for SBC tokens + user profile.
+   *
+   * [redirectUri] must be the value the client used on /sso/authorize — SBC
+   * compares them and rejects a mismatch. Anything not on the allowlist is
+   * ignored in favour of the configured default, so a caller cannot steer the
+   * exchange at an arbitrary URI.
+   */
+  async exchangeCode(code: string, redirectUri?: string): Promise<SbcTokenResponse> {
     return this.post<SbcTokenResponse>('/api/sso/token', {
       code,
       client_id: this.clientId,
       client_secret: this.clientSecret,
-      redirect_uri: this.redirectUri,
+      redirect_uri: this.resolveRedirectUri(redirectUri),
     });
+  }
+
+  /** The requested redirect if it is registered for this client, else the default. */
+  private resolveRedirectUri(requested?: string): string {
+    if (!requested) return this.redirectUri;
+    return this.allowedRedirectUris.includes(requested) ? requested : this.redirectUri;
   }
 
   /** Rotate an SBC access token using the (rolling) refresh token. */

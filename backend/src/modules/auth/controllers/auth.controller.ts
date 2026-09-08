@@ -32,7 +32,7 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Exchange an SBC authorization code for an app session' })
   ssoCallback(@Body() dto: SsoCallbackDto, @Req() req: Request): Promise<AuthResult> {
-    return this.auth.ssoCallback(dto.code, this.meta(req, dto.deviceId));
+    return this.auth.ssoCallback(dto.code, this.meta(req, dto.deviceId), dto.redirectUri);
   }
 
   @Public()

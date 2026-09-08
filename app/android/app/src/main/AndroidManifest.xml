@@ -32,13 +32,6 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
 
-            <!-- SSO deep link: sbccontacts://auth/callback?code=... -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="sbccontacts" android:host="auth"/>
-            </intent-filter>
 
             <!-- HTTPS App Link (auto-verify once assetlinks.json is hosted). -->
             <intent-filter android:autoVerify="true">
@@ -50,6 +43,22 @@
                       android:pathPrefix="/auth/callback"/>
             </intent-filter>
         </activity>
+        <!-- flutter_web_auth_2 catches sbccontacts://auth/callback and returns
+             the URL to Dart, so the authorization code never has to be copied
+             by hand. It owns this scheme exclusively: if MainActivity also
+             declared it, Android would show a chooser. -->
+        <activity
+            android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
+            android:exported="true"
+            android:taskAffinity="">
+            <intent-filter android:label="flutter_web_auth_2">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="sbccontacts"/>
+            </intent-filter>
+        </activity>
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

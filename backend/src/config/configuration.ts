@@ -39,6 +39,9 @@ export const configuration = (env: EnvironmentVariables) => ({
     clientId: env.SBC_SSO_CLIENT_ID,
     clientSecret: env.SBC_SSO_CLIENT_SECRET,
     redirectUri: env.SBC_SSO_REDIRECT_URI,
+    // Other redirect_uris registered for this client (comma separated), e.g.
+    // the mobile custom scheme. Clients may request one of these.
+    extraRedirectUris: process.env.SBC_SSO_EXTRA_REDIRECT_URIS ?? 'sbccontacts://auth/callback',
     scopes: env.SBC_SSO_SCOPES.split(',')
       .map((s) => s.trim())
       .filter(Boolean),

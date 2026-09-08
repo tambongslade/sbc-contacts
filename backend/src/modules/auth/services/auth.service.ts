@@ -40,8 +40,12 @@ export class AuthService {
     private readonly tokens: TokenService,
   ) {}
 
-  async ssoCallback(code: string, meta: SessionMeta): Promise<AuthResult> {
-    const exchange = await this.sbc.exchangeCode(code);
+  async ssoCallback(
+    code: string,
+    meta: SessionMeta,
+    redirectUri?: string,
+  ): Promise<AuthResult> {
+    const exchange = await this.sbc.exchangeCode(code, redirectUri);
     const user = await this.upsertFromSbc(exchange.user);
     await this.sbcTokens.storeFromExchange(user.id, exchange);
 
