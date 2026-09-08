@@ -1,12 +1,15 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:sbc_contacts/core/config/app_config.dart';
 import 'package:sbc_contacts/core/network/api_exception.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
+import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:sbc_contacts/shared/widgets/sbc_logo.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// Human-readable reason for a failed login (surfaces the backend message).
 String loginErrorMessage(Object? error) {
@@ -32,6 +35,7 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _codeCtrl = TextEditingController();
   bool _showCode = false;
+  bool _busy = false;
 
   @override
   void dispose() {
@@ -39,16 +43,73 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
+  /// Random, unguessable value tying the callback to this request.
+  static String _newState() {
+    final r = Random.secure();
+    return List.generate(32, (_) => r.nextInt(256))
+        .map((b) => b.toRadixString(16).padLeft(2, '0'))
+        .join();
+  }
+
+  /// Sign in without ever leaving the app.
+  ///
+  /// The consent page opens in a Chrome Custom Tab (ASWebAuthenticationSession
+  /// on iOS) that the app owns, and the `sbccontacts://` redirect is captured
+  /// and handed straight back here — no switching to Chrome, and no copying a
+  /// code by hand. It also shares the browser's cookie jar, so a member
+  /// already signed in to SBC goes straight to the consent step.
   Future<void> _startSso() async {
-    final params = {
-      'client_id': AppConfig.ssoClientId,
-      'redirect_uri': AppConfig.ssoRedirectUri,
-      'scope': AppConfig.ssoScopes,
-    };
-    final uri = Uri.parse(AppConfig.ssoAuthorizeUrl).replace(queryParameters: params);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    final state = _newState();
+    final uri = Uri.parse(AppConfig.ssoAuthorizeUrl).replace(
+      queryParameters: {
+        'client_id': AppConfig.ssoClientId,
+        'redirect_uri': AppConfig.ssoRedirectUri,
+        'scope': AppConfig.ssoScopes,
+        // Mandatory per SSO_INTEGRATION_GUIDE.md: without it the callback
+        // cannot be proven to belong to this request (CSRF).
+        'state': state,
+      },
+    );
+
+    setState(() => _busy = true);
+    try {
+      final result = await FlutterWebAuth2.authenticate(
+        url: uri.toString(),
+        callbackUrlScheme: AppConfig.ssoCallbackScheme,
+        options: const FlutterWebAuth2Options(
+          // Give the member time to type their SBC password.
+          timeout: 300,
+        ),
+      );
+
+      final back = Uri.parse(result);
+      final error = back.queryParameters['error'];
+      if (error != null) {
+        _fail('SBC a refusé la connexion ($error).');
+        return;
+      }
+      if (back.queryParameters['state'] != state) {
+        _fail('Réponse de connexion invalide. Réessaie.');
+        return;
+      }
+      final code = back.queryParameters['code'];
+      if (code == null || code.isEmpty) {
+        _fail('Aucun code reçu de SBC. Réessaie.');
+        return;
+      }
+      await ref.read(authControllerProvider.notifier).loginWithCode(code);
+    } on PlatformException {
+      // The member closed the tab — not an error worth shouting about.
+    } catch (e) {
+      _fail('Connexion impossible. Vérifie ta connexion et réessaie.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
+  }
+
+  void _fail(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _submitCode() async {
@@ -89,11 +150,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                 ),
                 const Gap(36),
-                if (auth.isLoading)
+                if (auth.isLoading || _busy)
                   const CircularProgressIndicator()
                 else
                   FilledButton.icon(
-                    onPressed: _startSso,
+                    onPressed: _busy ? null : _startSso,
                     icon: const Icon(Icons.login),
                     label: const Text('Se connecter avec SBC'),
                     style: FilledButton.styleFrom(

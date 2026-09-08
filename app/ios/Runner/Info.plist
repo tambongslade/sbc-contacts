@@ -7,7 +7,21 @@
 		<!-- Required: iOS terminates the app on the contacts request without it. -->
 		<key>NSContactsUsageDescription</key>
 		<string>SBC Contacts enregistre les membres SBC que vous choisissez dans le carnet de contacts de votre telephone, et verifie les doublons avant d'ajouter.</string>
-		<key>CFBundleDevelopmentRegion</key>
+		<!-- SSO callback scheme, captured by ASWebAuthenticationSession. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.sbc.sbc_contacts.sso</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>sbccontacts</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
 		<string>SBC Contacts</string>

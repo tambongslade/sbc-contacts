@@ -13,4 +13,17 @@ export class SsoCallbackDto {
   @IsString()
   @MaxLength(128)
   deviceId?: string;
+
+  /**
+   * The redirect_uri the client actually used on /sso/authorize. SBC requires
+   * the exchange to repeat it verbatim, so a mobile client authorizing with
+   * the custom scheme cannot be exchanged against the web bridge URI — that
+   * mismatch surfaces as SBC's generic 400 "invalid authorization code".
+   * Validated against the configured allowlist before use.
+   */
+  @ApiPropertyOptional({ description: 'redirect_uri used on /sso/authorize' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  redirectUri?: string;
 }

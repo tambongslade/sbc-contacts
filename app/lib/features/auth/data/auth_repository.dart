@@ -1,3 +1,4 @@
+import 'package:sbc_contacts/core/config/app_config.dart';
 import 'package:sbc_contacts/core/network/api_client.dart';
 import 'package:sbc_contacts/core/storage/token_storage.dart';
 import 'package:sbc_contacts/features/auth/domain/app_user.dart';
@@ -12,7 +13,13 @@ class AuthRepository {
   Future<AppUser> ssoCallback(String code, {String? deviceId}) async {
     final data = await _api.post(
       '/auth/sso-callback',
-      body: {'code': code, if (deviceId != null) 'deviceId': deviceId},
+      body: {
+        'code': code,
+        // SBC requires the exchange to repeat the redirect_uri used on
+        // /sso/authorize; the backend cannot know which flow we took.
+        'redirectUri': AppConfig.ssoRedirectUri,
+        if (deviceId != null) 'deviceId': deviceId,
+      },
     ) as Map<String, dynamic>;
     final tokens = data['tokens'] as Map<String, dynamic>;
     await _storage.save(
