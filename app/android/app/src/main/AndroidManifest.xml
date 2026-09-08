@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Flutter's template declares INTERNET only in the debug and profile
+         manifests, so a RELEASE build ships with no network access at all and
+         every request dies as "Failed host lookup". It must be declared here. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <!-- Adding an SBC member to the phone book (cahier §9, §12). READ is
          required as well as WRITE: duplicate detection (§15) has to look the
          number up before creating anything. Both are runtime permissions —
