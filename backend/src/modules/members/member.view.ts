@@ -15,6 +15,11 @@ export interface MemberView {
   phoneNumber: string | null;
   isFavorite: boolean;
   isSynced: boolean;
+  // Reputation ("Score de confiance"). Neutral 50 when unrated.
+  confidenceScore: number;
+  averageRating: number | null;
+  reviewCount: number;
+  myRating: number | null; // the caller's own star rating, if any
 }
 
 /** Criteria shape shared by SyncCriteria rows and ad-hoc previews. */

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Member } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { SbcContact } from '../sbc-client/interfaces/sbc.interface';
+import { confidenceScore } from '../reviews/confidence-score';
 import { MemberView } from './member.view';
 
 /** Plain, concrete write shape usable for both create and update. */
@@ -45,8 +46,9 @@ export class MembersService {
   async annotate(userId: string, members: Member[]): Promise<MemberView[]> {
     if (members.length === 0) return [];
     const memberIds = members.map((m) => m.id);
+    const sbcIds = members.map((m) => m.sbcId);
 
-    const [favorites, synced] = await Promise.all([
+    const [favorites, synced, scores, myReviews] = await Promise.all([
       this.prisma.favorite.findMany({
         where: { userId, memberId: { in: memberIds } },
         select: { memberId: true },
@@ -55,27 +57,47 @@ export class MembersService {
         where: { userId, memberId: { in: memberIds }, status: 'SYNCED' },
         select: { memberId: true },
       }),
+      // Reputation is keyed by the durable SBC id, not the local mirror uuid.
+      this.prisma.memberScore.findMany({
+        where: { memberSbcId: { in: sbcIds } },
+        select: { memberSbcId: true, averageStars: true, reviewCount: true },
+      }),
+      this.prisma.memberReview.findMany({
+        where: { reviewerUserId: userId, memberSbcId: { in: sbcIds } },
+        select: { memberSbcId: true, stars: true },
+      }),
     ]);
     const favSet = new Set(favorites.map((f) => f.memberId));
     const syncSet = new Set(synced.map((s) => s.memberId));
+    const scoreBySbcId = new Map(scores.map((s) => [s.memberSbcId, s]));
+    const myStarsBySbcId = new Map(myReviews.map((r) => [r.memberSbcId, r.stars]));
 
-    return members.map((m) => ({
-      id: m.id,
-      sbcId: m.sbcId,
-      name: m.name,
-      firstName: m.firstName,
-      profession: m.profession,
-      city: m.city,
-      country: m.country,
-      sex: m.sex,
-      age: m.age,
-      interests: m.interests,
-      skills: m.skills,
-      avatarUrl: m.avatarUrl,
-      phoneNumber: m.phoneNumber,
-      isFavorite: favSet.has(m.id),
-      isSynced: syncSet.has(m.id),
-    }));
+    return members.map((m) => {
+      const score = scoreBySbcId.get(m.sbcId);
+      const averageStars = score?.averageStars ?? null;
+      const reviewCount = score?.reviewCount ?? 0;
+      return {
+        id: m.id,
+        sbcId: m.sbcId,
+        name: m.name,
+        firstName: m.firstName,
+        profession: m.profession,
+        city: m.city,
+        country: m.country,
+        sex: m.sex,
+        age: m.age,
+        interests: m.interests,
+        skills: m.skills,
+        avatarUrl: m.avatarUrl,
+        phoneNumber: m.phoneNumber,
+        isFavorite: favSet.has(m.id),
+        isSynced: syncSet.has(m.id),
+        confidenceScore: confidenceScore(averageStars ?? 0, reviewCount),
+        averageRating: averageStars,
+        reviewCount,
+        myRating: myStarsBySbcId.get(m.sbcId) ?? null,
+      };
+    });
   }
 
   async getBySbcIdOrThrow(sbcId: string): Promise<Member> {

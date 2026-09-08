@@ -53,6 +53,7 @@ model User {
   notifications  Notification[]
   devices        Device[]
   addedByMe      AddedEvent[]    @relation("actor")
+  reviews        MemberReview[]
 
   @@index([deletedAt])
   @@map("users")
@@ -251,6 +252,44 @@ model Favorite {
   @@unique([userId, memberId])
   @@index([userId])
   @@map("favorites")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Confidence score & reviews ("Score de confiance")
+// ─────────────────────────────────────────────────────────────
+
+/// One editable review per (reviewer, member). Keyed by the DURABLE SBC id of
+/// the member being rated — NOT the local mirror uuid, which is regenerated
+/// whenever the member cache row is evicted/re-created. This lets reviews and
+/// the resulting confidence score outlive cache churn.
+model MemberReview {
+  id             String @id @default(uuid()) @db.Uuid
+  reviewerUserId String @db.Uuid
+  reviewer       User   @relation(fields: [reviewerUserId], references: [id], onDelete: Cascade)
+
+  memberSbcId String // SBC id of the member being reviewed
+  stars       Int // 1..5
+  comment     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([reviewerUserId, memberSbcId])
+  @@index([memberSbcId])
+  @@map("member_reviews")
+}
+
+/// Pre-aggregated reputation per member, recomputed transactionally on every
+/// review write so directory search/profile annotation stays a single cheap
+/// lookup (no per-row AVG). The confidence score (0-100, neutral 50) is derived
+/// from `averageStars` in the app layer — see ReviewsService.confidenceScore().
+model MemberScore {
+  memberSbcId  String   @id
+  averageStars Float    @default(0)
+  reviewCount  Int      @default(0)
+  updatedAt    DateTime @updatedAt
+
+  @@map("member_scores")
 }
 
 enum NotificationType {

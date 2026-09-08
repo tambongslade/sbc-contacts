@@ -17,6 +17,10 @@ class Member {
     this.phoneNumber,
     this.isFavorite = false,
     this.isSynced = false,
+    this.confidenceScore = 50,
+    this.averageRating,
+    this.reviewCount = 0,
+    this.myRating,
   });
 
   factory Member.fromJson(Map<String, dynamic> json) {
@@ -38,6 +42,10 @@ class Member {
       phoneNumber: json['phoneNumber'] as String?,
       isFavorite: json['isFavorite'] as bool? ?? false,
       isSynced: json['isSynced'] as bool? ?? false,
+      confidenceScore: (json['confidenceScore'] as num?)?.toInt() ?? 50,
+      averageRating: (json['averageRating'] as num?)?.toDouble(),
+      reviewCount: (json['reviewCount'] as num?)?.toInt() ?? 0,
+      myRating: (json['myRating'] as num?)?.toInt(),
     );
   }
 
@@ -56,6 +64,14 @@ class Member {
   final String? phoneNumber;
   final bool isFavorite;
   final bool isSynced;
+
+  /// Reputation ("Score de confiance"), 0-100, neutral 50 when unrated.
+  final int confidenceScore;
+  final double? averageRating;
+  final int reviewCount;
+
+  /// The caller's own star rating for this member, if any.
+  final int? myRating;
 
   String get displayName {
     final parts = [firstName, name].where((e) => e != null && e.isNotEmpty);
@@ -87,5 +103,9 @@ class Member {
         phoneNumber: phoneNumber,
         isFavorite: isFavorite ?? this.isFavorite,
         isSynced: isSynced ?? this.isSynced,
+        confidenceScore: confidenceScore,
+        averageRating: averageRating,
+        reviewCount: reviewCount,
+        myRating: myRating,
       );
 }

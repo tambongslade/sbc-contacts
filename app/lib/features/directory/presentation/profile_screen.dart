@@ -5,8 +5,11 @@ import 'package:gap/gap.dart';
 import 'package:simple_icons/simple_icons.dart';
 import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
+import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
 import 'package:sbc_contacts/features/directory/domain/member.dart';
+import 'package:sbc_contacts/features/reviews/presentation/reviews_section.dart';
 import 'package:sbc_contacts/shared/services/whatsapp.dart';
+import 'package:sbc_contacts/shared/widgets/confidence_score_badge.dart';
 import 'package:sbc_contacts/shared/widgets/empty_state.dart';
 import 'package:sbc_contacts/shared/widgets/member_avatar.dart';
 import 'package:sbc_contacts/shared/widgets/member_card.dart';
@@ -71,6 +74,12 @@ class _ProfileBody extends ConsumerWidget {
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
           ),
+        const Gap(20),
+        ConfidenceScoreCard(
+          score: member.confidenceScore,
+          reviewCount: member.reviewCount,
+          averageStars: member.averageRating,
+        ),
         const Gap(24),
         Row(
           children: [
@@ -97,6 +106,11 @@ class _ProfileBody extends ConsumerWidget {
               ),
             ),
           ],
+        ),
+        const Gap(24),
+        ReviewsSection(
+          member: member,
+          isOwnProfile: ref.watch(authControllerProvider).value?.sbcUserId == member.sbcId,
         ),
         const Gap(24),
         if (member.skills.isNotEmpty) ...[

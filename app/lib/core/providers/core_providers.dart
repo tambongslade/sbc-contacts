@@ -6,6 +6,7 @@ import 'package:sbc_contacts/features/contacts/contact_service.dart';
 import 'package:sbc_contacts/features/directory/data/directory_repository.dart';
 import 'package:sbc_contacts/features/favorites/data/favorites_repository.dart';
 import 'package:sbc_contacts/features/notifications/data/notifications_repository.dart';
+import 'package:sbc_contacts/features/reviews/data/reviews_repository.dart';
 import 'package:sbc_contacts/features/sync/data/sync_repository.dart';
 
 /// Overridden in tests with an [InMemoryTokenStorage].
@@ -25,6 +26,9 @@ final directoryRepositoryProvider =
 
 final favoritesRepositoryProvider =
     Provider<FavoritesRepository>((ref) => FavoritesRepository(ref.watch(apiClientProvider)));
+
+final reviewsRepositoryProvider =
+    Provider<ReviewsRepository>((ref) => ReviewsRepository(ref.watch(apiClientProvider)));
 
 final syncRepositoryProvider =
     Provider<SyncRepository>((ref) => SyncRepository(ref.watch(apiClientProvider)));

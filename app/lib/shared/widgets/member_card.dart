@@ -6,6 +6,7 @@ import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/features/directory/application/search_controller.dart';
 import 'package:sbc_contacts/features/directory/domain/member.dart';
 import 'package:sbc_contacts/features/favorites/application/favorites_controller.dart';
+import 'package:sbc_contacts/shared/widgets/confidence_score_badge.dart';
 import 'package:sbc_contacts/shared/widgets/member_avatar.dart';
 import 'package:sbc_contacts/shared/widgets/whatsapp_button.dart';
 
@@ -33,6 +34,12 @@ class MemberCard extends ConsumerWidget {
           _MemberAvatarBlock(member: member),
           const Gap(12),
           Expanded(child: _MemberIdentity(member: member)),
+          // Only surface the score once it means something (i.e. it's been rated);
+          // an unrated "50" on every row would just be noise.
+          if (member.reviewCount > 0) ...[
+            const Gap(6),
+            ConfidenceScorePill(score: member.confidenceScore),
+          ],
           const Gap(2),
           _FavoriteButton(member: member),
           WhatsAppButton(phoneNumber: member.phoneNumber, size: 46),
