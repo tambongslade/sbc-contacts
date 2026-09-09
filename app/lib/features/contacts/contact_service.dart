@@ -56,7 +56,7 @@ class ContactService {
   }) async {
     try {
       final contact = Contact(
-        name: Name(first: firstName, last: lastName ?? ''),
+        name: Name(first: firstName, last: _withSbcSuffix(lastName)),
         phones: [if (phone != null && phone.isNotEmpty) Phone(number: phone)],
         organizations: [Organization(name: 'SBC', jobTitle: profession ?? '')],
       );
@@ -66,6 +66,21 @@ class ContactService {
       return ContactWriteResult(success: false, error: e.toString());
     }
   }
+
+  /// Every contact the app writes ends in "SBC", so it is recognisable as one
+  /// of ours straight from the phone's own contact list — the organisation tag
+  /// is only visible once the contact is opened, which is too late to be
+  /// useful when scrolling a phone book.
+  ///
+  /// Idempotent: a member already called "… SBC" is not suffixed twice.
+  static String _withSbcSuffix(String? lastName) {
+    final base = (lastName ?? '').trim();
+    if (base.isEmpty) return _suffix;
+    if (base.toUpperCase().endsWith(_suffix)) return base;
+    return '$base $_suffix';
+  }
+
+  static const String _suffix = 'SBC';
 
   String _digits(String s) => s.replaceAll(RegExp('[^0-9]'), '');
 }

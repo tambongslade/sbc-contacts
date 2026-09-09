@@ -246,6 +246,25 @@ export class SyncService {
     userId: string,
     dto: StartSyncDto,
   ): Promise<{ members: Member[]; criteriaId: string | null }> {
+    // An explicit selection wins over the criteria it came from. The review
+    // screen sends BOTH — the criteria for attribution, and the members the
+    // user actually ticked. Expanding the criteria here instead would mark
+    // every match PENDING while the device only ever writes, and reports on,
+    // the chosen few: the remainder is then stranded "En attente" forever,
+    // because nothing ever reports a status for it.
+    if (dto.memberSbcIds?.length) {
+      const criteriaId = dto.criteriaId
+        ? (
+            await this.prisma.syncCriteria.findFirst({
+              where: { id: dto.criteriaId, userId },
+              select: { id: true },
+            })
+          )?.id ?? null
+        : null;
+      if (dto.criteriaId && !criteriaId) throw new NotFoundException('Criteria not found');
+      const members = await this.members.findManyBySbcIds(dto.memberSbcIds);
+      return { members, criteriaId };
+    }
     if (dto.criteriaId) {
       const criteria = await this.prisma.syncCriteria.findFirst({
         where: { id: dto.criteriaId, userId },
@@ -253,10 +272,6 @@ export class SyncService {
       if (!criteria) throw new NotFoundException('Criteria not found');
       const members = await this.match.find(this.toMatch(criteria), { take: MAX_TARGETS });
       return { members, criteriaId: criteria.id };
-    }
-    if (dto.memberSbcIds?.length) {
-      const members = await this.members.findManyBySbcIds(dto.memberSbcIds);
-      return { members, criteriaId: null };
     }
     throw new BadRequestException('Provide either criteriaId or memberSbcIds');
   }
