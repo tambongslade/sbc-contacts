@@ -1,16 +1,18 @@
 // Hide Flutter's SearchController to avoid a clash with our directory controller.
-import 'dart:async';
 
+import 'dart:async';
 import 'package:flutter/material.dart' hide SearchController;
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sbc_contacts/core/theme/app_theme.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/directory/application/search_controller.dart';
 import 'package:sbc_contacts/features/directory/data/directory_repository.dart';
 import 'package:sbc_contacts/features/directory/domain/filter_options.dart';
 import 'package:sbc_contacts/features/directory/presentation/filter_sheet.dart';
+import 'package:sbc_contacts/shared/widgets/dark_pill_button.dart';
 import 'package:sbc_contacts/shared/widgets/empty_state.dart';
 import 'package:sbc_contacts/shared/widgets/member_card.dart';
 import 'package:sbc_contacts/shared/widgets/skeletons.dart';
@@ -106,26 +108,24 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final active = ActiveFilter.of(state.filters);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Rechercher'),
-        actions: [
-          _FilterAction(count: active.length, onPressed: _openFilters),
-          const Gap(4),
-        ],
-        bottom: const _BrandArcLine(),
-      ),
-      body: Column(
-        children: [
-          _QueryPanel(
-            controller: _searchCtrl,
-            filters: active,
-            onSubmitted: _submitSearch,
-            onClear: _clearSearch,
-            onRemoveFilter: _removeFilter,
-            onClearAll: _clearAllFilters,
-          ),
-          Expanded(child: _buildBody(state)),
-        ],
+      body: SafeArea(
+        // The floating nav bar owns the bottom inset; the body runs under it.
+        bottom: false,
+        child: Column(
+          children: [
+            _QueryPanel(
+              controller: _searchCtrl,
+              filters: active,
+              total: state.total,
+              onOpenFilters: _openFilters,
+              onSubmitted: _submitSearch,
+              onClear: _clearSearch,
+              onRemoveFilter: _removeFilter,
+              onClearAll: _clearAllFilters,
+            ),
+            Expanded(child: _buildBody(state)),
+          ],
+        ),
       ),
     );
   }
@@ -171,6 +171,8 @@ class _QueryPanel extends StatelessWidget {
   const _QueryPanel({
     required this.controller,
     required this.filters,
+    required this.total,
+    required this.onOpenFilters,
     required this.onSubmitted,
     required this.onClear,
     required this.onRemoveFilter,
@@ -179,6 +181,8 @@ class _QueryPanel extends StatelessWidget {
 
   final TextEditingController controller;
   final List<ActiveFilter> filters;
+  final int total;
+  final VoidCallback onOpenFilters;
   final ValueChanged<String> onSubmitted;
   final VoidCallback onClear;
   final ValueChanged<ActiveFilter> onRemoveFilter;
@@ -187,19 +191,19 @@ class _QueryPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border(
-          bottom: BorderSide(
-            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-          ),
-        ),
-      ),
+    // No rule under the panel: the white simply stops and the tinted ground
+    // takes over, which is what makes the cards below read as floating.
+    return ColoredBox(
+      color: theme.colorScheme.surface,
       child: Column(
         children: [
+          _DirectoryHeader(
+            total: total,
+            filterCount: filters.length,
+            onOpenFilters: onOpenFilters,
+          ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
             child: _SearchField(
               controller: controller,
               onSubmitted: onSubmitted,
@@ -213,6 +217,49 @@ class _QueryPanel extends StatelessWidget {
               onClearAll: onClearAll,
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Screen title + the filter entry point.
+///
+/// The title carries the directory size rather than the word "Rechercher": the
+/// member already knows which tab they are on, and "47k membres" is the one
+/// fact that makes the screen feel worth searching.
+class _DirectoryHeader extends StatelessWidget {
+  const _DirectoryHeader({
+    required this.total,
+    required this.filterCount,
+    required this.onOpenFilters,
+  });
+
+  final int total;
+  final int filterCount;
+  final VoidCallback onOpenFilters;
+
+  static String _compact(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 10000) return '${(n / 1000).round()}k';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k';
+    return '$n';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScreenHeader(
+      title: total > 0 ? '${_compact(total)} membres' : 'Annuaire SBC',
+      // "Live" dot: the count comes from the directory, not a number baked
+      // into the build.
+      dot: total > 0,
+      trailing: DarkPillButton(
+        icon: Icons.tune_rounded,
+        label: 'Filtres',
+        badgeCount: filterCount,
+        semanticLabel: filterCount > 0
+            ? '$filterCount filtre(s) actif(s)'
+            : 'Filtres',
+        onPressed: onOpenFilters,
       ),
     );
   }
@@ -265,25 +312,34 @@ class _SearchFieldState extends State<_SearchField> {
       duration: const Duration(milliseconds: 160),
       curve: Curves.easeOut,
       decoration: BoxDecoration(
-        color: focused
-            ? theme.colorScheme.surface
-            : SbcColors.surfaceTint.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(14),
+        color: SbcColors.surfaceTint.withValues(alpha: focused ? 0.55 : 0.85),
+        // Full pill. The field is the roundest thing on the screen because it
+        // is the screen's primary action.
+        borderRadius: BorderRadius.circular(34),
         border: Border.all(
-          color: focused
-              ? accent
-              : theme.colorScheme.outlineVariant.withValues(alpha: 0.8),
+          color: focused ? accent : Colors.transparent,
           width: focused ? 1.6 : 1,
         ),
       ),
       child: Row(
         children: [
+          // The glyph sits in its own disc so the field reads as a control with
+          // a button on it, not as a text box with decoration.
           Padding(
-            padding: const EdgeInsets.only(left: 14, right: 10),
-            child: Icon(
-              Icons.search_rounded,
-              size: 22,
-              color: focused ? accent : theme.colorScheme.onSurfaceVariant,
+            padding: const EdgeInsets.fromLTRB(7, 7, 10, 7),
+            child: Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.search_rounded,
+                size: 21,
+                color: focused ? accent : SbcColors.primary,
+              ),
             ),
           ),
           Expanded(
@@ -301,9 +357,10 @@ class _SearchFieldState extends State<_SearchField> {
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 15),
-                hintText: 'Rechercher un membre (ex. Designer)',
-                hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                hintText: 'Qui cherches-tu ?',
+                hintStyle: theme.textTheme.bodyLarge?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
@@ -313,12 +370,15 @@ class _SearchFieldState extends State<_SearchField> {
           ValueListenableBuilder<TextEditingValue>(
             valueListenable: widget.controller,
             builder: (context, value, _) {
-              if (value.text.isEmpty) return const Gap(8);
-              return IconButton(
-                tooltip: 'Effacer la recherche',
-                iconSize: 20,
-                icon: const Icon(Icons.close_rounded),
-                onPressed: widget.onClear,
+              if (value.text.isEmpty) return const Gap(16);
+              return Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: IconButton(
+                  tooltip: 'Effacer la recherche',
+                  iconSize: 20,
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: widget.onClear,
+                ),
               );
             },
           ),
@@ -394,69 +454,43 @@ class _RemovableFilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return InputChip(
-      avatar: Icon(filter.icon, size: 16, color: theme.colorScheme.primary),
-      label: Text(filter.label),
-      labelStyle: theme.textTheme.labelLarge?.copyWith(
-        fontWeight: FontWeight.w600,
-      ),
-      tooltip: 'Retirer le filtre ${filter.label}',
-      deleteIcon: const Icon(Icons.close_rounded, size: 16),
-      onPressed: onRemove,
-      onDeleted: onRemove,
-      backgroundColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.35),
-      side: BorderSide(
-        color: theme.colorScheme.primary.withValues(alpha: 0.28),
-      ),
-    );
-  }
-}
-
-/// A 3 dp blue → green → orange rule under the app bar: the same signature
-/// used on the profile and login screens, at the smallest possible dose.
-class _BrandArcLine extends StatelessWidget implements PreferredSizeWidget {
-  const _BrandArcLine();
-
-  @override
-  Size get preferredSize => const Size.fromHeight(3);
-
-  @override
-  Widget build(BuildContext context) => const SizedBox(
-        height: 3,
-        width: double.infinity,
-        child: DecoratedBox(
-          decoration: BoxDecoration(gradient: SbcColors.brandArc),
+    // A filter that is *on* is drawn as a filled brand pill — the same
+    // treatment the reference gives its selected chip — so the active set is
+    // legible from across the screen.
+    return Semantics(
+      button: true,
+      label: 'Retirer le filtre ${filter.label}',
+      child: Material(
+        color: SbcColors.secondary,
+        borderRadius: BorderRadius.circular(22),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onRemove,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 9, 10, 9),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(filter.icon, size: 15, color: Colors.white),
+                const Gap(6),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 150),
+                  child: Text(
+                    filter.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const Gap(5),
+                const Icon(Icons.close_rounded, size: 15, color: Colors.white),
+              ],
+            ),
+          ),
         ),
-      );
-}
-
-/// Filter entry point. Carries its own count so "filtered" is never signalled
-/// by colour alone.
-class _FilterAction extends StatelessWidget {
-  const _FilterAction({required this.count, required this.onPressed});
-
-  final int count;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final active = count > 0;
-    return Badge(
-      isLabelVisible: active,
-      label: Text('$count'),
-      backgroundColor: theme.colorScheme.tertiary,
-      offset: const Offset(-4, 4),
-      child: IconButton(
-        onPressed: onPressed,
-        tooltip: active ? '$count filtre(s) actif(s)' : 'Filtres',
-        icon: const Icon(Icons.tune_rounded),
-        style: active
-            ? IconButton.styleFrom(
-                backgroundColor: theme.colorScheme.primaryContainer,
-                foregroundColor: theme.colorScheme.onPrimaryContainer,
-              )
-            : null,
       ),
     );
   }
@@ -488,7 +522,7 @@ class _ResultsList extends StatelessWidget {
       onRefresh: onRefresh,
       child: ListView.builder(
         controller: scrollController,
-        padding: const EdgeInsets.only(top: 8, bottom: 28),
+        padding: EdgeInsets.only(top: 8, bottom: AppTheme.navInsetOf(context)),
         itemCount: members.length + (state.hasMore ? 2 : 1),
         itemBuilder: (context, i) {
           if (i == 0) return _ResultCount(total: state.total, shown: members.length);

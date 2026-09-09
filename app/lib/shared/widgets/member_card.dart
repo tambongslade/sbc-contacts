@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:sbc_contacts/core/providers/core_providers.dart';
+import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/directory/application/search_controller.dart';
 import 'package:sbc_contacts/features/directory/domain/member.dart';
 import 'package:sbc_contacts/features/favorites/application/favorites_controller.dart';
@@ -30,19 +31,23 @@ class MemberCard extends ConsumerWidget {
       onTap: onTap,
       semanticLabel: member.displayName,
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           _MemberAvatarBlock(member: member),
-          const Gap(12),
+          const Gap(13),
           Expanded(child: _MemberIdentity(member: member)),
-          // Only surface the score once it means something (i.e. it's been rated);
-          // an unrated "50" on every row would just be noise.
-          if (member.reviewCount > 0) ...[
-            const Gap(6),
-            ConfidenceScorePill(score: member.confidenceScore),
-          ],
-          const Gap(2),
-          _FavoriteButton(member: member),
-          WhatsAppButton(phoneNumber: member.phoneNumber, size: 46),
+          const Gap(8),
+          // The two actions stack rather than sit side by side: WhatsApp is the
+          // one thing the member came here to do, so it takes the top slot at
+          // full saturation and the favourite toggle tucks under it, quieter.
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              WhatsAppButton(phoneNumber: member.phoneNumber, size: 46),
+              const Gap(2),
+              _FavoriteButton(member: member),
+            ],
+          ),
         ],
       ),
     );
@@ -72,7 +77,7 @@ class _PressableRow extends StatefulWidget {
 
 class _PressableRowState extends State<_PressableRow> {
   /// Near-pill: large enough that the row reads as an object, not a table cell.
-  static const double _radius = 24;
+  static const double _radius = 26;
 
   bool _pressed = false;
 
@@ -141,7 +146,8 @@ class _MemberAvatarBlock extends StatelessWidget {
     final avatar = MemberAvatar(
       initials: member.initials,
       avatarUrl: member.avatarUrl,
-      radius: 24,
+      radius: 27,
+      rounded: true,
     );
     if (!member.isSynced) return avatar;
 
@@ -150,22 +156,22 @@ class _MemberAvatarBlock extends StatelessWidget {
       children: [
         avatar,
         Positioned(
-          right: -2,
-          bottom: -2,
+          right: -1,
+          bottom: -1,
           child: Tooltip(
             message: 'Déjà dans tes contacts',
             child: Semantics(
               label: 'Déjà dans tes contacts',
               child: Container(
-                padding: const EdgeInsets.all(2),
+                padding: const EdgeInsets.all(2.5),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.surface,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.check_circle,
-                  size: 15,
-                  color: theme.colorScheme.secondary,
+                  size: 14,
+                  color: SbcColors.success,
                 ),
               ),
             ),
@@ -177,8 +183,12 @@ class _MemberAvatarBlock extends StatelessWidget {
 }
 
 /// Name + metadata. Many members have neither profession nor région, so the
-/// metadata line simply disappears and the name centres itself — no "non
+/// metadata row simply disappears and the name centres itself — no "non
 /// renseigné" filler, which would only add noise to half the list.
+///
+/// The metadata reads as small pills rather than a run-on line: each fact is a
+/// separate object, which is what makes the row scannable at a glance instead
+/// of something you have to parse.
 class _MemberIdentity extends StatelessWidget {
   const _MemberIdentity({required this.member});
 
@@ -187,10 +197,18 @@ class _MemberIdentity extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasProfession = member.profession != null && member.profession!.isNotEmpty;
-    final meta = [member.profession, member.location]
-        .where((e) => e != null && e.isNotEmpty)
-        .join(' · ');
+    final profession = member.profession;
+    final location = member.location;
+
+    final pills = <Widget>[
+      if (location.isNotEmpty)
+        _MetaPill(icon: Icons.place_rounded, label: location),
+      if (profession != null && profession.isNotEmpty)
+        _MetaPill(label: profession),
+      // Only surface the score once it means something (i.e. it's been rated);
+      // an unrated "50" on every row would just be noise.
+      if (member.reviewCount > 0) ConfidenceScorePill(score: member.confidenceScore),
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -199,37 +217,77 @@ class _MemberIdentity extends StatelessWidget {
         Text(
           member.displayName,
           style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w800,
             height: 1.15,
           ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        if (meta.isNotEmpty) ...[
-          const Gap(3),
-          Row(
-            children: [
-              Icon(
-                hasProfession ? Icons.work_outline : Icons.place_outlined,
-                size: 13,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              const Gap(5),
-              Expanded(
-                child: Text(
-                  meta,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    height: 1.2,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+        if (pills.isNotEmpty) ...[
+          const Gap(7),
+          // Clipped to one line: a member with a long profession and a long
+          // city must not be allowed to grow the row to twice its height.
+          SizedBox(
+            height: 24,
+            child: ClipRect(
+              child: OverflowBox(
+                alignment: Alignment.centerLeft,
+                maxWidth: double.infinity,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final pill in pills) ...[pill, const Gap(6)],
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ],
       ],
+    );
+  }
+}
+
+/// One fact about a member, as a soft grey pill.
+class _MetaPill extends StatelessWidget {
+  const _MetaPill({required this.label, this.icon});
+
+  final String label;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final fg = theme.colorScheme.onSurfaceVariant;
+    return Container(
+      padding: EdgeInsets.fromLTRB(icon == null ? 10 : 8, 4, 10, 4),
+      decoration: BoxDecoration(
+        color: SbcColors.surfaceTint.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: fg),
+            const Gap(3),
+          ],
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 110),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
+                color: fg,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
