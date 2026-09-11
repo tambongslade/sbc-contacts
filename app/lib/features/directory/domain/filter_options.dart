@@ -162,6 +162,52 @@ class FilterOptions {
     'Yoga',
   ];
 
+  /// One glyph per interest, so the chips are scannable by shape before they
+  /// are read. Interests are stored unaccented upstream, so the keys here are
+  /// the exact wire strings from [interests]; a key that ever goes missing
+  /// falls back to a neutral dot rather than breaking the chip.
+  static const Map<String, String> interestEmoji = {
+    'Football': '\u26BD',
+    'Musique (instruments, chant)': '\u{1F3B5}',
+    'Cinema': '\u{1F3AC}',
+    'Lecture': '\u{1F4DA}',
+    'Jeux video': '\u{1F3AE}',
+    'Tourisme local et international': '\u{1F9F3}',
+    'Basketball': '\u{1F3C0}',
+    'Photographie': '\u{1F4F7}',
+    'Apprentissage de nouvelles langues': '\u{1F5E3}',
+    'Programmation': '\u{1F4BB}',
+    'Danse': '\u{1F483}',
+    'Electronique': '\u{1F50C}',
+    'Decouverte de nouvelles cultures': '\u{1F30D}',
+    'Course a pied': '\u{1F3C3}',
+    'Cuisine du monde': '\u{1F372}',
+    'Sciences de la vie': '\u{1F9EC}',
+    'Fitness': '\u{1F3CB}',
+    'Aide aux personnes defavorisees': '\u{1F91D}',
+    'Jeux de societe': '\u{1F3B2}',
+    'Patisserie': '\u{1F9C1}',
+    'Meditation': '\u{1F9D8}',
+    "Protection de l'environnement": '\u{1F331}',
+    'Nutrition': '\u{1F957}',
+    "Decoration d'interieur": '\u{1F6CB}',
+    'Medecine alternative': '\u{1F33F}',
+    'Robotique': '\u{1F916}',
+    'Participation a des evenements caritatifs': '\u{1F397}',
+    'Peinture et dessin': '\u{1F3A8}',
+    'Theatre': '\u{1F3AD}',
+    'Artisanat': '\u{1F9F5}',
+    'Randonnees en nature': '\u{1F3D5}',
+    'Stylisme': '\u{1F457}',
+    'Natation': '\u{1F3CA}',
+    'Enigmes et casse-tetes': '\u{1F9E9}',
+    'Cyclisme': '\u{1F6B4}',
+    'Degustation de vins': '\u{1F377}',
+    'Randonnee': '\u{1F97E}',
+    'Astronomie': '\u{1F52D}',
+    'Yoga': '\u{1F54A}',
+  };
+
   /// The 60 most common of 658 regions. Because the tail is long and spans
   /// many countries, region is offered as autocomplete over these plus free
   /// text — a fixed dropdown would hide 598 valid values.

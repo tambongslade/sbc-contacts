@@ -1,10 +1,11 @@
-import 'dart:async';
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sbc_contacts/core/theme/app_theme.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
 import 'package:sbc_contacts/features/auth/domain/app_user.dart';
@@ -30,7 +31,7 @@ class AccountScreen extends ConsumerWidget {
               onRefresh: () => ref.read(authControllerProvider.notifier).refreshProfile(),
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                padding: EdgeInsets.fromLTRB(16, 16, 16, AppTheme.navInsetOf(context)),
                 children: [
                   _ProfileHeader(user: user)
                       .animate()
@@ -636,7 +637,7 @@ class _AccountSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Skeletonizer(
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, AppTheme.navInsetOf(context)),
         children: [
           _SurfaceCard(
             child: Column(

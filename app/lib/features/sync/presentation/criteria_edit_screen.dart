@@ -29,6 +29,16 @@ class _CriteriaEditScreenState extends ConsumerState<CriteriaEditScreen> {
   late double _ageMin = (widget.existing?.ageMin ?? 18).toDouble();
   late double _ageMax = (widget.existing?.ageMax ?? 65).toDouble();
 
+  /// Off unless the criteria actually carries an age range.
+  ///
+  /// This used to be permanently on, defaulting to 18–65, and it was silently
+  /// destroying criteria: SBC does not give an age for every member, and a
+  /// range comparison drops every row whose age is NULL. A criterion the member
+  /// never meant to filter by age would therefore match nobody, with nothing
+  /// on screen to explain why.
+  late bool _ageEnabled =
+      widget.existing?.ageMin != null || widget.existing?.ageMax != null;
+
   int? _preview;
   bool _previewing = false;
   bool _saving = false;
@@ -48,8 +58,10 @@ class _CriteriaEditScreenState extends ConsumerState<CriteriaEditScreen> {
         'professions': _professions.toList(),
         'interests': _interests.toList(),
         if (_sex != null) 'sex': _sex,
-        'ageMin': _ageMin.round(),
-        'ageMax': _ageMax.round(),
+        // Explicit nulls, not omission: on an update, leaving the keys out
+        // would keep whatever range the criteria already had.
+        'ageMin': _ageEnabled ? _ageMin.round() : null,
+        'ageMax': _ageEnabled ? _ageMax.round() : null,
       };
 
   Future<void> _refreshPreview() async {
@@ -189,22 +201,37 @@ class _CriteriaEditScreenState extends ConsumerState<CriteriaEditScreen> {
           ),
 
           const Gap(20),
-          Text(
-            'Âge : ${_ageMin.round()} – ${_ageMax.round()} ans',
-            style: theme.textTheme.labelLarge,
-          ),
-          RangeSlider(
-            min: 16,
-            max: 80,
-            divisions: 64,
-            values: RangeValues(_ageMin, _ageMax),
-            labels: RangeLabels('${_ageMin.round()}', '${_ageMax.round()}'),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _ageEnabled,
+            title: Text('Filtrer par âge', style: theme.textTheme.labelLarge),
+            subtitle: Text(
+              _ageEnabled
+                  ? '${_ageMin.round()} – ${_ageMax.round()} ans'
+                  : "Tous les âges — les membres dont l'âge est inconnu "
+                      'restent inclus',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
             onChanged: (v) => setState(() {
-              _ageMin = v.start;
-              _ageMax = v.end;
+              _ageEnabled = v;
               _preview = null;
             }),
           ),
+          if (_ageEnabled)
+            RangeSlider(
+              min: 16,
+              max: 80,
+              divisions: 64,
+              values: RangeValues(_ageMin, _ageMax),
+              labels: RangeLabels('${_ageMin.round()}', '${_ageMax.round()}'),
+              onChanged: (v) => setState(() {
+                _ageMin = v.start;
+                _ageMax = v.end;
+                _preview = null;
+              }),
+            ),
 
           const Gap(20),
           // §10: show how many members the criteria matches before saving it.

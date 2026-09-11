@@ -48,7 +48,29 @@ export class DirectoryService {
     // Annotate fresh on every call (favorite/sync state changes; it's a cheap
     // indexed read) — but the expensive SBC call + upsert are cache-served.
     const annotated = await this.members.annotate(userId, page.rows);
-    return paginate(annotated, page.total, page.page, page.limit);
+    return paginate(this.sortRows(annotated, query.sort), page.total, page.page, page.limit);
+  }
+
+  /**
+   * Reputation-first ordering, applied to the page in hand rather than to the
+   * whole result set.
+   *
+   * `confidenceScore` is derived from OUR reviews; SBC owns the paging and
+   * knows nothing about it, so there is no way to ask upstream for a globally
+   * ranked page. Ordering what the member is looking at is the honest version
+   * of this feature — a page is 20 rows, which is the scope of one screen.
+   * Unrated members all sit at the neutral 50, so the tie-breaks (more reviews
+   * first, then better average) are what actually separate them, and anything
+   * still tied keeps SBC's own order: Array.prototype.sort is stable.
+   */
+  private sortRows(rows: MemberView[], sort?: string): MemberView[] {
+    if (sort !== 'confidence') return rows;
+    return [...rows].sort(
+      (a, b) =>
+        b.confidenceScore - a.confidenceScore ||
+        b.reviewCount - a.reviewCount ||
+        (b.averageRating ?? 0) - (a.averageRating ?? 0),
+    );
   }
 
   /** Resolve one page (handling the name+profession merge), cache-served. */

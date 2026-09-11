@@ -67,12 +67,37 @@ class _SyncedContactsScreenState extends ConsumerState<SyncedContactsScreen> {
               ),
               data: (page) {
                 if (page.items.isEmpty) {
-                  return const EmptyState(
+                  // "Empty" means two very different things here, and the old
+                  // copy covered neither: either nothing has ever been synced
+                  // (so say what to do about it), or the chosen filter simply
+                  // matches nothing (so say that instead of implying the list
+                  // is empty).
+                  if (_status != null) {
+                    return EmptyState(
+                      icon: Icons.filter_alt_off_outlined,
+                      title: 'Aucun contact « ${_filters[_status]} »',
+                      message:
+                          "Tes contacts enregistrés sont là, mais aucun n'a ce "
+                          'statut pour le moment.',
+                      action: FilledButton(
+                        onPressed: () => setState(() => _status = null),
+                        child: const Text('Voir tous les contacts'),
+                      ),
+                    );
+                  }
+                  return EmptyState(
                     icon: Icons.contact_page_outlined,
-                    title: 'Aucun contact',
+                    title: 'Aucun contact enregistré',
                     message:
-                        'Les membres que vous enregistrez apparaîtront ici avec '
-                        'leur statut de synchronisation.',
+                        'Cette liste se remplit après une synchronisation : '
+                        'choisis un critère, appuie sur « Synchroniser », et '
+                        'les membres écrits dans ton répertoire apparaîtront '
+                        'ici avec leur statut.',
+                    action: FilledButton.icon(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.tune_rounded, size: 18),
+                      label: const Text('Aller aux critères'),
+                    ),
                   );
                 }
                 return RefreshIndicator(

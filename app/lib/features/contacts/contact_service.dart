@@ -46,22 +46,22 @@ class ContactService {
     return false;
   }
 
+  /// Writes one member to the phone book.
+  ///
+  /// [displayName] is the member's whole name, and the only name input: SBC
+  /// puts the full name in `name` and often leaves `firstName` null, so
+  /// callers passing both ended up writing "Claude Durel Claude Durel SBC".
+  /// Splitting one string here is the only way the two halves cannot disagree.
   Future<ContactWriteResult> addSbcContact({
-    required String firstName,
-    String? lastName,
+    required String displayName,
     String? phone,
     String? profession,
     String? city,
     String? country,
   }) async {
     try {
-      // Append an "SBC" suffix to the display name so users can recognise which
-      // contacts came from SBC. The suffix rides on the last-name field so the
-      // phone shows "Prénom Nom SBC" (or just "Membre SBC" when nameless), with
-      // exactly one suffix and no double spaces.
-      final suffixedLast = _withSbcSuffix(firstName: firstName, lastName: lastName);
       final contact = Contact(
-        name: Name(first: firstName, last: suffixedLast),
+        name: _nameFor(displayName),
         phones: [if (phone != null && phone.isNotEmpty) Phone(number: phone)],
         organizations: [Organization(name: 'SBC', jobTitle: profession ?? '')],
       );
@@ -72,15 +72,37 @@ class ContactService {
     }
   }
 
-  String _digits(String s) => s.replaceAll(RegExp('[^0-9]'), '');
-
-  /// Builds the last-name field so the full display name ends with exactly one
-  /// " SBC". If both names are empty the whole contact reads "Membre SBC"
-  /// (first name empty, last name "Membre SBC").
-  static String _withSbcSuffix({required String firstName, String? lastName}) {
-    final first = firstName.trim();
-    final last = (lastName ?? '').trim();
-    if (first.isEmpty && last.isEmpty) return 'Membre SBC';
-    return '$last SBC'.trim();
+  /// Splits a whole name into the given/family halves a phone book stores
+  /// separately. The first word is the given name and everything after it the
+  /// family name, which is where the "SBC" marker is appended — so the phone
+  /// shows "Claude Durel SBC", not the name twice.
+  static Name _nameFor(String displayName) {
+    final parts = displayName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return Name(first: 'Membre', last: _suffix);
+    return Name(
+      first: parts.first,
+      last: _withSbcSuffix(parts.skip(1).join(' ')),
+    );
   }
+
+  /// Every contact the app writes ends in "SBC", so it is recognisable as one
+  /// of ours straight from the phone's own contact list — the organisation tag
+  /// is only visible once the contact is opened, which is too late to be
+  /// useful when scrolling a phone book.
+  ///
+  /// Idempotent: a member already called "… SBC" is not suffixed twice.
+  static String _withSbcSuffix(String? lastName) {
+    final base = (lastName ?? '').trim();
+    if (base.isEmpty) return _suffix;
+    if (base.toUpperCase().endsWith(_suffix)) return base;
+    return '$base $_suffix';
+  }
+
+  static const String _suffix = 'SBC';
+
+  String _digits(String s) => s.replaceAll(RegExp('[^0-9]'), '');
 }

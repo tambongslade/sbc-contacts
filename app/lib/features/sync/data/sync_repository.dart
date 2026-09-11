@@ -52,6 +52,26 @@ class SyncRepository {
   Future<void> reportRun(String runId, List<Map<String, dynamic>> results) =>
       _api.post('/sync/runs/$runId/report', body: {'results': results});
 
+  /// Records one contact that was written to the phone outside a criteria run
+  /// — the one-tap "ajouter au répertoire" on a member card.
+  ///
+  /// Without this the contact is on the device but absent from "Mes contacts
+  /// SBC", which reads the backend and not the phone book: the member saves
+  /// someone, opens the list, and finds it empty.
+  Future<void> recordSingleContact({
+    required String memberSbcId,
+    String? deviceContactId,
+  }) async {
+    final run = await startRun(memberSbcIds: [memberSbcId]);
+    await reportRun(run.syncRunId, [
+      {
+        'memberSbcId': memberSbcId,
+        if (deviceContactId != null) 'deviceContactId': deviceContactId,
+        'status': 'SYNCED',
+      },
+    ]);
+  }
+
   Future<SyncSummary> summary() async =>
       SyncSummary.fromJson(await _api.get('/sync/summary') as Map<String, dynamic>);
 
