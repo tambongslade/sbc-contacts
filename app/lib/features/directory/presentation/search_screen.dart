@@ -66,8 +66,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final updated = await showModalBottomSheet<SearchFilters>(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
       useSafeArea: true,
+      // No drag handle: the sheet is full-height and carries its own header
+      // (back, title, "Effacer") plus the step bar.
       builder: (_) => FilterSheet(initial: _filters),
     );
     if (updated != null) await _apply(updated);
@@ -94,13 +95,32 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void _removeFilter(ActiveFilter filter) =>
       unawaited(_apply(filter.removedFrom(_filters)));
 
-  void _clearAllFilters() =>
-      unawaited(_apply(SearchFilters(search: _filters.search)));
+  /// Clearing the filters resets what is searched, not how it is ordered —
+  /// the sort is a reading preference, so it survives.
+  void _clearAllFilters() => unawaited(
+        _apply(
+          SearchFilters(
+            search: _filters.search,
+            sortByConfidence: _filters.sortByConfidence,
+          ),
+        ),
+      );
 
   void _applyProfession(String profession) {
     _searchCtrl.clear();
-    unawaited(_apply(SearchFilters(profession: profession)));
+    unawaited(
+      _apply(
+        SearchFilters(
+          profession: profession,
+          sortByConfidence: _filters.sortByConfidence,
+        ),
+      ),
+    );
   }
+
+  void _setSort({required bool byConfidence}) => unawaited(
+        _apply(_filters.copyWith(sortByConfidence: byConfidence)),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -122,6 +142,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               onClear: _clearSearch,
               onRemoveFilter: _removeFilter,
               onClearAll: _clearAllFilters,
+              sortByConfidence: state.filters.sortByConfidence,
+              onSortChanged: _setSort,
             ),
             Expanded(child: _buildBody(state)),
           ],
@@ -177,6 +199,8 @@ class _QueryPanel extends StatelessWidget {
     required this.onClear,
     required this.onRemoveFilter,
     required this.onClearAll,
+    required this.sortByConfidence,
+    required this.onSortChanged,
   });
 
   final TextEditingController controller;
@@ -187,6 +211,8 @@ class _QueryPanel extends StatelessWidget {
   final VoidCallback onClear;
   final ValueChanged<ActiveFilter> onRemoveFilter;
   final VoidCallback onClearAll;
+  final bool sortByConfidence;
+  final void Function({required bool byConfidence}) onSortChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -203,12 +229,16 @@ class _QueryPanel extends StatelessWidget {
             onOpenFilters: onOpenFilters,
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
             child: _SearchField(
               controller: controller,
               onSubmitted: onSubmitted,
               onClear: onClear,
             ),
+          ),
+          _SortBar(
+            byConfidence: sortByConfidence,
+            onChanged: onSortChanged,
           ),
           if (filters.isNotEmpty)
             _ActiveFilterBar(
@@ -1023,4 +1053,101 @@ class ActiveFilter {
               ]
             : f.interests,
       );
+}
+
+/// How the results are ordered — SBC's own relevance, or reputation first.
+///
+/// Drawn as two small options rather than a menu: there are exactly two, and
+/// the member has to be able to see which one is in force without opening
+/// anything, because it changes the meaning of the list underneath.
+class _SortBar extends StatelessWidget {
+  const _SortBar({required this.byConfidence, required this.onChanged});
+
+  final bool byConfidence;
+  final void Function({required bool byConfidence}) onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Row(
+        children: [
+          Icon(
+            Icons.swap_vert_rounded,
+            size: 16,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const Gap(8),
+          Text(
+            'Trier',
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontSize: 11.5,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const Gap(10),
+          _SortOption(
+            label: 'Pertinence',
+            selected: !byConfidence,
+            onTap: () => onChanged(byConfidence: false),
+          ),
+          const Gap(8),
+          _SortOption(
+            label: 'Score de confiance',
+            selected: byConfidence,
+            onTap: () => onChanged(byConfidence: true),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SortOption extends StatelessWidget {
+  const _SortOption({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final fill = selected
+        ? (dark ? theme.colorScheme.surfaceContainerHighest : const Color(0xFF10182B))
+        : theme.scaffoldBackgroundColor;
+    final onFill = selected
+        ? (dark ? theme.colorScheme.onSurface : Colors.white)
+        : theme.colorScheme.onSurfaceVariant;
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: 'Trier par $label',
+      child: Material(
+        color: fill,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            child: Text(
+              label,
+              style: theme.textTheme.labelMedium?.copyWith(
+                fontSize: 11.5,
+                color: onFill,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

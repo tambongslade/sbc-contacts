@@ -7,6 +7,7 @@ import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/directory/application/search_controller.dart';
 import 'package:sbc_contacts/features/directory/domain/member.dart';
 import 'package:sbc_contacts/features/favorites/application/favorites_controller.dart';
+import 'package:sbc_contacts/features/sync/application/sync_controllers.dart';
 import 'package:sbc_contacts/shared/widgets/confidence_score_badge.dart';
 import 'package:sbc_contacts/shared/widgets/member_avatar.dart';
 import 'package:sbc_contacts/shared/widgets/whatsapp_button.dart';
@@ -338,7 +339,12 @@ class _FavoriteButton extends ConsumerWidget {
   }
 }
 
-/// Adds a member to the phone contacts via the native service (cahier §9).
+/// Adds a member to the phone contacts via the native service (cahier §9),
+/// then records it so it shows up in "Mes contacts SBC" (§16).
+///
+/// The recording step is not optional bookkeeping: that screen lists what the
+/// backend knows, not what is in the phone book, so a contact saved here and
+/// never reported is a contact the member cannot find again in the app.
 Future<void> addMemberToPhone(BuildContext context, WidgetRef ref, Member member) async {
   final messenger = ScaffoldMessenger.of(context);
   final service = ref.read(contactServiceProvider);
@@ -348,21 +354,70 @@ Future<void> addMemberToPhone(BuildContext context, WidgetRef ref, Member member
     );
     return;
   }
+
+  // Already on the device: nothing to write, but it still belongs in the list —
+  // that screen reports on what is in the phone book, and it is.
   if (member.phoneNumber != null && await service.existsByPhone(member.phoneNumber!)) {
-    messenger.showSnackBar(const SnackBar(content: Text('Ce contact existe déjà')));
+    await _recordSynced(ref, member);
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Déjà dans ton répertoire')),
+    );
     return;
   }
+
   final result = await service.addSbcContact(
-    firstName: member.firstName ?? member.displayName,
-    lastName: member.name,
+    displayName: member.displayName,
     phone: member.phoneNumber,
     profession: member.profession,
     city: member.city,
     country: member.country,
   );
+  if (!result.success) {
+    messenger.showSnackBar(SnackBar(content: Text('Échec: ${result.error}')));
+    return;
+  }
+
+  final recorded = await _recordSynced(
+    ref,
+    member,
+    deviceContactId: result.deviceContactId,
+  );
   messenger.showSnackBar(
     SnackBar(
-      content: Text(result.success ? 'Contact ajouté au téléphone' : 'Échec: ${result.error}'),
+      content: Text(
+        recorded
+            ? 'Contact ajouté — visible dans « Mes contacts SBC »'
+            // Say which half failed: the contact IS on the phone, and telling
+            // the member it failed outright would send them to save it twice.
+            : 'Contact ajouté au téléphone (pas encore synchronisé au serveur)',
+      ),
     ),
   );
+}
+
+/// Reports one contact to the backend and refreshes the screens that read it.
+/// Returns false when only the bookkeeping failed — the phone book is right
+/// either way, so this never surfaces as an error on its own.
+Future<bool> _recordSynced(
+  WidgetRef ref,
+  Member member, {
+  String? deviceContactId,
+}) async {
+  try {
+    await ref.read(syncRepositoryProvider).recordSingleContact(
+          memberSbcId: member.sbcId,
+          deviceContactId: deviceContactId,
+        );
+  } catch (_) {
+    return false;
+  }
+  ref.read(searchControllerProvider.notifier).setSyncedLocal(
+        member.sbcId,
+        isSynced: true,
+      );
+  ref
+    ..invalidate(syncSummaryProvider)
+    ..invalidate(syncedContactsProvider)
+    ..invalidate(syncHistoryProvider);
+  return true;
 }

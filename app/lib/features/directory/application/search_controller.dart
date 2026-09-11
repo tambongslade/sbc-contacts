@@ -106,6 +106,17 @@ class SearchController extends Notifier<SearchState> {
       ],
     );
   }
+
+  /// Same, for a contact just written to the phone: the row says "déjà dans
+  /// ton répertoire" straight away instead of after the next search.
+  void setSyncedLocal(String sbcId, {required bool isSynced}) {
+    state = state.copyWith(
+      members: [
+        for (final m in state.members)
+          if (m.sbcId == sbcId) m.copyWith(isSynced: isSynced) else m,
+      ],
+    );
+  }
 }
 
 final searchControllerProvider =

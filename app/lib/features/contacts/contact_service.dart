@@ -46,9 +46,14 @@ class ContactService {
     return false;
   }
 
+  /// Writes one member to the phone book.
+  ///
+  /// [displayName] is the member's whole name, and the only name input: SBC
+  /// puts the full name in `name` and often leaves `firstName` null, so
+  /// callers passing both ended up writing "Claude Durel Claude Durel SBC".
+  /// Splitting one string here is the only way the two halves cannot disagree.
   Future<ContactWriteResult> addSbcContact({
-    required String firstName,
-    String? lastName,
+    required String displayName,
     String? phone,
     String? profession,
     String? city,
@@ -56,7 +61,7 @@ class ContactService {
   }) async {
     try {
       final contact = Contact(
-        name: Name(first: firstName, last: _withSbcSuffix(lastName)),
+        name: _nameFor(displayName),
         phones: [if (phone != null && phone.isNotEmpty) Phone(number: phone)],
         organizations: [Organization(name: 'SBC', jobTitle: profession ?? '')],
       );
@@ -65,6 +70,23 @@ class ContactService {
     } catch (e) {
       return ContactWriteResult(success: false, error: e.toString());
     }
+  }
+
+  /// Splits a whole name into the given/family halves a phone book stores
+  /// separately. The first word is the given name and everything after it the
+  /// family name, which is where the "SBC" marker is appended — so the phone
+  /// shows "Claude Durel SBC", not the name twice.
+  static Name _nameFor(String displayName) {
+    final parts = displayName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return Name(first: 'Membre', last: _suffix);
+    return Name(
+      first: parts.first,
+      last: _withSbcSuffix(parts.skip(1).join(' ')),
+    );
   }
 
   /// Every contact the app writes ends in "SBC", so it is recognisable as one

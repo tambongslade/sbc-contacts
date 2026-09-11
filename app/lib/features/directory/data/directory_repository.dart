@@ -14,6 +14,7 @@ class SearchFilters {
     this.ageMin,
     this.ageMax,
     this.interests = const [],
+    this.sortByConfidence = false,
   });
 
   final String? search;
@@ -29,6 +30,11 @@ class SearchFilters {
   final int? ageMin;
   final int? ageMax;
   final List<String> interests;
+
+  /// Order each page by "score de confiance" instead of SBC's own relevance
+  /// order. Not counted as a filter: it changes the order of the results, not
+  /// which members are in them.
+  final bool sortByConfidence;
 
   bool get isEmpty =>
       (search == null || search!.isEmpty) &&
@@ -53,6 +59,7 @@ class SearchFilters {
         if (ageMin != null) 'ageMin': ageMin,
         if (ageMax != null) 'ageMax': ageMax,
         if (interests.isNotEmpty) 'interests': interests,
+        if (sortByConfidence) 'sort': 'confidence',
       };
 
   SearchFilters copyWith({
@@ -65,6 +72,7 @@ class SearchFilters {
     int? ageMin,
     int? ageMax,
     List<String>? interests,
+    bool? sortByConfidence,
     bool clearSearch = false,
   }) =>
       SearchFilters(
@@ -77,6 +85,7 @@ class SearchFilters {
         ageMin: ageMin ?? this.ageMin,
         ageMax: ageMax ?? this.ageMax,
         interests: interests ?? this.interests,
+        sortByConfidence: sortByConfidence ?? this.sortByConfidence,
       );
 }
 
