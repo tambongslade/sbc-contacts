@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SBC Contacts — Informations légales / Legal</title>
+<style>
+:root{--blue:#1862F0;--green:#92B127;--orange:#F49101;--ink:#1a2233;--muted:#5b6472;--line:#e6e9f0;--bg:#f7f9fc}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.6}
+.wrap{max-width:820px;margin:0 auto;padding:0 20px 64px}
+header.top{background:linear-gradient(120deg,var(--blue),#0f47b8);color:#fff;padding:30px 0}
+.brand{display:flex;align-items:center;gap:12px;font-weight:700;font-size:22px}
+.brand .dot{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--green),var(--orange));display:inline-block}
+.sub{opacity:.9;margin-top:8px;font-size:15px}
+.langbar{display:flex;gap:8px;margin:18px 0 4px}
+.langbar button{border:1px solid var(--line);background:#fff;color:var(--muted);padding:6px 14px;border-radius:999px;cursor:pointer;font-weight:600}
+.langbar button.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
+@media(max-width:620px){.grid{grid-template-columns:1fr}}
+a.card{display:block;background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px;text-decoration:none;color:var(--ink);box-shadow:0 6px 24px rgba(24,98,240,.06)}
+a.card:hover{border-color:var(--blue)}
+a.card b{display:block;font-size:17px;margin-bottom:4px}
+a.card span{color:var(--muted);font-size:14px}
+footer{color:var(--muted);font-size:13px;text-align:center;padding:26px 0}
+html[lang="fr"] .en, html[lang="en"] .fr{display:none}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <div class="brand"><span class="dot"></span> SBC Contacts</div>
+  <div class="sub fr">Annuaire des membres du Sniper Business Center — Informations légales</div>
+  <div class="sub en">Sniper Business Center member directory — Legal information</div>
+</div></header>
+<div class="wrap">
+  <div class="langbar">
+    <button data-l="fr">Français</button>
+    <button data-l="en">English</button>
+  </div>
+  <div class="grid">
+    <a class="card" href="/privacy/"><b class="fr">Politique de confidentialité</b><b class="en">Privacy Policy</b><span class="fr">Comment nous traitons vos données.</span><span class="en">How we handle your data.</span></a>
+    <a class="card" href="/terms/"><b class="fr">Conditions d'utilisation</b><b class="en">Terms of Service</b><span class="fr">Les règles d'utilisation de l'application.</span><span class="en">The rules for using the app.</span></a>
+    <a class="card" href="/delete-account/"><b class="fr">Suppression de compte &amp; données</b><b class="en">Account &amp; Data Deletion</b><span class="fr">Demander la suppression de votre compte.</span><span class="en">Request deletion of your account.</span></a>
+    <a class="card" href="/support/"><b class="fr">Support &amp; Contact</b><b class="en">Support &amp; Contact</b><span class="fr">Nous contacter pour toute question.</span><span class="en">Get in touch with us.</span></a>
+  </div>
+</div>
+<footer>© <span id="y"></span> Sniper Business Center — SBC Contacts</footer>
+<script src="/legal.js"></script>
+</body>
+</html>

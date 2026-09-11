@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sbc_contacts/features/added_events/presentation/who_added_me_screen.dart';
 import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
 import 'package:sbc_contacts/features/auth/presentation/login_screen.dart';
 import 'package:sbc_contacts/features/directory/presentation/profile_screen.dart';
@@ -81,6 +82,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: '/profile/:sbcId',
         builder: (_, s) => ProfileScreen(sbcId: s.pathParameters['sbcId']!),
       ),
+      GoRoute(path: '/who-added-me', builder: (_, __) => const WhoAddedMeScreen()),
       GoRoute(path: '/sync/history', builder: (_, __) => const SyncHistoryScreen()),
       GoRoute(path: '/sync/contacts', builder: (_, __) => const SyncedContactsScreen()),
       GoRoute(

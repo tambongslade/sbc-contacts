@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
+import 'package:go_router/go_router.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
 import 'package:sbc_contacts/features/auth/domain/app_user.dart';
@@ -43,6 +44,11 @@ class AccountScreen extends ConsumerWidget {
                   const Gap(20),
                   _InfoBlock(user: user)
                       .animate(delay: 120.ms)
+                      .fadeIn(duration: 260.ms)
+                      .slideY(begin: 0.04, end: 0, curve: Curves.easeOut),
+                  const Gap(20),
+                  const _ActivityBlock()
+                      .animate(delay: 180.ms)
                       .fadeIn(duration: 260.ms)
                       .slideY(begin: 0.04, end: 0, curve: Curves.easeOut),
                   const Gap(28),
@@ -414,6 +420,70 @@ class _InfoRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Activity block
+// ---------------------------------------------------------------------------
+
+/// Navigation into activity screens (cahier §21 "Qui m'a ajouté ?").
+class _ActivityBlock extends StatelessWidget {
+  const _ActivityBlock();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionLabel('Activité'),
+        const Gap(8),
+        _SurfaceCard(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: _NavRow(
+            icon: Icons.person_add_alt_1,
+            label: "Qui m'a ajouté ?",
+            onTap: () => context.push('/who-added-me'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _NavRow extends StatelessWidget {
+  const _NavRow({required this.icon, required this.label, required this.onTap});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            _IconTile(icon: icon, tone: theme.colorScheme.primary),
+            const Gap(12),
+            Expanded(
+              child: Text(
+                label,
+                style: theme.textTheme.bodyLarge
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
       ),
     );
   }

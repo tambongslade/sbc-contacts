@@ -138,9 +138,18 @@ export class SyncService {
       });
 
       // "Qui m'a ajouté ?" — record only technically-confirmed additions (§21).
+      // Upsert on (actor, target) so a re-sync refreshes confirmedAt instead of
+      // throwing a unique-constraint violation.
       if (isSynced) {
-        await this.prisma.addedEvent.create({
-          data: { actorId: userId, targetMemberSbcId: member.sbcId },
+        await this.prisma.addedEvent.upsert({
+          where: {
+            actorId_targetMemberSbcId: {
+              actorId: userId,
+              targetMemberSbcId: member.sbcId,
+            },
+          },
+          create: { actorId: userId, targetMemberSbcId: member.sbcId },
+          update: { confirmedAt: new Date() },
         });
       }
     }

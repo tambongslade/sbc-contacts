@@ -8,9 +8,18 @@ import 'package:sbc_contacts/shared/services/whatsapp.dart';
 /// app is about to open. Tapping only hands off to WhatsApp; nothing is ever
 /// sent automatically.
 class WhatsAppButton extends StatelessWidget {
-  const WhatsAppButton({required this.phoneNumber, this.size = 40, super.key});
+  const WhatsAppButton({
+    required this.phoneNumber,
+    this.contactName,
+    this.size = 40,
+    super.key,
+  });
 
   final String? phoneNumber;
+
+  /// Name used to personalise the pre-filled WhatsApp message. Optional; the
+  /// message greets the contact by name when a usable one is provided.
+  final String? contactName;
   final double size;
 
   @override
@@ -32,7 +41,9 @@ class WhatsAppButton extends StatelessWidget {
           shape: const CircleBorder(),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
-            onTap: enabled ? () => openWhatsApp(phoneNumber!) : null,
+            onTap: enabled
+                ? () => openWhatsApp(phoneNumber!, contactName: contactName)
+                : null,
             child: SizedBox(
               width: size,
               height: size,

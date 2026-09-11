@@ -297,6 +297,7 @@ enum NotificationType {
   NEW_CORRESPONDENCE // new correspondences available (§19)
   SYNC_AVAILABLE // pending contacts ready to sync
   SYNC_ERROR // a sync failed
+  ADDED_BY_CONTACT // someone added you to their contacts (§21)
 }
 
 /// In-app notification store (cahier §19). Push/SMS/email are dispatched via
@@ -327,6 +328,7 @@ model AddedEvent {
   targetMemberSbcId String
   confirmedAt       DateTime @default(now())
 
+  @@unique([actorId, targetMemberSbcId])
   @@index([targetMemberSbcId])
   @@map("added_events")
 }

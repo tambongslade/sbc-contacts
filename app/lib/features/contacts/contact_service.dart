@@ -55,8 +55,13 @@ class ContactService {
     String? country,
   }) async {
     try {
+      // Append an "SBC" suffix to the display name so users can recognise which
+      // contacts came from SBC. The suffix rides on the last-name field so the
+      // phone shows "Prénom Nom SBC" (or just "Membre SBC" when nameless), with
+      // exactly one suffix and no double spaces.
+      final suffixedLast = _withSbcSuffix(firstName: firstName, lastName: lastName);
       final contact = Contact(
-        name: Name(first: firstName, last: lastName ?? ''),
+        name: Name(first: firstName, last: suffixedLast),
         phones: [if (phone != null && phone.isNotEmpty) Phone(number: phone)],
         organizations: [Organization(name: 'SBC', jobTitle: profession ?? '')],
       );
@@ -68,4 +73,14 @@ class ContactService {
   }
 
   String _digits(String s) => s.replaceAll(RegExp('[^0-9]'), '');
+
+  /// Builds the last-name field so the full display name ends with exactly one
+  /// " SBC". If both names are empty the whole contact reads "Membre SBC"
+  /// (first name empty, last name "Membre SBC").
+  static String _withSbcSuffix({required String firstName, String? lastName}) {
+    final first = firstName.trim();
+    final last = (lastName ?? '').trim();
+    if (first.isEmpty && last.isEmpty) return 'Membre SBC';
+    return '$last SBC'.trim();
+  }
 }

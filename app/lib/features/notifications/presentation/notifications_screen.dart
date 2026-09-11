@@ -10,6 +10,7 @@ class NotificationsScreen extends ConsumerWidget {
 
   IconData _iconFor(String type) => switch (type) {
         'NEW_MATCH' => Icons.person_add_alt_1,
+        'ADDED_BY_CONTACT' => Icons.person_add_alt_1,
         'NEW_CORRESPONDENCE' => Icons.group_add,
         'SYNC_AVAILABLE' => Icons.sync,
         'SYNC_ERROR' => Icons.sync_problem,

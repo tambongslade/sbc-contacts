@@ -87,7 +87,10 @@ class _ProfileBody extends ConsumerWidget {
               child: FilledButton.icon(
                 onPressed: member.phoneNumber == null
                     ? null
-                    : () => openWhatsApp(member.phoneNumber!),
+                    : () => openWhatsApp(
+                          member.phoneNumber!,
+                          contactName: member.displayName,
+                        ),
                 icon: const Icon(SimpleIcons.whatsapp, size: 20),
                 label: const Text('WhatsApp'),
                 style: FilledButton.styleFrom(

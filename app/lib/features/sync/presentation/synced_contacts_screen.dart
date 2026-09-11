@@ -123,7 +123,11 @@ class _ContactTile extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: colour),
           const SizedBox(width: 8),
-          WhatsAppButton(phoneNumber: contact.phoneNumber, size: 36),
+          WhatsAppButton(
+            phoneNumber: contact.phoneNumber,
+            contactName: contact.displayName,
+            size: 36,
+          ),
         ],
       ),
     );

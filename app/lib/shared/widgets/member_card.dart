@@ -6,6 +6,7 @@ import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/features/directory/application/search_controller.dart';
 import 'package:sbc_contacts/features/directory/domain/member.dart';
 import 'package:sbc_contacts/features/favorites/application/favorites_controller.dart';
+import 'package:sbc_contacts/features/sync/application/sync_controllers.dart';
 import 'package:sbc_contacts/shared/widgets/confidence_score_badge.dart';
 import 'package:sbc_contacts/shared/widgets/member_avatar.dart';
 import 'package:sbc_contacts/shared/widgets/whatsapp_button.dart';
@@ -42,7 +43,11 @@ class MemberCard extends ConsumerWidget {
           ],
           const Gap(2),
           _FavoriteButton(member: member),
-          WhatsAppButton(phoneNumber: member.phoneNumber, size: 46),
+          WhatsAppButton(
+            phoneNumber: member.phoneNumber,
+            contactName: member.displayName,
+            size: 46,
+          ),
         ],
       ),
     );
@@ -302,6 +307,22 @@ Future<void> addMemberToPhone(BuildContext context, WidgetRef ref, Member member
     city: member.city,
     country: member.country,
   );
+
+  if (result.success) {
+    // Record the add so it surfaces in the added member's "Qui m'a ajouté ?"
+    // (cahier §21). Best-effort — the save already succeeded, so a failure here
+    // must never surface to the user or block the flow.
+    try {
+      await ref
+          .read(addedEventsRepositoryProvider)
+          .recordAdd(member.sbcId, deviceContactId: result.deviceContactId);
+    } catch (_) {
+      // Swallowed on purpose.
+    }
+    // Refresh "Mes contacts SBC" so the new contact shows up immediately.
+    ref.invalidate(syncedContactsProvider);
+  }
+
   messenger.showSnackBar(
     SnackBar(
       content: Text(result.success ? 'Contact ajouté au téléphone' : 'Échec: ${result.error}'),
