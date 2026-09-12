@@ -68,6 +68,9 @@ const MAX_TARGETS = 500;
 export class SyncService {
   private readonly logger = new Logger(SyncService.name);
 
+  /// A run still open this long after it started is not coming back.
+  private static readonly ABANDONED_AFTER_MS = 30 * 60 * 1000;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly members: MembersService,
@@ -87,19 +90,31 @@ export class SyncService {
     });
     const statusByMember = new Map(existing.map((e) => [e.memberId, e.status]));
 
+    // Any run of this user's still open when a new one starts was abandoned:
+    // the client runs one at a time, and a run only leaves RUNNING by
+    // reporting. Reclaiming here is what stops the queue growing forever.
+    await this.reclaimAbandonedRuns(userId, { all: true });
+
     const run = await this.prisma.syncRun.create({
       data: { userId, criteriaId, deviceId, status: 'RUNNING', matchCount: members.length },
     });
 
-    // Mark not-yet-synced members PENDING (idempotent upsert per device).
+    // Mark not-yet-synced members PENDING (idempotent upsert per device), and
+    // stamp them with this run so they can be taken back if it never reports.
     let pendingCount = 0;
     for (const m of members) {
       const alreadySynced = statusByMember.get(m.id) === 'SYNCED';
       if (!alreadySynced) pendingCount++;
       await this.prisma.syncedContact.upsert({
         where: { userId_memberId_deviceId: { userId, memberId: m.id, deviceId } },
-        create: { userId, memberId: m.id, deviceId, status: 'PENDING' },
-        update: alreadySynced ? {} : { status: 'PENDING' },
+        create: {
+          userId,
+          memberId: m.id,
+          deviceId,
+          status: 'PENDING',
+          syncRunId: run.id,
+        },
+        update: alreadySynced ? {} : { status: 'PENDING', syncRunId: run.id },
       });
     }
 
@@ -149,13 +164,21 @@ export class SyncService {
       const isSynced = result.status === ReportedStatus.SYNCED;
       isSynced ? syncedCount++ : failedCount++;
 
-      await this.prisma.syncedContact.updateMany({
-        where: { userId, memberId: member.id, deviceId },
-        data: {
-          status: isSynced ? 'SYNCED' : 'FAILED',
-          deviceContactId: result.deviceContactId,
-          syncedAt: isSynced ? new Date() : null,
-        },
+      // Upsert, not update: a report that arrives after its run was reclaimed
+      // still describes a contact that is on the phone, and dropping it would
+      // hide a contact the member can see in their own address book.
+      const outcome = {
+        status: isSynced ? ('SYNCED' as const) : ('FAILED' as const),
+        deviceContactId: result.deviceContactId,
+        syncedAt: isSynced ? new Date() : null,
+        // The run is done with this row either way; only PENDING rows are
+        // owned by a run.
+        syncRunId: null,
+      };
+      await this.prisma.syncedContact.upsert({
+        where: { userId_memberId_deviceId: { userId, memberId: member.id, deviceId } },
+        create: { userId, memberId: member.id, deviceId, ...outcome },
+        update: outcome,
       });
 
       // "Qui m'a ajouté ?" — record only technically-confirmed additions (§21).
@@ -190,6 +213,56 @@ export class SyncService {
       failedCount: updated.failedCount,
       finishedAt: updated.finishedAt,
     };
+  }
+
+  /**
+   * Close runs that were started and never reported, and take their queue back.
+   *
+   * A run leaves RUNNING only by reporting, so one that is still open is one
+   * the client abandoned — the member backed out of the review screen, refused
+   * the contacts permission, or the app was killed mid-write. Its targets were
+   * already marked PENDING, and nothing ever cleared them: that is how a
+   * dashboard came to read "156 en attente" for work nobody was waiting on.
+   *
+   * Only rows still PENDING *and* stamped with the reclaimed run are removed,
+   * so a contact that was actually written is never touched.
+   *
+   * With `all`, every open run of this user is reclaimed — used when a new run
+   * starts, since the client runs one at a time. Otherwise only runs older
+   * than [ABANDONED_AFTER_MS] are, which lets the dashboard heal itself for a
+   * member who simply never syncs again.
+   */
+  private async reclaimAbandonedRuns(
+    userId: string,
+    { all = false }: { all?: boolean } = {},
+  ): Promise<number> {
+    const open = await this.prisma.syncRun.findMany({
+      where: {
+        userId,
+        status: { in: ['RUNNING', 'PENDING'] },
+        ...(all
+          ? {}
+          : { startedAt: { lt: new Date(Date.now() - SyncService.ABANDONED_AFTER_MS) } }),
+      },
+      select: { id: true },
+    });
+    if (open.length === 0) return 0;
+
+    const ids = open.map((r) => r.id);
+    const [removed] = await this.prisma.$transaction([
+      this.prisma.syncedContact.deleteMany({
+        where: { userId, status: 'PENDING', syncRunId: { in: ids } },
+      }),
+      this.prisma.syncRun.updateMany({
+        where: { id: { in: ids } },
+        data: { status: 'ABANDONED', finishedAt: new Date() },
+      }),
+    ]);
+    this.logger.log(
+      `Reclaimed ${open.length} abandoned run(s) for ${userId}, ` +
+        `${removed.count} queued contact(s) released`,
+    );
+    return removed.count;
   }
 
   /**
@@ -286,6 +359,13 @@ export class SyncService {
 
   /** "Mes contacts SBC" dashboard counts (cahier §16). */
   async summary(userId: string) {
+    // Self-healing: the dashboard is where a stale queue is seen, so it is
+    // also where it gets cleared. A member who abandons one sync and never
+    // starts another would otherwise keep reading a count of nothing.
+    // Bounded and idempotent — it finds no open runs and returns immediately
+    // in the normal case.
+    await this.reclaimAbandonedRuns(userId);
+
     const [syncedGroups, pending, failed, activeCriteria, lastRun] = await Promise.all([
       this.prisma.syncedContact.groupBy({
         by: ['memberId'],
