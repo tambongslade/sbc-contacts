@@ -297,6 +297,7 @@ enum NotificationType {
   NEW_CORRESPONDENCE // new correspondences available (§19)
   SYNC_AVAILABLE // pending contacts ready to sync
   SYNC_ERROR // a sync failed
+  CONTACT_SAVED // someone saved you to their phone (§21)
 }
 
 /// In-app notification store (cahier §19). Push/SMS/email are dispatched via

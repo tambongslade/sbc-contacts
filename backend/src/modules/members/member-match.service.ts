@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Member, Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { countryAliases } from '../../common/utils/country';
 import { MatchCriteria } from './member.view';
 
 /**
@@ -18,7 +19,12 @@ export class MemberMatchService {
 
   buildWhere(c: MatchCriteria): Prisma.MemberWhereInput {
     const where: Prisma.MemberWhereInput = {};
-    if (c.countries?.length) where.country = { in: c.countries };
+    // Matched against every spelling of each country, not just the ISO code:
+    // rows mirrored before ingest normalised still hold "Cameroun", and a
+    // criteria asking for CM must still find them.
+    if (c.countries?.length) {
+      where.country = { in: c.countries.flatMap((code) => countryAliases(code)) };
+    }
     if (c.cities?.length) where.city = { in: c.cities };
     if (c.professions?.length) where.profession = { in: c.professions };
     if (c.interests?.length) where.interests = { hasSome: c.interests };
@@ -51,7 +57,11 @@ export class MemberMatchService {
    * a DB round-trip per criteria. Mirrors buildWhere() exactly.
    */
   matchesMember(member: Member, c: MatchCriteria): boolean {
-    if (c.countries?.length && (!member.country || !c.countries.includes(member.country)))
+    if (
+      c.countries?.length &&
+      (!member.country ||
+        !c.countries.some((code) => countryAliases(code).includes(member.country as string)))
+    )
       return false;
     if (c.cities?.length && (!member.city || !c.cities.includes(member.city))) return false;
     if (c.professions?.length && (!member.profession || !c.professions.includes(member.profession)))

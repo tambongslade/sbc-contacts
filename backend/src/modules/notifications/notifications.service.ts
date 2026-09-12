@@ -68,6 +68,39 @@ export class NotificationsService {
     return true;
   }
 
+  /**
+   * "Quelqu'un t'a enregistré" (cahier §21).
+   *
+   * Raised for the person who was SAVED, not the one who saved — the whole
+   * point of §21 is that being added to someone's phone is currently invisible
+   * to you. Deduped per (saved user, actor) so re-syncing the same contact
+   * does not notify them again.
+   */
+  async notifyContactSaved(
+    savedUserId: string,
+    actor: { id: string; name: string | null },
+  ): Promise<boolean> {
+    const already = await this.prisma.notification.findFirst({
+      where: {
+        userId: savedUserId,
+        type: NotificationType.CONTACT_SAVED,
+        data: { path: ['actorUserId'], equals: actor.id },
+      },
+      select: { id: true },
+    });
+    if (already) return false;
+
+    const who = actor.name?.trim() || 'Un membre SBC';
+    await this.create({
+      userId: savedUserId,
+      type: NotificationType.CONTACT_SAVED,
+      title: "Quelqu'un t'a enregistré",
+      body: `${who} vient d'ajouter ton contact à son répertoire.`,
+      data: { actorUserId: actor.id },
+    });
+    return true;
+  }
+
   list(
     userId: string,
     pagination: PaginationQueryDto,

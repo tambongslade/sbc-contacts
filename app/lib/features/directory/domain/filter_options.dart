@@ -273,4 +273,96 @@ class FilterOptions {
     'Mayo-Kebbi Est',
     'Logone Occidental',
   ];
+
+  /// Which country each région belongs to, so the suggestions can be scoped to
+  /// the pays already chosen.
+  ///
+  /// A set, not a single code, because the names genuinely collide: "Centre",
+  /// "Est", "Nord" and "Sud-Ouest" are both Cameroonian and Burkinabè regions,
+  /// "Littoral" is Cameroonian and Béninois, "Savanes" belongs to three
+  /// countries. Scoping by country is what disambiguates them — which is also
+  /// why a région alone is a weak filter.
+  static const Map<String, Set<String>> regionCountries = {
+    'Centre': {'CM', 'BF'},
+    'Maritime': {'TG'},
+    'Littoral': {'CM', 'BJ'},
+    'Abidjan': {'CI'},
+    'Ouest': {'CM'},
+    'Atlantique': {'BJ'},
+    'Plateaux': {'TG'},
+    'Brazzaville': {'CG'},
+    'Ouémé': {'BJ'},
+    'Kara': {'TG'},
+    'Pointe-Noire': {'CG'},
+    'Borgou': {'BJ'},
+    "N'Djamena": {'TD'},
+    'Centrale': {'TG'},
+    'Dakar': {'SN'},
+    'Est': {'CM', 'BF'},
+    'Hauts-Bassins': {'BF'},
+    'Estuaire': {'GA'},
+    'Niamey': {'NE'},
+    'Nord': {'CM', 'BF'},
+    'Zou': {'BJ'},
+    'Savanes': {'TG', 'CI', 'BF'},
+    'Sud': {'CM'},
+    'Mono': {'BJ'},
+    'Bas-Sassandra': {'CI'},
+    'Centre-Ouest': {'BF'},
+    'Adamaoua': {'CM'},
+    'Bamako': {'ML'},
+    'Plateau': {'BJ'},
+    'Couffo': {'BJ'},
+    'Yamoussoukro': {'CI'},
+    'Extrême-Nord': {'CM'},
+    'Comoé': {'CI'},
+    'Lagunes': {'CI'},
+    'Collines': {'BJ'},
+    'Sud-Ouest': {'CM', 'BF'},
+    'Centre-Est': {'BF'},
+    'Boucle du Mouhoun': {'BF'},
+    'Kadiogo': {'BF'},
+    'Atacora': {'BJ'},
+    'Alibori': {'BJ'},
+    'Sassandra-Marahoué': {'CI'},
+    'Donga': {'BJ'},
+    'Vallée du Bandama': {'CI'},
+    'Gôh-Djiboua': {'CI'},
+    'Ogooué-Maritime': {'GA'},
+    'Chari-Baguirmi': {'TD'},
+    'Montagnes': {'CI'},
+    'Kinshasa': {'CD'},
+    'Zinder': {'NE'},
+    'Centre-Nord': {'BF'},
+    'Zanzan': {'CI'},
+    'Bangui': {'CF'},
+    'Haut-Katanga': {'CD'},
+    'Haut-Ogooué': {'GA'},
+    'Congo': {'CD'},
+    'Ouaddaï': {'TD'},
+    'Thiès': {'SN'},
+    'Mayo-Kebbi Est': {'TD'},
+    'Logone Occidental': {'TD'},
+  };
+
+  /// The suggested régions for [countryCode], or all of them when no pays is
+  /// chosen. Falls back to the full list rather than an empty one: a country
+  /// with no mapped région must not leave the member with nothing to pick.
+  static List<String> regionsFor(String? countryCode) {
+    if (countryCode == null) return topRegions;
+    final scoped = topRegions
+        .where((r) => regionCountries[r]?.contains(countryCode) ?? false)
+        .toList();
+    return scoped.isEmpty ? topRegions : scoped;
+  }
+
+  /// True when a région is plausible for the chosen pays. Used to drop a
+  /// région that the member picked before switching country — the pair would
+  /// match nothing, and silently returning zero results reads as a bug.
+  static bool regionMatchesCountry(String region, String? countryCode) {
+    if (countryCode == null) return true;
+    final owners = regionCountries[region];
+    // Free-typed régions are outside the table (598 of 658 are); leave them.
+    return owners == null || owners.contains(countryCode);
+  }
 }

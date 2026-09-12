@@ -81,6 +81,15 @@ class SyncRepository {
     return Paginated.fromJson(data, SyncRunEntry.fromJson);
   }
 
+  /// "Qui m'a enregistré ?" (cahier §21) — the members who saved YOU.
+  Future<Paginated<SavedMeEntry>> savedMe({int page = 1, int limit = 30}) async {
+    final data = await _api.get('/sync/saved-me', query: {
+      'page': page,
+      'limit': limit,
+    }) as Map<String, dynamic>;
+    return Paginated.fromJson(data, SavedMeEntry.fromJson);
+  }
+
   /// "Mes contacts SBC" (cahier §16); [status] filters on the backend enum
   /// (PENDING / SYNCED / FAILED / STALE).
   Future<Paginated<SyncedContact>> syncedContacts({

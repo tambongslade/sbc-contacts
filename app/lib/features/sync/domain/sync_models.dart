@@ -242,3 +242,50 @@ class SyncRunEntry {
   final DateTime? startedAt;
   final DateTime? finishedAt;
 }
+
+/// One person who saved YOU to their phone (cahier §21).
+///
+/// Only confirmed additions reach this list: the backend records an event when
+/// a device write is reported as SYNCED, never when someone merely opened your
+/// profile. So "X t'a enregistré" is a fact, not an inference.
+class SavedMeEntry {
+  const SavedMeEntry({
+    required this.actorSbcId,
+    required this.savedAt,
+    this.name,
+    this.profession,
+    this.city,
+    this.country,
+    this.avatarUrl,
+    this.phoneNumber,
+  });
+
+  factory SavedMeEntry.fromJson(Map<String, dynamic> json) => SavedMeEntry(
+        actorSbcId: (json['actorSbcId'] ?? '').toString(),
+        savedAt:
+            DateTime.tryParse((json['savedAt'] ?? '').toString()) ?? DateTime.now(),
+        name: json['name'] as String?,
+        profession: json['profession'] as String?,
+        city: json['city'] as String?,
+        country: json['country'] as String?,
+        avatarUrl: json['avatarUrl'] as String?,
+        phoneNumber: json['phoneNumber'] as String?,
+      );
+
+  final String actorSbcId;
+  final DateTime savedAt;
+  final String? name;
+  final String? profession;
+  final String? city;
+  final String? country;
+  final String? avatarUrl;
+  final String? phoneNumber;
+
+  String get displayName {
+    final n = (name ?? '').trim();
+    return n.isEmpty ? 'Membre SBC' : n;
+  }
+
+  String get location =>
+      [city, country].where((e) => e != null && e.isNotEmpty).join(', ');
+}

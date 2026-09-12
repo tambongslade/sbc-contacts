@@ -5,11 +5,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Member, SyncCriteria } from '@prisma/client';
-import { PaginatedResult, paginate } from '../../../common/dto/pagination.dto';
+import { Logger } from '@nestjs/common';
+import {
+  PaginatedResult,
+  PaginationQueryDto,
+  paginate,
+} from '../../../common/dto/pagination.dto';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { MemberMatchService } from '../../members/member-match.service';
 import { MembersService } from '../../members/members.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 import { MatchCriteria } from '../../members/member.view';
 import {
   ReportSyncDto,
@@ -17,6 +23,18 @@ import {
   StartSyncDto,
   SyncContactsQueryDto,
 } from '../dto/sync.dto';
+
+/** One person who saved you (cahier §21). */
+export interface SavedMeEntry {
+  actorSbcId: string;
+  name: string | null;
+  profession: string | null;
+  city: string | null;
+  country: string | null;
+  avatarUrl: string | null;
+  phoneNumber: string | null;
+  savedAt: Date;
+}
 
 export interface SyncTargetItem {
   memberSbcId: string;
@@ -48,11 +66,14 @@ const MAX_TARGETS = 500;
  */
 @Injectable()
 export class SyncService {
+  private readonly logger = new Logger(SyncService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly members: MembersService,
     private readonly match: MemberMatchService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async start(userId: string, dto: StartSyncDto, ip?: string): Promise<StartSyncResult> {
@@ -142,6 +163,10 @@ export class SyncService {
         await this.prisma.addedEvent.create({
           data: { actorId: userId, targetMemberSbcId: member.sbcId },
         });
+        // ...and tell the person who was saved. The event alone was write-only:
+        // nothing read it, so being added to someone's phone stayed invisible
+        // to the one being added, which is the whole point of §21.
+        await this.notifySaved(userId, member.sbcId);
       }
     }
 
@@ -165,6 +190,84 @@ export class SyncService {
       failedCount: updated.failedCount,
       finishedAt: updated.finishedAt,
     };
+  }
+
+  /**
+   * Notify the saved member, when that member is also an app user.
+   *
+   * A member is only reachable if they have signed in here — SBC ids and our
+   * user ids share a namespace (`User.sbcUserId`), so the lookup is direct.
+   * Never notifies you about your own sync, and never fails the report: the
+   * contacts are already on the device, and a notification is not worth
+   * losing that bookkeeping over.
+   */
+  private async notifySaved(actorUserId: string, targetMemberSbcId: string): Promise<void> {
+    try {
+      const [target, actor] = await Promise.all([
+        this.prisma.user.findUnique({
+          where: { sbcUserId: targetMemberSbcId },
+          select: { id: true },
+        }),
+        this.prisma.user.findUnique({
+          where: { id: actorUserId },
+          select: { id: true, name: true },
+        }),
+      ]);
+      if (!target || !actor || target.id === actorUserId) return;
+      await this.notifications.notifyContactSaved(target.id, actor);
+    } catch (error) {
+      this.logger.warn(
+        `notifyContactSaved failed for ${targetMemberSbcId}: ${String(error)}`,
+      );
+    }
+  }
+
+  /**
+   * "Qui m'a enregistré ?" (§21) — the people who have saved YOU.
+   *
+   * Keyed on the caller's own SBC id, because that is what an AddedEvent
+   * records as its target. Only confirmed additions are in the table, so this
+   * never claims someone saved you when they merely looked at your profile.
+   */
+  async savedMe(
+    userSbcId: string,
+    pagination: PaginationQueryDto,
+  ): Promise<PaginatedResult<SavedMeEntry>> {
+    const [events, total] = await this.prisma.$transaction([
+      this.prisma.addedEvent.findMany({
+        where: { targetMemberSbcId: userSbcId },
+        orderBy: { confirmedAt: 'desc' },
+        skip: pagination.skip,
+        take: pagination.limit,
+        include: {
+          actor: { select: { id: true, sbcUserId: true, name: true, phoneNumber: true } },
+        },
+      }),
+      this.prisma.addedEvent.count({ where: { targetMemberSbcId: userSbcId } }),
+    ]);
+
+    // The actor's directory profile, when we have mirrored it, adds the
+    // profession/location that make a name recognisable.
+    const sbcIds = events.map((e) => e.actor.sbcUserId);
+    const profiles = sbcIds.length
+      ? await this.prisma.member.findMany({ where: { sbcId: { in: sbcIds } } })
+      : [];
+    const bySbcId = new Map(profiles.map((m) => [m.sbcId, m]));
+
+    const items = events.map((e) => {
+      const profile = bySbcId.get(e.actor.sbcUserId);
+      return {
+        actorSbcId: e.actor.sbcUserId,
+        name: e.actor.name ?? ([profile?.firstName, profile?.name].filter(Boolean).join(' ') || null),
+        profession: profile?.profession ?? null,
+        city: profile?.city ?? null,
+        country: profile?.country ?? null,
+        avatarUrl: profile?.avatarUrl ?? null,
+        phoneNumber: e.actor.phoneNumber ?? profile?.phoneNumber ?? null,
+        savedAt: e.confirmedAt,
+      };
+    });
+    return paginate(items, total, pagination.page, pagination.limit);
   }
 
   history(userId: string, page: number, limit: number) {

@@ -51,6 +51,17 @@ export class SyncController {
     return this.sync.summary(user.userId);
   }
 
+  @Get('saved-me')
+  @ApiOperation({ summary: "Qui m'a enregistré ? — members who saved you (§21)" })
+  savedMe(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() pagination: PaginationQueryDto,
+  ): Promise<PaginatedResult<unknown>> {
+    // Keyed on the caller's SBC id: an AddedEvent targets the member, and a
+    // member is identified by the same id the session carries.
+    return this.sync.savedMe(user.sbcUserId, pagination);
+  }
+
   @Get('contacts')
   @ApiOperation({ summary: 'Synced contacts with status (§16)' })
   contacts(

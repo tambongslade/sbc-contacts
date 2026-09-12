@@ -25,7 +25,9 @@ class SyncScreen extends ConsumerWidget {
       // Scaffold already floats it 16 off the bottom, so only the remainder is
       // added here.
       floatingActionButton: Padding(
-        padding: EdgeInsets.only(bottom: AppTheme.navInsetOf(context) - 16),
+        // Full nav inset, no shaving: the floating bar is painted after the
+        // FAB, so 16 px of borrowed room came out of the FAB's corner.
+        padding: EdgeInsets.only(bottom: AppTheme.navInsetOf(context)),
         child: FloatingActionButton.extended(
           onPressed: () => context.push('/criteria/new'),
           shape: const StadiumBorder(),
@@ -57,7 +59,21 @@ class SyncScreen extends ConsumerWidget {
                 error: (e, _) => const SizedBox.shrink(),
                 data: (s) => _SummaryCard(summary: s),
               ),
-              const _ContactsShortcut(),
+              const _Shortcut(
+                icon: Icons.contact_page_rounded,
+                label: 'Mes contacts SBC',
+                route: '/sync/contacts',
+                tint: SbcColors.primary,
+              ),
+              const Gap(8),
+              // The counterpart: that screen says who you kept, this one says
+              // who kept you (§21).
+              const _Shortcut(
+                icon: Icons.person_add_alt_1_rounded,
+                label: "Qui m'a enregistré",
+                route: '/sync/saved-me',
+                tint: SbcColors.secondary,
+              ),
               const _SectionLabel('Mes critères'),
               criteria.when(
                 loading: () => const CardListSkeleton(rows: 3),
@@ -116,10 +132,20 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-/// Way into "Mes contacts SBC", as a card rather than a button: it is a
-/// destination, and the rest of this screen is made of cards.
-class _ContactsShortcut extends StatelessWidget {
-  const _ContactsShortcut();
+/// Way into a sub-screen, as a card rather than a button: these are
+/// destinations, and the rest of this screen is made of cards.
+class _Shortcut extends StatelessWidget {
+  const _Shortcut({
+    required this.icon,
+    required this.label,
+    required this.route,
+    required this.tint,
+  });
+
+  final IconData icon;
+  final String label;
+  final String route;
+  final Color tint;
 
   @override
   Widget build(BuildContext context) {
@@ -131,7 +157,7 @@ class _ContactsShortcut extends StatelessWidget {
         borderRadius: BorderRadius.circular(22),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: () => context.push('/sync/contacts'),
+          onTap: () => context.push(route),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 13, 16, 13),
             child: Row(
@@ -141,21 +167,14 @@ class _ContactsShortcut extends StatelessWidget {
                   height: 38,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: SbcColors.primary.withValues(alpha: 0.12),
+                    color: tint.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(13),
                   ),
-                  child: const Icon(
-                    Icons.contact_page_rounded,
-                    size: 20,
-                    color: SbcColors.primary,
-                  ),
+                  child: Icon(icon, size: 20, color: tint),
                 ),
                 const Gap(12),
                 Expanded(
-                  child: Text(
-                    'Mes contacts SBC',
-                    style: theme.textTheme.titleSmall,
-                  ),
+                  child: Text(label, style: theme.textTheme.titleSmall),
                 ),
                 Icon(
                   Icons.chevron_right_rounded,
