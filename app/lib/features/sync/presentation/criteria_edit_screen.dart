@@ -235,27 +235,59 @@ class _CriteriaEditScreenState extends ConsumerState<CriteriaEditScreen> {
 
           const Gap(20),
           // §10: show how many members the criteria matches before saving it.
+          //
+          // The caveat is shown before the number, not under it as an
+          // afterthought: a criteria counts only members already mirrored from
+          // previous searches, so it is always well below what the same filter
+          // returns in the annuaire. Reading "2 membres" next to "863" in the
+          // directory looks like a broken filter unless this says why.
           Card(
-            child: ListTile(
-              leading: const Icon(Icons.group),
-              title: Text(
-                _preview == null
-                    ? 'Combien de membres correspondent ?'
-                    : '$_preview membre(s) correspondent',
-              ),
-              subtitle: _preview == null
-                  ? null
-                  : const Text('Estimation à partir des membres déjà connus'),
-              trailing: _previewing
-                  ? const SizedBox(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+              child: Row(
+                children: [
+                  const Icon(Icons.group),
+                  const Gap(14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _preview == null
+                              ? 'Combien de membres correspondent ?'
+                              : '$_preview membre(s) correspondent',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        const Gap(3),
+                        Text(
+                          'Compté parmi les membres déjà consultés dans '
+                          "l'annuaire, pas sur toute la base SBC.",
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Gap(8),
+                  if (_previewing)
+                    const SizedBox(
                       height: 20,
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : TextButton(
+                  else
+                    TextButton(
                       onPressed: _refreshPreview,
                       child: const Text('Calculer'),
                     ),
+                ],
+              ),
             ),
           ),
         ],

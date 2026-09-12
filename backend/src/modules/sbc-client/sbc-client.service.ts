@@ -1,3 +1,4 @@
+import { toIsoCountry } from '../../common/utils/country';
 import {
   BadGatewayException,
   BadRequestException,
@@ -212,48 +213,6 @@ export class SbcClientService {
     }
   }
 
-  // SBC filters country by ISO code (e.g. CM). Accept common names too so a
-  // free-text "Cameroun" from the app still works.
-  private static readonly COUNTRY_ISO: Record<string, string> = {
-    cameroun: 'CM',
-    cameroon: 'CM',
-    'cote divoire': 'CI',
-    'ivory coast': 'CI',
-    senegal: 'SN',
-    togo: 'TG',
-    benin: 'BJ',
-    congo: 'CG',
-    'congo brazzaville': 'CG',
-    'republique du congo': 'CG',
-    rdc: 'CD',
-    'congo kinshasa': 'CD',
-    'republique democratique du congo': 'CD',
-    tchad: 'TD',
-    chad: 'TD',
-    niger: 'NE',
-    mali: 'ML',
-    'burkina faso': 'BF',
-    burkina: 'BF',
-    gabon: 'GA',
-    centrafrique: 'CF',
-    'republique centrafricaine': 'CF',
-    guinee: 'GN',
-    guinea: 'GN',
-    mauritanie: 'MR',
-    france: 'FR',
-  };
-
-  private toIsoCountry(input?: string): string | undefined {
-    if (!input) return input;
-    const key = input
-      .normalize('NFD')
-      .replace(/[̀-ͯ]/g, '') // strip accents
-      .toLowerCase()
-      .replace(/[^a-z ]/g, '')
-      .trim();
-    return SbcClientService.COUNTRY_ISO[key] ?? input; // pass through ISO codes as-is
-  }
-
   private buildQuery(query: SbcContactQuery): string {
     const params = new URLSearchParams();
     const add = (k: string, v: unknown) => {
@@ -261,7 +220,7 @@ export class SbcClientService {
       params.append(k, String(v));
     };
     add('search', query.search);
-    add('country', this.toIsoCountry(query.country));
+    add('country', toIsoCountry(query.country));
     add('region', query.region);
     add('city', query.city);
     add('profession', query.profession);
@@ -317,7 +276,9 @@ export class SbcClientService {
       profession: pick('profession', 'metier', 'métier') as string | undefined,
       // SBC uses `region` for location (no city on list items).
       city: pick('city', 'ville', 'region', 'town') as string | undefined,
-      country: pick('country', 'pays') as string | undefined,
+      // Normalised on the way IN, not just on the way out: the mirror is what
+      // saved criteria match against, and they match on ISO codes.
+      country: toIsoCountry(pick('country', 'pays') as string | undefined),
       sex: pick('sex', 'sexe', 'gender') as string | undefined,
       age: pick('age') != null ? Number(pick('age')) : undefined,
       interests: asStrArr(pick('interests', 'centresInteret', 'centres_interet')),

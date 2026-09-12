@@ -44,6 +44,11 @@ final syncedContactsProvider =
   (ref, status) => ref.watch(syncRepositoryProvider).syncedContacts(status: status),
 );
 
+/// "Qui m'a enregistré ?" (cahier §21) — who has saved you.
+final savedMeProvider = FutureProvider<Paginated<SavedMeEntry>>(
+  (ref) => ref.watch(syncRepositoryProvider).savedMe(),
+);
+
 /// Synchronisation history (cahier §17).
 final syncHistoryProvider = FutureProvider<Paginated<SyncRunEntry>>(
   (ref) => ref.watch(syncRepositoryProvider).history(),

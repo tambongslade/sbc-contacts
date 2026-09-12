@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sbc_contacts/core/network/api_client.dart';
 import 'package:sbc_contacts/core/storage/token_storage.dart';
-import 'package:sbc_contacts/features/added_events/data/added_events_repository.dart';
 import 'package:sbc_contacts/features/auth/data/auth_repository.dart';
 import 'package:sbc_contacts/features/contacts/contact_service.dart';
 import 'package:sbc_contacts/features/directory/data/directory_repository.dart';
@@ -30,10 +29,6 @@ final favoritesRepositoryProvider =
 
 final reviewsRepositoryProvider =
     Provider<ReviewsRepository>((ref) => ReviewsRepository(ref.watch(apiClientProvider)));
-
-final addedEventsRepositoryProvider = Provider<AddedEventsRepository>(
-  (ref) => AddedEventsRepository(ref.watch(apiClientProvider)),
-);
 
 final syncRepositoryProvider =
     Provider<SyncRepository>((ref) => SyncRepository(ref.watch(apiClientProvider)));

@@ -11,10 +11,12 @@ class NotificationsScreen extends ConsumerWidget {
 
   IconData _iconFor(String type) => switch (type) {
         'NEW_MATCH' => Icons.person_add_alt_1,
-        'ADDED_BY_CONTACT' => Icons.person_add_alt_1,
         'NEW_CORRESPONDENCE' => Icons.group_add,
         'SYNC_AVAILABLE' => Icons.sync,
         'SYNC_ERROR' => Icons.sync_problem,
+        // "Quelqu'un t'a enregistré" (§21) — a person acting on you, which is
+        // why it gets the badge icon rather than the sync one.
+        'CONTACT_SAVED' => Icons.how_to_reg_rounded,
         _ => Icons.notifications,
       };
 
@@ -41,7 +43,8 @@ class NotificationsScreen extends ConsumerWidget {
             return const EmptyState(
               icon: Icons.notifications_none,
               title: 'Aucune notification',
-              message: 'Tu seras notifié des nouveaux membres correspondant à tes critères.',
+              message: 'Tu seras notifié quand un membre enregistre ton contact, et des '
+                    'nouveaux membres correspondant à tes critères.',
             );
           }
           return RefreshIndicator(

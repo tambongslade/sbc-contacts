@@ -20,7 +20,6 @@ import { MembersModule } from './modules/members/members.module';
 import { DirectoryModule } from './modules/directory/directory.module';
 import { FavoritesModule } from './modules/favorites/favorites.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
-import { AddedEventsModule } from './modules/added-events/added-events.module';
 import { SyncModule } from './modules/sync/sync.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { MatchingModule } from './modules/matching/matching.module';
@@ -96,7 +95,6 @@ const nodeEnv = process.env.NODE_ENV ?? 'development';
     DirectoryModule,
     FavoritesModule,
     ReviewsModule,
-    AddedEventsModule,
     SyncModule,
     NotificationsModule,
     MatchingModule,

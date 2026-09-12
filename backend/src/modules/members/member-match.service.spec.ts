@@ -24,11 +24,20 @@ describe('MemberMatchService.buildWhere', () => {
       interests: ['business', 'tech'],
     });
     expect(where).toMatchObject({
-      country: { in: ['CM', 'FR'] },
       city: { in: ['Douala'] },
       profession: { in: ['Designer', 'Maçon'] },
       interests: { hasSome: ['business', 'tech'] },
     });
+    // Country matches on every spelling, not just the code: rows mirrored
+    // before ingest normalised still hold "Cameroun".
+    const countries = (where.country as { in: string[] }).in;
+    expect(countries).toEqual(expect.arrayContaining(['CM', 'FR', 'Cameroun']));
+  });
+
+  it('matches a member whose country was mirrored as a display name', () => {
+    const member = { country: 'Cameroun' } as Parameters<typeof svc.matchesMember>[0];
+    expect(svc.matchesMember(member, { ...base, countries: ['CM'] })).toBe(true);
+    expect(svc.matchesMember(member, { ...base, countries: ['FR'] })).toBe(false);
   });
 
   it('maps sex and an age range', () => {

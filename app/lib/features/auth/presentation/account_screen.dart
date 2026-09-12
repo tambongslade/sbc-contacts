@@ -445,8 +445,8 @@ class _ActivityBlock extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: _NavRow(
             icon: Icons.person_add_alt_1,
-            label: "Qui m'a ajouté ?",
-            onTap: () => context.push('/who-added-me'),
+            label: "Qui m'a enregistré ?",
+            onTap: () => context.push('/sync/saved-me'),
           ),
         ),
       ],

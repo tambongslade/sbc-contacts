@@ -31,9 +31,9 @@ class _FilterSheetState extends State<FilterSheet> {
   static const double _ageFloor = 16;
   static const double _ageCeil = 80;
 
-  /// Shared by the slider and the badges drawn above it — see
-  /// [_AgeThumbLabels].
-  static const double _sliderOverlayRadius = 20;
+  /// Shared by the slider's track shape and the badges drawn above it, so the
+  /// two cannot drift apart — see [_FixedInsetTrackShape].
+  static const double _sliderTrackInset = 20;
 
   int _step = 0;
 
@@ -89,6 +89,19 @@ class _FilterSheetState extends State<FilterSheet> {
             (_ageTouched ? 1 : 0),
         _ => _interests.length,
       };
+
+  /// Changing the pays drops a région that cannot belong to it: the pair would
+  /// match nothing, and a search that silently returns zero reads as a bug
+  /// rather than as a contradiction the member introduced.
+  void _selectCountry(String? code) {
+    setState(() {
+      _country = code;
+      final region = _region;
+      if (region != null && !FilterOptions.regionMatchesCountry(region, code)) {
+        _region = null;
+      }
+    });
+  }
 
   void _goTo(int step) {
     final next = step.clamp(0, _stepLabels.length - 1);
@@ -212,20 +225,22 @@ class _FilterSheetState extends State<FilterSheet> {
                 subtitle: e.value,
                 emphasis: true,
                 selected: _country == e.key,
-                onTap: () => setState(
-                  () => _country = _country == e.key ? null : e.key,
-                ),
+                onTap: () => _selectCountry(_country == e.key ? null : e.key),
               ),
           ],
         ),
         const Gap(14),
         _PickerField(
+          // Keyed on the country so the field rebuilds its suggestions — and
+          // its text — when the pays changes underneath it.
+          key: ValueKey('region-${_country ?? 'all'}'),
           label: 'Région',
           icon: Icons.location_on_outlined,
           value: _region,
-          options: FilterOptions.topRegions,
-          helper:
-              'Suggestions les plus fréquentes — tapez pour en chercher une autre',
+          options: FilterOptions.regionsFor(_country),
+          helper: _country == null
+              ? 'Suggestions les plus fréquentes — tapez pour en chercher une autre'
+              : 'Régions de ${FilterOptions.countries[_country]} — tapez pour en chercher une autre',
           onChanged: (v) => setState(() => _region = v),
         ),
         const Gap(14),
@@ -251,14 +266,14 @@ class _FilterSheetState extends State<FilterSheet> {
         Row(
           children: [
             for (final tile in const [
-              ('male', 'Homme', '\u{1F468}', SbcColors.primary),
-              ('female', 'Femme', '\u{1F469}', SbcColors.accent),
-              ('other', 'Autre', '\u{1F9D1}', SbcColors.secondary),
-              (null, 'Tous', '\u{1F465}', SbcColors.info),
+              ('male', 'Homme', Icons.man_rounded, SbcColors.primary),
+              ('female', 'Femme', Icons.woman_rounded, SbcColors.accent),
+              ('other', 'Autre', Icons.transgender_rounded, SbcColors.secondary),
+              (null, 'Tous', Icons.groups_rounded, SbcColors.info),
             ]) ...[
               Expanded(
-                child: _EmojiTile(
-                  emoji: tile.$3,
+                child: _IconTile(
+                  icon: tile.$3,
                   label: tile.$2,
                   tint: tile.$4,
                   selected: _sex == tile.$1,
@@ -290,7 +305,7 @@ class _FilterSheetState extends State<FilterSheet> {
                 max: _ageMax,
                 floor: _ageFloor,
                 ceil: _ageCeil,
-                trackInset: _sliderOverlayRadius,
+                trackInset: _sliderTrackInset,
                 muted: !_ageTouched,
               ),
               SliderTheme(
@@ -304,12 +319,14 @@ class _FilterSheetState extends State<FilterSheet> {
                   showValueIndicator: ShowValueIndicator.never,
                   rangeThumbShape:
                       const RoundRangeSliderThumbShape(enabledThumbRadius: 10),
-                  // Pinned, not left to the default: the track is inset by
-                  // half the overlay on each side, and _AgeThumbLabels needs
-                  // that exact number to sit its badges over the thumbs.
                   overlayShape: const RoundSliderOverlayShape(
-                    overlayRadius: _sliderOverlayRadius,
+                    overlayRadius: _sliderTrackInset,
                   ),
+                  // The track shape is what decides where a thumb can travel,
+                  // so owning it is the only way the badges above can be sure
+                  // where the thumbs are — see [_FixedInsetTrackShape].
+                  rangeTrackShape:
+                      const _FixedInsetTrackShape(_sliderTrackInset),
                 ),
                 child: RangeSlider(
                   min: _ageFloor,
@@ -1041,16 +1058,21 @@ class _ChoiceTile extends StatelessWidget {
   }
 }
 
-class _EmojiTile extends StatelessWidget {
-  const _EmojiTile({
-    required this.emoji,
+/// Sex tile.
+///
+/// The glyph is a vector icon, not an emoji: emoji are drawn by whatever font
+/// the device ships, so they arrived in a different style on every phone and
+/// could not take the brand tint. An icon is one flat shape this app controls.
+class _IconTile extends StatelessWidget {
+  const _IconTile({
+    required this.icon,
     required this.label,
     required this.tint,
     required this.selected,
     required this.onTap,
   });
 
-  final String emoji;
+  final IconData icon;
   final String label;
   final Color tint;
   final bool selected;
@@ -1093,7 +1115,7 @@ class _EmojiTile extends StatelessWidget {
                         color: tint.withValues(alpha: 0.16),
                         shape: BoxShape.circle,
                       ),
-                      child: Text(emoji, style: const TextStyle(fontSize: 18)),
+                      child: Icon(icon, size: 21, color: tint),
                     ),
                     const Gap(7),
                     Text(
@@ -1224,8 +1246,16 @@ class _SmallChip extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: Padding(
+        child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          // An edge, because these sit on a white card: filled with the page
+          // ground alone they read as plain text and nobody tries tapping them.
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected ? _ink(theme) : theme.colorScheme.outlineVariant,
+            ),
+          ),
           child: Text(
             label,
             style: theme.textTheme.labelMedium?.copyWith(
@@ -1488,6 +1518,7 @@ class _PickerField extends StatelessWidget {
     required this.options,
     required this.onChanged,
     this.helper,
+    super.key,
   });
 
   final String label;
@@ -1638,6 +1669,36 @@ class _OptionListState extends State<_OptionList> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Range-slider track with an inset this file chooses.
+///
+/// Material's own horizontal inset is derived from the overlay shape and has
+/// changed between versions; it is not exposed anywhere the widget above can
+/// read it. Guessing it put the age badges ten pixels off their thumbs on a
+/// real phone while looking correct in a 400 px test render. The thumb travel
+/// is computed from the rect this returns, so defining it here makes the
+/// badges and the thumbs share one number by construction.
+class _FixedInsetTrackShape extends RoundedRectRangeSliderTrackShape {
+  const _FixedInsetTrackShape(this.inset);
+  final double inset;
+
+  @override
+  Rect getPreferredRect({
+    required RenderBox parentBox,
+    Offset offset = Offset.zero,
+    required SliderThemeData sliderTheme,
+    bool isEnabled = false,
+    bool isDiscrete = false,
+  }) {
+    final height = sliderTheme.trackHeight ?? 6;
+    return Rect.fromLTWH(
+      offset.dx + inset,
+      offset.dy + (parentBox.size.height - height) / 2,
+      parentBox.size.width - inset * 2,
+      height,
     );
   }
 }

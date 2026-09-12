@@ -381,17 +381,6 @@ Future<void> addMemberToPhone(BuildContext context, WidgetRef ref, Member member
     return;
   }
 
-  // Record the add so it surfaces in the added member's "Qui m'a ajouté ?"
-  // (cahier §21). Best-effort — the save already succeeded, so a failure here
-  // must never surface to the user or block the flow.
-  try {
-    await ref
-        .read(addedEventsRepositoryProvider)
-        .recordAdd(member.sbcId, deviceContactId: result.deviceContactId);
-  } catch (_) {
-    // Swallowed on purpose.
-  }
-
   final recorded = await _recordSynced(
     ref,
     member,
