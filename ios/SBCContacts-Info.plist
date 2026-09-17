@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Backend base URL, from the API_BASE_URL build setting (the Swift
+	     counterpart of Flutter's --dart-define=API_BASE_URL). -->
+	<key>APIBaseURL</key>
+	<string>$(API_BASE_URL)</string>
+	<!-- SSO callback scheme, captured by ASWebAuthenticationSession. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.sbc.sbcContacts.sso</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>sbccontacts</string>
+			</array>
+		</dict>
+	</array>
+	<!-- wa.me links open WhatsApp; canOpenURL needs the scheme listed. -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>whatsapp</string>
+	</array>
+	<!-- Only standard HTTPS/TLS: exempt from export-compliance documentation. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Montserrat.ttf</string>
+	</array>
+</dict>
+</plist>

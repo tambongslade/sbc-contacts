@@ -44,7 +44,11 @@ class MemberCard extends ConsumerWidget {
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              WhatsAppButton(phoneNumber: member.phoneNumber, size: 46),
+              WhatsAppButton(
+                phoneNumber: member.phoneNumber,
+                contactName: member.displayName,
+                size: 46,
+              ),
               const Gap(2),
               _FavoriteButton(member: member),
             ],
@@ -404,10 +408,11 @@ Future<bool> _recordSynced(
   String? deviceContactId,
 }) async {
   try {
-    await ref.read(syncRepositoryProvider).recordSingleContact(
+    final recorded = await ref.read(syncRepositoryProvider).recordSingleContact(
           memberSbcId: member.sbcId,
           deviceContactId: deviceContactId,
         );
+    if (!recorded) return false;
   } catch (_) {
     return false;
   }

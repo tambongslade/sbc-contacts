@@ -7,6 +7,7 @@ import { MemberMatchService } from '../../members/member-match.service';
 import { MembersService } from '../../members/members.service';
 import { MatchCriteria, MemberView } from '../../members/member.view';
 import { CreateCriteriaDto, PreviewCriteriaDto, UpdateCriteriaDto } from '../dto/criteria.dto';
+import { CriteriaHydrationService } from './criteria-hydration.service';
 
 /** Saved sync criteria (cahier §10): CRUD + live match-count preview + matches. */
 @Injectable()
@@ -16,6 +17,7 @@ export class CriteriaService {
     private readonly match: MemberMatchService,
     private readonly members: MembersService,
     private readonly audit: AuditService,
+    private readonly hydration: CriteriaHydrationService,
   ) {}
 
   async create(userId: string, dto: CreateCriteriaDto, ip?: string): Promise<SyncCriteria> {
@@ -103,7 +105,11 @@ export class CriteriaService {
   /** Match count for a saved criteria; also refreshes its cached count. */
   async preview(userId: string, id: string): Promise<{ criteriaId: string; matchCount: number }> {
     const criteria = await this.get(userId, id);
-    const matchCount = await this.match.count(this.toMatch(criteria));
+    const where = this.toMatch(criteria);
+    // Pull SBC's members for this criteria into the mirror first, otherwise the
+    // count only covers members the caller happened to have searched for.
+    await this.hydration.hydrate(userId, where);
+    const matchCount = await this.match.count(where);
     await this.prisma.syncCriteria.update({
       where: { id },
       data: { lastCheckedAt: new Date(), lastMatchCount: matchCount },
@@ -112,8 +118,10 @@ export class CriteriaService {
   }
 
   /** Match count for unsaved criteria (live count on the create screen, §10). */
-  async previewAdhoc(_userId: string, dto: PreviewCriteriaDto): Promise<{ matchCount: number }> {
-    const matchCount = await this.match.count(this.dtoToMatch(dto));
+  async previewAdhoc(userId: string, dto: PreviewCriteriaDto): Promise<{ matchCount: number }> {
+    const where = this.dtoToMatch(dto);
+    await this.hydration.hydrate(userId, where);
+    const matchCount = await this.match.count(where);
     return { matchCount };
   }
 
@@ -124,6 +132,7 @@ export class CriteriaService {
   ): Promise<PaginatedResult<MemberView>> {
     const criteria = await this.get(userId, id);
     const where = this.toMatch(criteria);
+    await this.hydration.hydrate(userId, where);
     const [rows, total] = await Promise.all([
       this.match.find(where, { skip: pagination.skip, take: pagination.limit }),
       this.match.count(where),

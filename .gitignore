@@ -35,3 +35,10 @@ build/
 
 # ── Prisma local artifacts ──
 *.db
+
+# ── iOS / Xcode ──
+ios/build/
+ios/DerivedData/
+*.xcarchive
+xcuserdata/
+*.xcuserstate

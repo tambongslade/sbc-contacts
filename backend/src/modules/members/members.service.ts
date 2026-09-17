@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Member } from '@prisma/client';
+import { RegionGroupRow } from '../../common/utils/regions';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { SbcContact } from '../sbc-client/interfaces/sbc.interface';
 import { confidenceScore } from '../reviews/confidence-score';
@@ -32,6 +33,16 @@ export class MembersService {
 
   async findBySbcId(sbcId: string): Promise<Member | null> {
     return this.prisma.member.findUnique({ where: { sbcId } });
+  }
+
+  /** Member count per raw `(country, city)` pair; `city` holds SBC's région. */
+  async regionGroups(): Promise<RegionGroupRow[]> {
+    const groups = await this.prisma.member.groupBy({
+      by: ['country', 'city'],
+      where: { city: { not: null }, country: { not: null } },
+      _count: { _all: true },
+    });
+    return groups.map((g) => ({ country: g.country, city: g.city, count: g._count._all }));
   }
 
   async findManyBySbcIds(sbcIds: string[]): Promise<Member[]> {

@@ -14,10 +14,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SyncCriteria } from '@prisma/client';
 import { Request } from 'express';
-import {
-  AuthenticatedUser,
-  CurrentUser,
-} from '../../../common/decorators/current-user.decorator';
+import { AuthenticatedUser, CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { PaginatedResult, PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { MemberView } from '../../members/member.view';
 import { CreateCriteriaDto, PreviewCriteriaDto, UpdateCriteriaDto } from '../dto/criteria.dto';
@@ -57,10 +54,7 @@ export class CriteriaController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get one criteria' })
-  get(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-  ): Promise<SyncCriteria> {
+  get(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string): Promise<SyncCriteria> {
     return this.criteria.get(user.userId, id);
   }
 

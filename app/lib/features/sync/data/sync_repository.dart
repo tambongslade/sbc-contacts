@@ -58,11 +58,15 @@ class SyncRepository {
   /// Without this the contact is on the device but absent from "Mes contacts
   /// SBC", which reads the backend and not the phone book: the member saves
   /// someone, opens the list, and finds it empty.
-  Future<void> recordSingleContact({
+  /// Returns false when the backend does not know this member: a run can only
+  /// target someone already mirrored, so reporting one it never resolved would
+  /// look like a success and leave "Mes contacts SBC" empty with nothing said.
+  Future<bool> recordSingleContact({
     required String memberSbcId,
     String? deviceContactId,
   }) async {
     final run = await startRun(memberSbcIds: [memberSbcId]);
+    if (run.items.isEmpty) return false;
     await reportRun(run.syncRunId, [
       {
         'memberSbcId': memberSbcId,
@@ -70,6 +74,7 @@ class SyncRepository {
         'status': 'SYNCED',
       },
     ]);
+    return true;
   }
 
   Future<SyncSummary> summary() async =>

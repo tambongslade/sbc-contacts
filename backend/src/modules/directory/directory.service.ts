@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Member } from '@prisma/client';
 import { createHash } from 'crypto';
 import { PaginatedResult, paginate } from '../../common/dto/pagination.dto';
+import { toIsoCountry } from '../../common/utils/country';
+import { RegionEntry, aggregateRegions } from '../../common/utils/regions';
 import { RedisService } from '../../infrastructure/cache/redis.service';
 import { SbcExportResult } from '../sbc-client/interfaces/sbc.interface';
 import { SbcClientService } from '../sbc-client/sbc-client.service';
@@ -29,6 +31,10 @@ export class DirectoryService {
   // searches, pagination and back-navigation are instant (avoids the ~1-2s SBC
   // round-trip AND the mirror-hydration DB writes on a hit).
   private static readonly SEARCH_TTL = 600; // seconds (10 min)
+
+  // The région list only moves as the mirror grows; an hour keeps the
+  // group-by off the hot path without hiding new places for long.
+  private static readonly REGIONS_TTL = 3600;
 
   constructor(
     private readonly sbcTokens: SbcTokenService,
@@ -142,6 +148,22 @@ export class DirectoryService {
     const member = await this.members.getBySbcIdOrThrow(sbcId);
     const [annotated] = await this.members.annotate(userId, [member]);
     return annotated;
+  }
+
+  /**
+   * Régions per country, built from the member mirror (SBC exposes no such
+   * list). Only places where mirrored members actually live are returned, so a
+   * région picked from this list can always match someone; the list grows as
+   * searches hydrate more members. `country` (any spelling) narrows it to one.
+   */
+  async regions(country?: string): Promise<{ regions: RegionEntry[] }> {
+    const all = await this.cache.getOrSet<RegionEntry[]>(
+      'dir:regions:v1',
+      DirectoryService.REGIONS_TTL,
+      async () => aggregateRegions(await this.members.regionGroups()),
+    );
+    const iso = country ? toIsoCountry(country)?.toUpperCase() : undefined;
+    return { regions: iso ? all.filter((r) => r.country === iso) : all };
   }
 
   async export(userId: string, query: SearchQueryDto): Promise<SbcExportResult> {

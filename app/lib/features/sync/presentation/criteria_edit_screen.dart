@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
+import 'package:sbc_contacts/features/directory/application/search_controller.dart';
 import 'package:sbc_contacts/features/directory/domain/filter_options.dart';
 import 'package:sbc_contacts/features/sync/application/sync_controllers.dart';
 import 'package:sbc_contacts/features/sync/domain/sync_models.dart';
@@ -138,10 +139,21 @@ class _CriteriaEditScreenState extends ConsumerState<CriteriaEditScreen> {
             }),
           ),
           const Gap(16),
+          // The live list for the chosen pays, not a static one: a région the
+          // base does not actually carry is a criterion that matches nobody.
+          // One country selected scopes it; several (or none) keep it global,
+          // since the endpoint narrows to a single country at a time.
           _MultiSelect(
             title: 'Régions',
             selected: _regions,
-            options: FilterOptions.topRegions,
+            options: ref
+                    .watch(regionOptionsProvider(
+                      _countries.length == 1 ? _countries.first : null,
+                    ))
+                    .value ??
+                FilterOptions.regionsFor(
+                  _countries.length == 1 ? _countries.first : null,
+                ),
             onChanged: (s) => setState(() {
               _regions
                 ..clear()

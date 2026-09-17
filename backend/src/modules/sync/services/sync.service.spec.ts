@@ -24,7 +24,12 @@ describe('SyncService — abandoned runs', () => {
         groupBy: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(0),
       },
-      syncCriteria: { findMany: jest.fn().mockResolvedValue([]) },
+      syncCriteria: {
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
+      },
+      favorite: { count: jest.fn().mockResolvedValue(0) },
+      addedEvent: { count: jest.fn().mockResolvedValue(0) },
       // The reclaim batches its two writes; run them and hand back the results.
       $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
     };
@@ -62,9 +67,7 @@ describe('SyncService — abandoned runs', () => {
     const { service, findMany } = build();
     await service.summary('user-1');
 
-    const [{ where }] = findMany.mock.calls[0] as [
-      { where: { startedAt?: { lt: Date } } },
-    ];
+    const [{ where }] = findMany.mock.calls[0] as [{ where: { startedAt?: { lt: Date } } }];
     expect(where.startedAt?.lt).toBeInstanceOf(Date);
     expect(where.startedAt!.lt.getTime()).toBeLessThan(Date.now());
   });

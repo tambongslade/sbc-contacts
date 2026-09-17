@@ -6,23 +6,14 @@ import {
 } from '@nestjs/common';
 import { Member, SyncCriteria } from '@prisma/client';
 import { Logger } from '@nestjs/common';
-import {
-  PaginatedResult,
-  PaginationQueryDto,
-  paginate,
-} from '../../../common/dto/pagination.dto';
+import { PaginatedResult, PaginationQueryDto, paginate } from '../../../common/dto/pagination.dto';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { MemberMatchService } from '../../members/member-match.service';
 import { MembersService } from '../../members/members.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { MatchCriteria } from '../../members/member.view';
-import {
-  ReportSyncDto,
-  ReportedStatus,
-  StartSyncDto,
-  SyncContactsQueryDto,
-} from '../dto/sync.dto';
+import { ReportSyncDto, ReportedStatus, StartSyncDto, SyncContactsQueryDto } from '../dto/sync.dto';
 
 /** One person who saved you (cahier §21). */
 export interface SavedMeEntry {
@@ -34,6 +25,8 @@ export interface SavedMeEntry {
   avatarUrl: string | null;
   phoneNumber: string | null;
   savedAt: Date;
+  /** True once you have saved THEM back — the reciprocal of this whole list. */
+  alreadySaved: boolean;
 }
 
 export interface SyncTargetItem {
@@ -289,9 +282,7 @@ export class SyncService {
       if (!target || !actor || target.id === actorUserId) return;
       await this.notifications.notifyContactSaved(target.id, actor);
     } catch (error) {
-      this.logger.warn(
-        `notifyContactSaved failed for ${targetMemberSbcId}: ${String(error)}`,
-      );
+      this.logger.warn(`notifyContactSaved failed for ${targetMemberSbcId}: ${String(error)}`);
     }
   }
 
@@ -303,6 +294,7 @@ export class SyncService {
    * never claims someone saved you when they merely looked at your profile.
    */
   async savedMe(
+    userId: string,
     userSbcId: string,
     pagination: PaginationQueryDto,
   ): Promise<PaginatedResult<SavedMeEntry>> {
@@ -327,17 +319,30 @@ export class SyncService {
       : [];
     const bySbcId = new Map(profiles.map((m) => [m.sbcId, m]));
 
+    // Which of them you have already saved back, so the row can offer the
+    // reciprocal without promising to add a contact that is already there.
+    const mirroredIds = profiles.map((m) => m.id);
+    const saved = mirroredIds.length
+      ? await this.prisma.syncedContact.findMany({
+          where: { userId, status: 'SYNCED', memberId: { in: mirroredIds } },
+          select: { memberId: true },
+        })
+      : [];
+    const savedMemberIds = new Set(saved.map((r) => r.memberId));
+
     const items = events.map((e) => {
       const profile = bySbcId.get(e.actor.sbcUserId);
       return {
         actorSbcId: e.actor.sbcUserId,
-        name: e.actor.name ?? ([profile?.firstName, profile?.name].filter(Boolean).join(' ') || null),
+        name:
+          e.actor.name ?? ([profile?.firstName, profile?.name].filter(Boolean).join(' ') || null),
         profession: profile?.profession ?? null,
         city: profile?.city ?? null,
         country: profile?.country ?? null,
         avatarUrl: profile?.avatarUrl ?? null,
         phoneNumber: e.actor.phoneNumber ?? profile?.phoneNumber ?? null,
         savedAt: e.confirmedAt,
+        alreadySaved: profile ? savedMemberIds.has(profile.id) : false,
       };
     });
     return paginate(items, total, pagination.page, pagination.limit);
@@ -358,7 +363,7 @@ export class SyncService {
   }
 
   /** "Mes contacts SBC" dashboard counts (cahier §16). */
-  async summary(userId: string) {
+  async summary(userId: string, userSbcId?: string) {
     // Self-healing: the dashboard is where a stale queue is seen, so it is
     // also where it gets cleared. A member who abandons one sync and never
     // starts another would otherwise keep reading a count of nothing.
@@ -366,7 +371,16 @@ export class SyncService {
     // in the normal case.
     await this.reclaimAbandonedRuns(userId);
 
-    const [syncedGroups, pending, failed, activeCriteria, lastRun] = await Promise.all([
+    const [
+      syncedGroups,
+      pending,
+      failed,
+      activeCriteria,
+      lastRun,
+      criteriaTotal,
+      favorites,
+      savedMe,
+    ] = await Promise.all([
       this.prisma.syncedContact.groupBy({
         by: ['memberId'],
         where: { userId, status: 'SYNCED' },
@@ -382,6 +396,16 @@ export class SyncService {
         orderBy: { finishedAt: 'desc' },
         select: { finishedAt: true },
       }),
+      // Every criteria, active or not: the dashboard ring reads "N / M
+      // critères", and a paused criterion is still one the member wrote.
+      this.prisma.syncCriteria.count({ where: { userId } }),
+      this.prisma.favorite.count({ where: { userId } }),
+      // Who saved YOU (§21). Keyed on the SBC id, like the saved-me list: an
+      // AddedEvent targets the member, not the local account row. Without the
+      // id we cannot ask the question, so the tile reads 0 rather than lying.
+      userSbcId
+        ? this.prisma.addedEvent.count({ where: { targetMemberSbcId: userSbcId } })
+        : Promise.resolve(0),
     ]);
 
     return {
@@ -389,7 +413,10 @@ export class SyncService {
       pendingCount: pending,
       failedCount: failed,
       activeCriteria: activeCriteria.length,
+      criteriaCount: criteriaTotal,
       currentMatches: activeCriteria.reduce((sum, c) => sum + c.lastMatchCount, 0),
+      favoritesCount: favorites,
+      savedMeCount: savedMe,
       lastSyncAt: lastRun?.finishedAt ?? null,
     };
   }
@@ -437,12 +464,12 @@ export class SyncService {
     // because nothing ever reports a status for it.
     if (dto.memberSbcIds?.length) {
       const criteriaId = dto.criteriaId
-        ? (
+        ? ((
             await this.prisma.syncCriteria.findFirst({
               where: { id: dto.criteriaId, userId },
               select: { id: true },
             })
-          )?.id ?? null
+          )?.id ?? null)
         : null;
       if (dto.criteriaId && !criteriaId) throw new NotFoundException('Criteria not found');
       const members = await this.members.findManyBySbcIds(dto.memberSbcIds);

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
+import 'package:sbc_contacts/features/directory/application/search_controller.dart';
 import 'package:sbc_contacts/features/directory/data/directory_repository.dart';
 import 'package:sbc_contacts/features/directory/domain/filter_options.dart';
 
@@ -15,18 +17,19 @@ import 'package:sbc_contacts/features/directory/domain/filter_options.dart';
 ///
 /// Values come from [FilterOptions], sampled from the live SBC base, so the
 /// member picks a term that exists rather than typing one that silently
-/// matches nothing. Profession and région still accept free text — profession
-/// matches partially server-side, and 598 of the 658 régions are outside the
-/// suggested list.
-class FilterSheet extends StatefulWidget {
+/// matches nothing — except the régions, which are read live off the mirror
+/// (see [regionOptionsProvider]): the sampled list is 60 of 658, and SBC keeps
+/// the région as it was typed. Profession and région still accept free text —
+/// profession matches partially server-side.
+class FilterSheet extends ConsumerStatefulWidget {
   const FilterSheet({required this.initial, super.key});
   final SearchFilters initial;
 
   @override
-  State<FilterSheet> createState() => _FilterSheetState();
+  ConsumerState<FilterSheet> createState() => _FilterSheetState();
 }
 
-class _FilterSheetState extends State<FilterSheet> {
+class _FilterSheetState extends ConsumerState<FilterSheet> {
   static const List<String> _stepLabels = ['PAYS', 'PROFIL', 'INTÉRÊTS'];
   static const double _ageFloor = 16;
   static const double _ageCeil = 80;
@@ -237,9 +240,14 @@ class _FilterSheetState extends State<FilterSheet> {
           label: 'Région',
           icon: Icons.location_on_outlined,
           value: _region,
-          options: FilterOptions.regionsFor(_country),
+          // The régions members are actually registered in, not the sampled
+          // list: a name spelled the way the base does not hold it returns
+          // nothing, with no error to explain the empty result. Falls back to
+          // the sample while the request is in flight or if it fails.
+          options: ref.watch(regionOptionsProvider(_country)).value ??
+              FilterOptions.regionsFor(_country),
           helper: _country == null
-              ? 'Suggestions les plus fréquentes — tapez pour en chercher une autre'
+              ? 'Régions où des membres sont inscrits — tapez pour en chercher une autre'
               : 'Régions de ${FilterOptions.countries[_country]} — tapez pour en chercher une autre',
           onChanged: (v) => setState(() => _region = v),
         ),
