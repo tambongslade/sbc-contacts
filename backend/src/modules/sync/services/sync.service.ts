@@ -5,18 +5,29 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Member, SyncCriteria } from '@prisma/client';
-import { PaginatedResult, paginate } from '../../../common/dto/pagination.dto';
+import { Logger } from '@nestjs/common';
+import { PaginatedResult, PaginationQueryDto, paginate } from '../../../common/dto/pagination.dto';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { MemberMatchService } from '../../members/member-match.service';
 import { MembersService } from '../../members/members.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 import { MatchCriteria } from '../../members/member.view';
-import {
-  ReportSyncDto,
-  ReportedStatus,
-  StartSyncDto,
-  SyncContactsQueryDto,
-} from '../dto/sync.dto';
+import { ReportSyncDto, ReportedStatus, StartSyncDto, SyncContactsQueryDto } from '../dto/sync.dto';
+
+/** One person who saved you (cahier §21). */
+export interface SavedMeEntry {
+  actorSbcId: string;
+  name: string | null;
+  profession: string | null;
+  city: string | null;
+  country: string | null;
+  avatarUrl: string | null;
+  phoneNumber: string | null;
+  savedAt: Date;
+  /** True once you have saved THEM back — the reciprocal of this whole list. */
+  alreadySaved: boolean;
+}
 
 export interface SyncTargetItem {
   memberSbcId: string;
@@ -48,11 +59,17 @@ const MAX_TARGETS = 500;
  */
 @Injectable()
 export class SyncService {
+  private readonly logger = new Logger(SyncService.name);
+
+  /// A run still open this long after it started is not coming back.
+  private static readonly ABANDONED_AFTER_MS = 30 * 60 * 1000;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly members: MembersService,
     private readonly match: MemberMatchService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async start(userId: string, dto: StartSyncDto, ip?: string): Promise<StartSyncResult> {
@@ -66,19 +83,31 @@ export class SyncService {
     });
     const statusByMember = new Map(existing.map((e) => [e.memberId, e.status]));
 
+    // Any run of this user's still open when a new one starts was abandoned:
+    // the client runs one at a time, and a run only leaves RUNNING by
+    // reporting. Reclaiming here is what stops the queue growing forever.
+    await this.reclaimAbandonedRuns(userId, { all: true });
+
     const run = await this.prisma.syncRun.create({
       data: { userId, criteriaId, deviceId, status: 'RUNNING', matchCount: members.length },
     });
 
-    // Mark not-yet-synced members PENDING (idempotent upsert per device).
+    // Mark not-yet-synced members PENDING (idempotent upsert per device), and
+    // stamp them with this run so they can be taken back if it never reports.
     let pendingCount = 0;
     for (const m of members) {
       const alreadySynced = statusByMember.get(m.id) === 'SYNCED';
       if (!alreadySynced) pendingCount++;
       await this.prisma.syncedContact.upsert({
         where: { userId_memberId_deviceId: { userId, memberId: m.id, deviceId } },
-        create: { userId, memberId: m.id, deviceId, status: 'PENDING' },
-        update: alreadySynced ? {} : { status: 'PENDING' },
+        create: {
+          userId,
+          memberId: m.id,
+          deviceId,
+          status: 'PENDING',
+          syncRunId: run.id,
+        },
+        update: alreadySynced ? {} : { status: 'PENDING', syncRunId: run.id },
       });
     }
 
@@ -128,13 +157,21 @@ export class SyncService {
       const isSynced = result.status === ReportedStatus.SYNCED;
       isSynced ? syncedCount++ : failedCount++;
 
-      await this.prisma.syncedContact.updateMany({
-        where: { userId, memberId: member.id, deviceId },
-        data: {
-          status: isSynced ? 'SYNCED' : 'FAILED',
-          deviceContactId: result.deviceContactId,
-          syncedAt: isSynced ? new Date() : null,
-        },
+      // Upsert, not update: a report that arrives after its run was reclaimed
+      // still describes a contact that is on the phone, and dropping it would
+      // hide a contact the member can see in their own address book.
+      const outcome = {
+        status: isSynced ? ('SYNCED' as const) : ('FAILED' as const),
+        deviceContactId: result.deviceContactId,
+        syncedAt: isSynced ? new Date() : null,
+        // The run is done with this row either way; only PENDING rows are
+        // owned by a run.
+        syncRunId: null,
+      };
+      await this.prisma.syncedContact.upsert({
+        where: { userId_memberId_deviceId: { userId, memberId: member.id, deviceId } },
+        create: { userId, memberId: member.id, deviceId, ...outcome },
+        update: outcome,
       });
 
       // "Qui m'a ajouté ?" — record only technically-confirmed additions (§21).
@@ -142,6 +179,10 @@ export class SyncService {
         await this.prisma.addedEvent.create({
           data: { actorId: userId, targetMemberSbcId: member.sbcId },
         });
+        // ...and tell the person who was saved. The event alone was write-only:
+        // nothing read it, so being added to someone's phone stayed invisible
+        // to the one being added, which is the whole point of §21.
+        await this.notifySaved(userId, member.sbcId);
       }
     }
 
@@ -167,6 +208,146 @@ export class SyncService {
     };
   }
 
+  /**
+   * Close runs that were started and never reported, and take their queue back.
+   *
+   * A run leaves RUNNING only by reporting, so one that is still open is one
+   * the client abandoned — the member backed out of the review screen, refused
+   * the contacts permission, or the app was killed mid-write. Its targets were
+   * already marked PENDING, and nothing ever cleared them: that is how a
+   * dashboard came to read "156 en attente" for work nobody was waiting on.
+   *
+   * Only rows still PENDING *and* stamped with the reclaimed run are removed,
+   * so a contact that was actually written is never touched.
+   *
+   * With `all`, every open run of this user is reclaimed — used when a new run
+   * starts, since the client runs one at a time. Otherwise only runs older
+   * than [ABANDONED_AFTER_MS] are, which lets the dashboard heal itself for a
+   * member who simply never syncs again.
+   */
+  private async reclaimAbandonedRuns(
+    userId: string,
+    { all = false }: { all?: boolean } = {},
+  ): Promise<number> {
+    const open = await this.prisma.syncRun.findMany({
+      where: {
+        userId,
+        status: { in: ['RUNNING', 'PENDING'] },
+        ...(all
+          ? {}
+          : { startedAt: { lt: new Date(Date.now() - SyncService.ABANDONED_AFTER_MS) } }),
+      },
+      select: { id: true },
+    });
+    if (open.length === 0) return 0;
+
+    const ids = open.map((r) => r.id);
+    const [removed] = await this.prisma.$transaction([
+      this.prisma.syncedContact.deleteMany({
+        where: { userId, status: 'PENDING', syncRunId: { in: ids } },
+      }),
+      this.prisma.syncRun.updateMany({
+        where: { id: { in: ids } },
+        data: { status: 'ABANDONED', finishedAt: new Date() },
+      }),
+    ]);
+    this.logger.log(
+      `Reclaimed ${open.length} abandoned run(s) for ${userId}, ` +
+        `${removed.count} queued contact(s) released`,
+    );
+    return removed.count;
+  }
+
+  /**
+   * Notify the saved member, when that member is also an app user.
+   *
+   * A member is only reachable if they have signed in here — SBC ids and our
+   * user ids share a namespace (`User.sbcUserId`), so the lookup is direct.
+   * Never notifies you about your own sync, and never fails the report: the
+   * contacts are already on the device, and a notification is not worth
+   * losing that bookkeeping over.
+   */
+  private async notifySaved(actorUserId: string, targetMemberSbcId: string): Promise<void> {
+    try {
+      const [target, actor] = await Promise.all([
+        this.prisma.user.findUnique({
+          where: { sbcUserId: targetMemberSbcId },
+          select: { id: true },
+        }),
+        this.prisma.user.findUnique({
+          where: { id: actorUserId },
+          select: { id: true, name: true },
+        }),
+      ]);
+      if (!target || !actor || target.id === actorUserId) return;
+      await this.notifications.notifyContactSaved(target.id, actor);
+    } catch (error) {
+      this.logger.warn(`notifyContactSaved failed for ${targetMemberSbcId}: ${String(error)}`);
+    }
+  }
+
+  /**
+   * "Qui m'a enregistré ?" (§21) — the people who have saved YOU.
+   *
+   * Keyed on the caller's own SBC id, because that is what an AddedEvent
+   * records as its target. Only confirmed additions are in the table, so this
+   * never claims someone saved you when they merely looked at your profile.
+   */
+  async savedMe(
+    userId: string,
+    userSbcId: string,
+    pagination: PaginationQueryDto,
+  ): Promise<PaginatedResult<SavedMeEntry>> {
+    const [events, total] = await this.prisma.$transaction([
+      this.prisma.addedEvent.findMany({
+        where: { targetMemberSbcId: userSbcId },
+        orderBy: { confirmedAt: 'desc' },
+        skip: pagination.skip,
+        take: pagination.limit,
+        include: {
+          actor: { select: { id: true, sbcUserId: true, name: true, phoneNumber: true } },
+        },
+      }),
+      this.prisma.addedEvent.count({ where: { targetMemberSbcId: userSbcId } }),
+    ]);
+
+    // The actor's directory profile, when we have mirrored it, adds the
+    // profession/location that make a name recognisable.
+    const sbcIds = events.map((e) => e.actor.sbcUserId);
+    const profiles = sbcIds.length
+      ? await this.prisma.member.findMany({ where: { sbcId: { in: sbcIds } } })
+      : [];
+    const bySbcId = new Map(profiles.map((m) => [m.sbcId, m]));
+
+    // Which of them you have already saved back, so the row can offer the
+    // reciprocal without promising to add a contact that is already there.
+    const mirroredIds = profiles.map((m) => m.id);
+    const saved = mirroredIds.length
+      ? await this.prisma.syncedContact.findMany({
+          where: { userId, status: 'SYNCED', memberId: { in: mirroredIds } },
+          select: { memberId: true },
+        })
+      : [];
+    const savedMemberIds = new Set(saved.map((r) => r.memberId));
+
+    const items = events.map((e) => {
+      const profile = bySbcId.get(e.actor.sbcUserId);
+      return {
+        actorSbcId: e.actor.sbcUserId,
+        name:
+          e.actor.name ?? ([profile?.firstName, profile?.name].filter(Boolean).join(' ') || null),
+        profession: profile?.profession ?? null,
+        city: profile?.city ?? null,
+        country: profile?.country ?? null,
+        avatarUrl: profile?.avatarUrl ?? null,
+        phoneNumber: e.actor.phoneNumber ?? profile?.phoneNumber ?? null,
+        savedAt: e.confirmedAt,
+        alreadySaved: profile ? savedMemberIds.has(profile.id) : false,
+      };
+    });
+    return paginate(items, total, pagination.page, pagination.limit);
+  }
+
   history(userId: string, page: number, limit: number) {
     return this.prisma
       .$transaction([
@@ -182,8 +363,24 @@ export class SyncService {
   }
 
   /** "Mes contacts SBC" dashboard counts (cahier §16). */
-  async summary(userId: string) {
-    const [syncedGroups, pending, failed, activeCriteria, lastRun] = await Promise.all([
+  async summary(userId: string, userSbcId?: string) {
+    // Self-healing: the dashboard is where a stale queue is seen, so it is
+    // also where it gets cleared. A member who abandons one sync and never
+    // starts another would otherwise keep reading a count of nothing.
+    // Bounded and idempotent — it finds no open runs and returns immediately
+    // in the normal case.
+    await this.reclaimAbandonedRuns(userId);
+
+    const [
+      syncedGroups,
+      pending,
+      failed,
+      activeCriteria,
+      lastRun,
+      criteriaTotal,
+      favorites,
+      savedMe,
+    ] = await Promise.all([
       this.prisma.syncedContact.groupBy({
         by: ['memberId'],
         where: { userId, status: 'SYNCED' },
@@ -199,6 +396,16 @@ export class SyncService {
         orderBy: { finishedAt: 'desc' },
         select: { finishedAt: true },
       }),
+      // Every criteria, active or not: the dashboard ring reads "N / M
+      // critères", and a paused criterion is still one the member wrote.
+      this.prisma.syncCriteria.count({ where: { userId } }),
+      this.prisma.favorite.count({ where: { userId } }),
+      // Who saved YOU (§21). Keyed on the SBC id, like the saved-me list: an
+      // AddedEvent targets the member, not the local account row. Without the
+      // id we cannot ask the question, so the tile reads 0 rather than lying.
+      userSbcId
+        ? this.prisma.addedEvent.count({ where: { targetMemberSbcId: userSbcId } })
+        : Promise.resolve(0),
     ]);
 
     return {
@@ -206,7 +413,10 @@ export class SyncService {
       pendingCount: pending,
       failedCount: failed,
       activeCriteria: activeCriteria.length,
+      criteriaCount: criteriaTotal,
       currentMatches: activeCriteria.reduce((sum, c) => sum + c.lastMatchCount, 0),
+      favoritesCount: favorites,
+      savedMeCount: savedMe,
       lastSyncAt: lastRun?.finishedAt ?? null,
     };
   }
@@ -246,6 +456,25 @@ export class SyncService {
     userId: string,
     dto: StartSyncDto,
   ): Promise<{ members: Member[]; criteriaId: string | null }> {
+    // An explicit selection wins over the criteria it came from. The review
+    // screen sends BOTH — the criteria for attribution, and the members the
+    // user actually ticked. Expanding the criteria here instead would mark
+    // every match PENDING while the device only ever writes, and reports on,
+    // the chosen few: the remainder is then stranded "En attente" forever,
+    // because nothing ever reports a status for it.
+    if (dto.memberSbcIds?.length) {
+      const criteriaId = dto.criteriaId
+        ? ((
+            await this.prisma.syncCriteria.findFirst({
+              where: { id: dto.criteriaId, userId },
+              select: { id: true },
+            })
+          )?.id ?? null)
+        : null;
+      if (dto.criteriaId && !criteriaId) throw new NotFoundException('Criteria not found');
+      const members = await this.members.findManyBySbcIds(dto.memberSbcIds);
+      return { members, criteriaId };
+    }
     if (dto.criteriaId) {
       const criteria = await this.prisma.syncCriteria.findFirst({
         where: { id: dto.criteriaId, userId },
@@ -253,10 +482,6 @@ export class SyncService {
       if (!criteria) throw new NotFoundException('Criteria not found');
       const members = await this.match.find(this.toMatch(criteria), { take: MAX_TARGETS });
       return { members, criteriaId: criteria.id };
-    }
-    if (dto.memberSbcIds?.length) {
-      const members = await this.members.findManyBySbcIds(dto.memberSbcIds);
-      return { members, criteriaId: null };
     }
     throw new BadRequestException('Provide either criteriaId or memberSbcIds');
   }

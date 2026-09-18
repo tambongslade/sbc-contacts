@@ -1,10 +1,7 @@
 import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
-import {
-  AuthenticatedUser,
-  CurrentUser,
-} from '../../../common/decorators/current-user.decorator';
+import { AuthenticatedUser, CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { PaginatedResult, PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { ReportSyncDto, StartSyncDto, SyncContactsQueryDto } from '../dto/sync.dto';
 import { StartSyncResult, SyncService } from '../services/sync.service';
@@ -48,7 +45,20 @@ export class SyncController {
   @Get('summary')
   @ApiOperation({ summary: '"Mes contacts SBC" dashboard counts (§16)' })
   summary(@CurrentUser() user: AuthenticatedUser) {
-    return this.sync.summary(user.userId);
+    // The SBC id too: "qui m'a enregistré" is keyed on it, not on the local
+    // account row (see savedMe below).
+    return this.sync.summary(user.userId, user.sbcUserId);
+  }
+
+  @Get('saved-me')
+  @ApiOperation({ summary: "Qui m'a enregistré ? — members who saved you (§21)" })
+  savedMe(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() pagination: PaginationQueryDto,
+  ): Promise<PaginatedResult<unknown>> {
+    // Keyed on the caller's SBC id: an AddedEvent targets the member, and a
+    // member is identified by the same id the session carries.
+    return this.sync.savedMe(user.userId, user.sbcUserId, pagination);
   }
 
   @Get('contacts')

@@ -14,6 +14,7 @@ class SearchFilters {
     this.ageMin,
     this.ageMax,
     this.interests = const [],
+    this.sortByConfidence = false,
   });
 
   final String? search;
@@ -29,6 +30,11 @@ class SearchFilters {
   final int? ageMin;
   final int? ageMax;
   final List<String> interests;
+
+  /// Order each page by "score de confiance" instead of SBC's own relevance
+  /// order. Not counted as a filter: it changes the order of the results, not
+  /// which members are in them.
+  final bool sortByConfidence;
 
   bool get isEmpty =>
       (search == null || search!.isEmpty) &&
@@ -53,6 +59,7 @@ class SearchFilters {
         if (ageMin != null) 'ageMin': ageMin,
         if (ageMax != null) 'ageMax': ageMax,
         if (interests.isNotEmpty) 'interests': interests,
+        if (sortByConfidence) 'sort': 'confidence',
       };
 
   SearchFilters copyWith({
@@ -65,6 +72,7 @@ class SearchFilters {
     int? ageMin,
     int? ageMax,
     List<String>? interests,
+    bool? sortByConfidence,
     bool clearSearch = false,
   }) =>
       SearchFilters(
@@ -77,6 +85,7 @@ class SearchFilters {
         ageMin: ageMin ?? this.ageMin,
         ageMax: ageMax ?? this.ageMax,
         interests: interests ?? this.interests,
+        sortByConfidence: sortByConfidence ?? this.sortByConfidence,
       );
 }
 
@@ -92,4 +101,22 @@ class DirectoryRepository {
 
   Future<Member> profile(String sbcId) async =>
       Member.fromJson(await _api.get('/directory/members/$sbcId') as Map<String, dynamic>);
+
+  /// The régions members are actually registered in, most populated first.
+  ///
+  /// A live list, not a hardcoded one: SBC stores the région as typed, so a
+  /// name picked off a static list can be spelled in a way no member matches —
+  /// which is how a criterion ends up matching nobody. [country] is an ISO
+  /// code; omit it for every country at once.
+  Future<List<String>> regions({String? country}) async {
+    final data = await _api.get(
+      '/directory/regions',
+      query: {if (country != null) 'country': country},
+    ) as Map<String, dynamic>;
+    return (data['regions'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map((r) => (r['region'] ?? '').toString())
+        .where((r) => r.isNotEmpty)
+        .toList();
+  }
 }

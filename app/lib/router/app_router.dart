@@ -8,6 +8,7 @@ import 'package:sbc_contacts/features/home/home_shell.dart';
 import 'package:sbc_contacts/features/sync/application/sync_controllers.dart';
 import 'package:sbc_contacts/features/sync/presentation/criteria_edit_screen.dart';
 import 'package:sbc_contacts/shared/widgets/sbc_logo.dart';
+import 'package:sbc_contacts/features/sync/presentation/saved_me_screen.dart';
 import 'package:sbc_contacts/features/sync/presentation/synced_contacts_screen.dart';
 import 'package:sbc_contacts/features/sync/presentation/sync_review_screen.dart';
 import 'package:sbc_contacts/features/sync/presentation/sync_history_screen.dart';
@@ -83,6 +84,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/sync/history', builder: (_, __) => const SyncHistoryScreen()),
       GoRoute(path: '/sync/contacts', builder: (_, __) => const SyncedContactsScreen()),
+      GoRoute(path: '/sync/saved-me', builder: (_, __) => const SavedMeScreen()),
       GoRoute(
         path: '/sync/review/:id',
         builder: (_, s) => SyncReviewScreen(

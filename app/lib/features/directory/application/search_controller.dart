@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sbc_contacts/core/network/api_exception.dart';
 import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/features/directory/data/directory_repository.dart';
+import 'package:sbc_contacts/features/directory/domain/filter_options.dart';
 import 'package:sbc_contacts/features/directory/domain/member.dart';
 
 class SearchState {
@@ -106,7 +107,37 @@ class SearchController extends Notifier<SearchState> {
       ],
     );
   }
+
+  /// Same, for a contact just written to the phone: the row says "déjà dans
+  /// ton répertoire" straight away instead of after the next search.
+  void setSyncedLocal(String sbcId, {required bool isSynced}) {
+    state = state.copyWith(
+      members: [
+        for (final m in state.members)
+          if (m.sbcId == sbcId) m.copyWith(isSynced: isSynced) else m,
+      ],
+    );
+  }
 }
 
 final searchControllerProvider =
     NotifierProvider<SearchController, SearchState>(SearchController.new);
+
+/// The régions members are actually registered in, for the country given (an
+/// ISO code, or null for all of them).
+///
+/// Live rather than hardcoded: SBC stores the région as typed, so a name off a
+/// static list can be spelled in a way no member carries — a filter or a sync
+/// criterion built on it then matches nobody, with nothing on screen to say
+/// why. Falls back to the sampled list when the endpoint is unreachable or has
+/// nothing yet, so the picker is never empty.
+final regionOptionsProvider =
+    FutureProvider.family<List<String>, String?>((ref, country) async {
+  try {
+    final live =
+        await ref.watch(directoryRepositoryProvider).regions(country: country);
+    return live.isEmpty ? FilterOptions.regionsFor(country) : live;
+  } catch (_) {
+    return FilterOptions.regionsFor(country);
+  }
+});

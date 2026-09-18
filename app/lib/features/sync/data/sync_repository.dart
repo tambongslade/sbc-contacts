@@ -52,6 +52,31 @@ class SyncRepository {
   Future<void> reportRun(String runId, List<Map<String, dynamic>> results) =>
       _api.post('/sync/runs/$runId/report', body: {'results': results});
 
+  /// Records one contact that was written to the phone outside a criteria run
+  /// — the one-tap "ajouter au répertoire" on a member card.
+  ///
+  /// Without this the contact is on the device but absent from "Mes contacts
+  /// SBC", which reads the backend and not the phone book: the member saves
+  /// someone, opens the list, and finds it empty.
+  /// Returns false when the backend does not know this member: a run can only
+  /// target someone already mirrored, so reporting one it never resolved would
+  /// look like a success and leave "Mes contacts SBC" empty with nothing said.
+  Future<bool> recordSingleContact({
+    required String memberSbcId,
+    String? deviceContactId,
+  }) async {
+    final run = await startRun(memberSbcIds: [memberSbcId]);
+    if (run.items.isEmpty) return false;
+    await reportRun(run.syncRunId, [
+      {
+        'memberSbcId': memberSbcId,
+        if (deviceContactId != null) 'deviceContactId': deviceContactId,
+        'status': 'SYNCED',
+      },
+    ]);
+    return true;
+  }
+
   Future<SyncSummary> summary() async =>
       SyncSummary.fromJson(await _api.get('/sync/summary') as Map<String, dynamic>);
 
@@ -59,6 +84,15 @@ class SyncRepository {
     final data = await _api.get('/sync/history', query: {'page': page, 'limit': limit})
         as Map<String, dynamic>;
     return Paginated.fromJson(data, SyncRunEntry.fromJson);
+  }
+
+  /// "Qui m'a enregistré ?" (cahier §21) — the members who saved YOU.
+  Future<Paginated<SavedMeEntry>> savedMe({int page = 1, int limit = 30}) async {
+    final data = await _api.get('/sync/saved-me', query: {
+      'page': page,
+      'limit': limit,
+    }) as Map<String, dynamic>;
+    return Paginated.fromJson(data, SavedMeEntry.fromJson);
   }
 
   /// "Mes contacts SBC" (cahier §16); [status] filters on the backend enum

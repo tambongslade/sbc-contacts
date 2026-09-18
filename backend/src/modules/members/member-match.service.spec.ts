@@ -23,12 +23,34 @@ describe('MemberMatchService.buildWhere', () => {
       professions: ['Designer', 'Maçon'],
       interests: ['business', 'tech'],
     });
-    expect(where).toMatchObject({
-      country: { in: ['CM', 'FR'] },
-      city: { in: ['Douala'] },
-      profession: { in: ['Designer', 'Maçon'] },
-      interests: { hasSome: ['business', 'tech'] },
-    });
+    expect(where).toMatchObject({ interests: { hasSome: ['business', 'tech'] } });
+    // Région and profession are compared case-insensitively — SBC stores them
+    // as typed, so an exact IN dropped every row spelled differently.
+    expect(where.OR).toEqual([{ city: { equals: 'Douala', mode: 'insensitive' } }]);
+    expect(where.AND).toEqual([
+      {
+        OR: [
+          { profession: { equals: 'Designer', mode: 'insensitive' } },
+          { profession: { equals: 'Maçon', mode: 'insensitive' } },
+        ],
+      },
+    ]);
+    // Country matches on every spelling, not just the code: rows mirrored
+    // before ingest normalised still hold "Cameroun".
+    const countries = (where.country as { in: string[] }).in;
+    expect(countries).toEqual(expect.arrayContaining(['CM', 'FR', 'Cameroun']));
+  });
+
+  it('matches a région the mirror holds in another casing', () => {
+    const member = { city: 'LITTORAL  ' } as Parameters<typeof svc.matchesMember>[0];
+    expect(svc.matchesMember(member, { ...base, cities: ['Littoral'] })).toBe(true);
+    expect(svc.matchesMember(member, { ...base, cities: ['Centre'] })).toBe(false);
+  });
+
+  it('matches a member whose country was mirrored as a display name', () => {
+    const member = { country: 'Cameroun' } as Parameters<typeof svc.matchesMember>[0];
+    expect(svc.matchesMember(member, { ...base, countries: ['CM'] })).toBe(true);
+    expect(svc.matchesMember(member, { ...base, countries: ['FR'] })).toBe(false);
   });
 
   it('maps sex and an age range', () => {

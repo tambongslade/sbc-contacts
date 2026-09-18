@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Member } from '@prisma/client';
 import { createHash } from 'crypto';
 import { PaginatedResult, paginate } from '../../common/dto/pagination.dto';
+import { toIsoCountry } from '../../common/utils/country';
+import { RegionEntry, aggregateRegions } from '../../common/utils/regions';
 import { RedisService } from '../../infrastructure/cache/redis.service';
 import { SbcExportResult } from '../sbc-client/interfaces/sbc.interface';
 import { SbcClientService } from '../sbc-client/sbc-client.service';
@@ -30,6 +32,10 @@ export class DirectoryService {
   // round-trip AND the mirror-hydration DB writes on a hit).
   private static readonly SEARCH_TTL = 600; // seconds (10 min)
 
+  // The région list only moves as the mirror grows; an hour keeps the
+  // group-by off the hot path without hiding new places for long.
+  private static readonly REGIONS_TTL = 3600;
+
   constructor(
     private readonly sbcTokens: SbcTokenService,
     private readonly sbc: SbcClientService,
@@ -48,7 +54,29 @@ export class DirectoryService {
     // Annotate fresh on every call (favorite/sync state changes; it's a cheap
     // indexed read) — but the expensive SBC call + upsert are cache-served.
     const annotated = await this.members.annotate(userId, page.rows);
-    return paginate(annotated, page.total, page.page, page.limit);
+    return paginate(this.sortRows(annotated, query.sort), page.total, page.page, page.limit);
+  }
+
+  /**
+   * Reputation-first ordering, applied to the page in hand rather than to the
+   * whole result set.
+   *
+   * `confidenceScore` is derived from OUR reviews; SBC owns the paging and
+   * knows nothing about it, so there is no way to ask upstream for a globally
+   * ranked page. Ordering what the member is looking at is the honest version
+   * of this feature — a page is 20 rows, which is the scope of one screen.
+   * Unrated members all sit at the neutral 50, so the tie-breaks (more reviews
+   * first, then better average) are what actually separate them, and anything
+   * still tied keeps SBC's own order: Array.prototype.sort is stable.
+   */
+  private sortRows(rows: MemberView[], sort?: string): MemberView[] {
+    if (sort !== 'confidence') return rows;
+    return [...rows].sort(
+      (a, b) =>
+        b.confidenceScore - a.confidenceScore ||
+        b.reviewCount - a.reviewCount ||
+        (b.averageRating ?? 0) - (a.averageRating ?? 0),
+    );
   }
 
   /** Resolve one page (handling the name+profession merge), cache-served. */
@@ -120,6 +148,22 @@ export class DirectoryService {
     const member = await this.members.getBySbcIdOrThrow(sbcId);
     const [annotated] = await this.members.annotate(userId, [member]);
     return annotated;
+  }
+
+  /**
+   * Régions per country, built from the member mirror (SBC exposes no such
+   * list). Only places where mirrored members actually live are returned, so a
+   * région picked from this list can always match someone; the list grows as
+   * searches hydrate more members. `country` (any spelling) narrows it to one.
+   */
+  async regions(country?: string): Promise<{ regions: RegionEntry[] }> {
+    const all = await this.cache.getOrSet<RegionEntry[]>(
+      'dir:regions:v1',
+      DirectoryService.REGIONS_TTL,
+      async () => aggregateRegions(await this.members.regionGroups()),
+    );
+    const iso = country ? toIsoCountry(country)?.toUpperCase() : undefined;
+    return { regions: iso ? all.filter((r) => r.country === iso) : all };
   }
 
   async export(userId: string, query: SearchQueryDto): Promise<SbcExportResult> {

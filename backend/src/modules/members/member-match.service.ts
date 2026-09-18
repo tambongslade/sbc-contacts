@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Member, Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { countryAliases } from '../../common/utils/country';
 import { MatchCriteria } from './member.view';
 
 /**
@@ -18,9 +19,22 @@ export class MemberMatchService {
 
   buildWhere(c: MatchCriteria): Prisma.MemberWhereInput {
     const where: Prisma.MemberWhereInput = {};
-    if (c.countries?.length) where.country = { in: c.countries };
-    if (c.cities?.length) where.city = { in: c.cities };
-    if (c.professions?.length) where.profession = { in: c.professions };
+    // Matched against every spelling of each country, not just the ISO code:
+    // rows mirrored before ingest normalised still hold "Cameroun", and a
+    // criteria asking for CM must still find them.
+    if (c.countries?.length) {
+      where.country = { in: c.countries.flatMap((code) => countryAliases(code)) };
+    }
+    // Case-insensitive, one OR per value: SBC stores région and profession as
+    // they were typed, so "Littoral", "littoral" and "LITTORAL" are all in the
+    // mirror and an exact `in` silently dropped two of the three.
+    if (c.cities?.length) where.OR = this.anyOfInsensitive('city', c.cities);
+    if (c.professions?.length) {
+      const professions = this.anyOfInsensitive('profession', c.professions);
+      // Two insensitive sets can't both live on `OR` — that would read as
+      // "région OR profession" when a criteria means both.
+      where.AND = [...((where.AND as Prisma.MemberWhereInput[]) ?? []), { OR: professions }];
+    }
     if (c.interests?.length) where.interests = { hasSome: c.interests };
     if (c.sex) where.sex = c.sex;
     if (c.ageMin != null || c.ageMax != null) {
@@ -30,6 +44,23 @@ export class MemberMatchService {
       };
     }
     return where;
+  }
+
+  /** `field` equals any of `values`, ignoring case. */
+  private anyOfInsensitive(
+    field: 'city' | 'profession',
+    values: string[],
+  ): Prisma.MemberWhereInput[] {
+    return values.map((value) => ({
+      [field]: { equals: value, mode: 'insensitive' as const },
+    }));
+  }
+
+  /** Same folding the SQL above applies, for the in-memory predicate. */
+  private static eq(a: string | null, values: string[]): boolean {
+    if (!a) return false;
+    const folded = a.trim().toLowerCase();
+    return values.some((v) => v.trim().toLowerCase() === folded);
   }
 
   count(c: MatchCriteria): Promise<number> {
@@ -51,10 +82,14 @@ export class MemberMatchService {
    * a DB round-trip per criteria. Mirrors buildWhere() exactly.
    */
   matchesMember(member: Member, c: MatchCriteria): boolean {
-    if (c.countries?.length && (!member.country || !c.countries.includes(member.country)))
+    if (
+      c.countries?.length &&
+      (!member.country ||
+        !c.countries.some((code) => countryAliases(code).includes(member.country as string)))
+    )
       return false;
-    if (c.cities?.length && (!member.city || !c.cities.includes(member.city))) return false;
-    if (c.professions?.length && (!member.profession || !c.professions.includes(member.profession)))
+    if (c.cities?.length && !MemberMatchService.eq(member.city, c.cities)) return false;
+    if (c.professions?.length && !MemberMatchService.eq(member.profession, c.professions))
       return false;
     if (c.interests?.length && !member.interests.some((i) => c.interests.includes(i))) return false;
     if (c.sex && member.sex !== c.sex) return false;

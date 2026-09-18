@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
+import 'package:sbc_contacts/features/directory/application/search_controller.dart';
 import 'package:sbc_contacts/features/directory/domain/filter_options.dart';
 import 'package:sbc_contacts/features/sync/application/sync_controllers.dart';
 import 'package:sbc_contacts/features/sync/domain/sync_models.dart';
@@ -29,6 +30,16 @@ class _CriteriaEditScreenState extends ConsumerState<CriteriaEditScreen> {
   late double _ageMin = (widget.existing?.ageMin ?? 18).toDouble();
   late double _ageMax = (widget.existing?.ageMax ?? 65).toDouble();
 
+  /// Off unless the criteria actually carries an age range.
+  ///
+  /// This used to be permanently on, defaulting to 18–65, and it was silently
+  /// destroying criteria: SBC does not give an age for every member, and a
+  /// range comparison drops every row whose age is NULL. A criterion the member
+  /// never meant to filter by age would therefore match nobody, with nothing
+  /// on screen to explain why.
+  late bool _ageEnabled =
+      widget.existing?.ageMin != null || widget.existing?.ageMax != null;
+
   int? _preview;
   bool _previewing = false;
   bool _saving = false;
@@ -48,8 +59,10 @@ class _CriteriaEditScreenState extends ConsumerState<CriteriaEditScreen> {
         'professions': _professions.toList(),
         'interests': _interests.toList(),
         if (_sex != null) 'sex': _sex,
-        'ageMin': _ageMin.round(),
-        'ageMax': _ageMax.round(),
+        // Explicit nulls, not omission: on an update, leaving the keys out
+        // would keep whatever range the criteria already had.
+        'ageMin': _ageEnabled ? _ageMin.round() : null,
+        'ageMax': _ageEnabled ? _ageMax.round() : null,
       };
 
   Future<void> _refreshPreview() async {
@@ -126,10 +139,21 @@ class _CriteriaEditScreenState extends ConsumerState<CriteriaEditScreen> {
             }),
           ),
           const Gap(16),
+          // The live list for the chosen pays, not a static one: a région the
+          // base does not actually carry is a criterion that matches nobody.
+          // One country selected scopes it; several (or none) keep it global,
+          // since the endpoint narrows to a single country at a time.
           _MultiSelect(
             title: 'Régions',
             selected: _regions,
-            options: FilterOptions.topRegions,
+            options: ref
+                    .watch(regionOptionsProvider(
+                      _countries.length == 1 ? _countries.first : null,
+                    ))
+                    .value ??
+                FilterOptions.regionsFor(
+                  _countries.length == 1 ? _countries.first : null,
+                ),
             onChanged: (s) => setState(() {
               _regions
                 ..clear()
@@ -189,46 +213,93 @@ class _CriteriaEditScreenState extends ConsumerState<CriteriaEditScreen> {
           ),
 
           const Gap(20),
-          Text(
-            'Âge : ${_ageMin.round()} – ${_ageMax.round()} ans',
-            style: theme.textTheme.labelLarge,
-          ),
-          RangeSlider(
-            min: 16,
-            max: 80,
-            divisions: 64,
-            values: RangeValues(_ageMin, _ageMax),
-            labels: RangeLabels('${_ageMin.round()}', '${_ageMax.round()}'),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _ageEnabled,
+            title: Text('Filtrer par âge', style: theme.textTheme.labelLarge),
+            subtitle: Text(
+              _ageEnabled
+                  ? '${_ageMin.round()} – ${_ageMax.round()} ans'
+                  : "Tous les âges — les membres dont l'âge est inconnu "
+                      'restent inclus',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
             onChanged: (v) => setState(() {
-              _ageMin = v.start;
-              _ageMax = v.end;
+              _ageEnabled = v;
               _preview = null;
             }),
           ),
+          if (_ageEnabled)
+            RangeSlider(
+              min: 16,
+              max: 80,
+              divisions: 64,
+              values: RangeValues(_ageMin, _ageMax),
+              labels: RangeLabels('${_ageMin.round()}', '${_ageMax.round()}'),
+              onChanged: (v) => setState(() {
+                _ageMin = v.start;
+                _ageMax = v.end;
+                _preview = null;
+              }),
+            ),
 
           const Gap(20),
           // §10: show how many members the criteria matches before saving it.
+          //
+          // The caveat is shown before the number, not under it as an
+          // afterthought: a criteria counts only members already mirrored from
+          // previous searches, so it is always well below what the same filter
+          // returns in the annuaire. Reading "2 membres" next to "863" in the
+          // directory looks like a broken filter unless this says why.
           Card(
-            child: ListTile(
-              leading: const Icon(Icons.group),
-              title: Text(
-                _preview == null
-                    ? 'Combien de membres correspondent ?'
-                    : '$_preview membre(s) correspondent',
-              ),
-              subtitle: _preview == null
-                  ? null
-                  : const Text('Estimation à partir des membres déjà connus'),
-              trailing: _previewing
-                  ? const SizedBox(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+              child: Row(
+                children: [
+                  const Icon(Icons.group),
+                  const Gap(14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _preview == null
+                              ? 'Combien de membres correspondent ?'
+                              : '$_preview membre(s) correspondent',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        const Gap(3),
+                        Text(
+                          'Compté parmi les membres déjà consultés dans '
+                          "l'annuaire, pas sur toute la base SBC.",
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Gap(8),
+                  if (_previewing)
+                    const SizedBox(
                       height: 20,
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : TextButton(
+                  else
+                    TextButton(
                       onPressed: _refreshPreview,
                       child: const Text('Calculer'),
                     ),
+                ],
+              ),
             ),
           ),
         ],

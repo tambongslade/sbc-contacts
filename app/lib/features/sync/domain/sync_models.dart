@@ -132,6 +132,9 @@ class SyncSummary {
     required this.failedCount,
     required this.activeCriteria,
     required this.currentMatches,
+    this.criteriaCount = 0,
+    this.favoritesCount = 0,
+    this.savedMeCount = 0,
     this.lastSyncAt,
   });
 
@@ -141,6 +144,13 @@ class SyncSummary {
         failedCount: (json['failedCount'] as num?)?.toInt() ?? 0,
         activeCriteria: (json['activeCriteria'] as num?)?.toInt() ?? 0,
         currentMatches: (json['currentMatches'] as num?)?.toInt() ?? 0,
+        // Falls back to the active count so an older backend still renders a
+        // sane "N / M critères" instead of "3 / 0".
+        criteriaCount: (json['criteriaCount'] as num?)?.toInt() ??
+            (json['activeCriteria'] as num?)?.toInt() ??
+            0,
+        favoritesCount: (json['favoritesCount'] as num?)?.toInt() ?? 0,
+        savedMeCount: (json['savedMeCount'] as num?)?.toInt() ?? 0,
         lastSyncAt: json['lastSyncAt'] == null
             ? null
             : DateTime.tryParse(json['lastSyncAt'].toString()),
@@ -150,7 +160,14 @@ class SyncSummary {
   final int pendingCount;
   final int failedCount;
   final int activeCriteria;
+
+  /// Every criterion, active or paused — the denominator of the dashboard ring.
+  final int criteriaCount;
   final int currentMatches;
+  final int favoritesCount;
+
+  /// How many members have saved your contact (§21).
+  final int savedMeCount;
   final DateTime? lastSyncAt;
 }
 
@@ -241,4 +258,56 @@ class SyncRunEntry {
   final String? error;
   final DateTime? startedAt;
   final DateTime? finishedAt;
+}
+
+/// One person who saved YOU to their phone (cahier §21).
+///
+/// Only confirmed additions reach this list: the backend records an event when
+/// a device write is reported as SYNCED, never when someone merely opened your
+/// profile. So "X t'a enregistré" is a fact, not an inference.
+class SavedMeEntry {
+  const SavedMeEntry({
+    required this.actorSbcId,
+    required this.savedAt,
+    this.name,
+    this.profession,
+    this.city,
+    this.country,
+    this.avatarUrl,
+    this.phoneNumber,
+    this.alreadySaved = false,
+  });
+
+  factory SavedMeEntry.fromJson(Map<String, dynamic> json) => SavedMeEntry(
+        actorSbcId: (json['actorSbcId'] ?? '').toString(),
+        savedAt:
+            DateTime.tryParse((json['savedAt'] ?? '').toString()) ?? DateTime.now(),
+        name: json['name'] as String?,
+        profession: json['profession'] as String?,
+        city: json['city'] as String?,
+        country: json['country'] as String?,
+        avatarUrl: json['avatarUrl'] as String?,
+        phoneNumber: json['phoneNumber'] as String?,
+        alreadySaved: json['alreadySaved'] as bool? ?? false,
+      );
+
+  final String actorSbcId;
+  final DateTime savedAt;
+  final String? name;
+  final String? profession;
+  final String? city;
+  final String? country;
+  final String? avatarUrl;
+  final String? phoneNumber;
+
+  /// Whether you have already saved them back.
+  final bool alreadySaved;
+
+  String get displayName {
+    final n = (name ?? '').trim();
+    return n.isEmpty ? 'Membre SBC' : n;
+  }
+
+  String get location =>
+      [city, country].where((e) => e != null && e.isNotEmpty).join(', ');
 }

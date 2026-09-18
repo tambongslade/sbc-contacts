@@ -115,8 +115,7 @@ class SyncRunner extends Notifier<SyncProgress> {
       }
 
       final r = await contacts.addSbcContact(
-        firstName: t.firstName ?? t.displayName,
-        lastName: t.name,
+        displayName: t.displayName,
         phone: phone,
         profession: t.profession,
         city: t.city,

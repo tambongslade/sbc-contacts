@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:sbc_contacts/core/theme/app_theme.dart';
 import 'package:sbc_contacts/features/notifications/application/notifications_controller.dart';
 import 'package:sbc_contacts/features/notifications/domain/app_notification.dart';
 import 'package:sbc_contacts/shared/widgets/empty_state.dart';
@@ -13,6 +14,9 @@ class NotificationsScreen extends ConsumerWidget {
         'NEW_CORRESPONDENCE' => Icons.group_add,
         'SYNC_AVAILABLE' => Icons.sync,
         'SYNC_ERROR' => Icons.sync_problem,
+        // "Quelqu'un t'a enregistré" (§21) — a person acting on you, which is
+        // why it gets the badge icon rather than the sync one.
+        'CONTACT_SAVED' => Icons.how_to_reg_rounded,
         _ => Icons.notifications,
       };
 
@@ -39,12 +43,14 @@ class NotificationsScreen extends ConsumerWidget {
             return const EmptyState(
               icon: Icons.notifications_none,
               title: 'Aucune notification',
-              message: 'Tu seras notifié des nouveaux membres correspondant à tes critères.',
+              message: 'Tu seras notifié quand un membre enregistre ton contact, et des '
+                    'nouveaux membres correspondant à tes critères.',
             );
           }
           return RefreshIndicator(
             onRefresh: () async => ref.invalidate(notificationsControllerProvider),
             child: ListView.separated(
+              padding: EdgeInsets.only(bottom: AppTheme.navInsetOf(context)),
               itemCount: items.length,
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (context, i) => _tile(context, ref, items[i]),

@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsArray, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsArray, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 /** Combinable directory filters (cahier §6). Mirrors SBC's search params. */
 export class SearchQueryDto {
@@ -56,6 +56,16 @@ export class SearchQueryDto {
   @IsArray()
   @IsString({ each: true })
   interests?: string[];
+
+  @ApiPropertyOptional({
+    enum: ['confidence'],
+    description:
+      'Order the returned page by "score de confiance" (highest first). ' +
+      "Omit to keep SBC's own relevance order.",
+  })
+  @IsOptional()
+  @IsIn(['confidence'])
+  sort?: string;
 
   @ApiPropertyOptional({ minimum: 1, default: 1 })
   @IsOptional()
