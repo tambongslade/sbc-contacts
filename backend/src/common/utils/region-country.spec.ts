@@ -27,6 +27,18 @@ describe('region → country', () => {
     expect(countryForRegion('Extreme Nord')).toBe('CM');
   });
 
+  it('resolves the cities SBC sends in the région field, not just admin régions', () => {
+    // The largest group of Cameroonian members arrive as a city, not "Centre".
+    expect(countryForRegion('Yaoundé')).toBe('CM');
+    expect(countryForRegion('yaounde')).toBe('CM'); // accent- and case-folded
+    expect(countryForRegion('Douala')).toBe('CM');
+    expect(countryForRegion('Bafoussam')).toBe('CM');
+    expect(countryForRegion('Cotonou')).toBe('BJ');
+    expect(countryForRegion('Ouagadougou')).toBe('BF');
+    // A city and a région of the same country both widen it.
+    expect(regionsForCountry('CM')).toEqual(expect.arrayContaining(['Yaoundé', 'Douala', 'Littoral']));
+  });
+
   it('is undefined for anything it has never seen', () => {
     expect(countryForRegion('Wouri')).toBeUndefined();
     expect(countryForRegion('')).toBeUndefined();
