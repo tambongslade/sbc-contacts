@@ -81,7 +81,12 @@ struct SyncView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) { LivePill() }
         }
-        .task { await store.load() }
+        .task {
+            await store.load()
+            #if DEBUG
+            await DebugProbe.run(repo: store.repo)
+            #endif
+        }
     }
 }
 

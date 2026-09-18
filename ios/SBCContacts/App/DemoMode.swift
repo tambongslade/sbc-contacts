@@ -22,6 +22,74 @@ enum DemoMode {
     }
 }
 
+/// Debug-only probe: `-probe` exercises the criteria endpoints against
+/// whatever backend the build points at, using the signed-in session, and
+/// prints what came back.
+///
+/// It exists because driving the UI from a build machine needs accessibility
+/// permissions it does not have, and "does a Cameroun criteria find anybody?"
+/// is a question worth answering against production rather than a mock.
+enum DebugProbe {
+    static var isRequested: Bool { ProcessInfo.processInfo.arguments.contains("-probe") }
+
+    static func run(repo: SyncRepository) async {
+        guard isRequested else { return }
+        NSLog("PROBE ── criteria preview against %@", AppConfig.apiBaseURL.absoluteString)
+
+        for (label, payload) in cases {
+            do {
+                let started = Date()
+                let count = try await repo.previewAdhoc(payload)
+                let ms = Int(Date().timeIntervalSince(started) * 1000)
+                NSLog("PROBE %@: %d membre(s) [%dms]", label, count, ms)
+            } catch {
+                NSLog("PROBE %@: FAILED %@", label, String(describing: error))
+            }
+        }
+
+        do {
+            let saved = try await repo.listCriteria()
+            NSLog("PROBE saved criteria: %d", saved.count)
+            for c in saved {
+                let page = try? await repo.matches(id: c.id, limit: 5)
+                NSLog(
+                    "PROBE   '%@' countries=%@ regions=%@ -> matches total %d",
+                    c.label, c.countries, c.cities, page?.total ?? -1
+                )
+                for m in (page?.items ?? []).prefix(3) {
+                    NSLog("PROBE     · %@ — %@, %@", m.displayName, m.city ?? "?", m.country ?? "?")
+                }
+            }
+        } catch {
+            NSLog("PROBE saved criteria: FAILED %@", String(describing: error))
+        }
+        NSLog("PROBE ── done")
+    }
+
+    private static func payload(countries: [String] = [], cities: [String] = []) -> CriteriaPayload {
+        CriteriaPayload(
+            label: "probe",
+            countries: countries,
+            cities: cities,
+            professions: [],
+            interests: [],
+            sex: nil,
+            ageMin: nil,
+            ageMax: nil,
+            isActive: true
+        )
+    }
+
+    private static var cases: [(String, CriteriaPayload)] {
+        [
+            ("CM (pays seul)", payload(countries: ["CM"])),
+            ("CM + Littoral", payload(countries: ["CM"], cities: ["Littoral"])),
+            ("SN (pays seul)", payload(countries: ["SN"])),
+            ("aucun filtre", payload()),
+        ]
+    }
+}
+
 final class DemoURLProtocol: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
