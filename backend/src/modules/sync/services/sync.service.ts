@@ -14,6 +14,7 @@ import { MembersService } from '../../members/members.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { MatchCriteria } from '../../members/member.view';
 import { ReportSyncDto, ReportedStatus, StartSyncDto, SyncContactsQueryDto } from '../dto/sync.dto';
+import { CriteriaHydrationService } from './criteria-hydration.service';
 
 /** One person who saved you (cahier §21). */
 export interface SavedMeEntry {
@@ -70,6 +71,7 @@ export class SyncService {
     private readonly match: MemberMatchService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly hydration: CriteriaHydrationService,
   ) {}
 
   async start(userId: string, dto: StartSyncDto, ip?: string): Promise<StartSyncResult> {
@@ -480,7 +482,15 @@ export class SyncService {
         where: { id: dto.criteriaId, userId },
       });
       if (!criteria) throw new NotFoundException('Criteria not found');
-      const members = await this.match.find(this.toMatch(criteria), { take: MAX_TARGETS });
+      const where = this.toMatch(criteria);
+      // Same hydration the preview and the matches list do. A caller that
+      // names only the criteria never went through either, so without this the
+      // run would expand the criteria against whatever the mirror happened to
+      // hold and sync a fraction of what the member was shown — or nobody.
+      // Cached, so the usual path (review screen, then the ticked members) does
+      // not pay for it twice.
+      await this.hydration.hydrate(userId, where);
+      const members = await this.match.find(where, { take: MAX_TARGETS });
       return { members, criteriaId: criteria.id };
     }
     throw new BadRequestException('Provide either criteriaId or memberSbcIds');
