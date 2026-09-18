@@ -80,7 +80,7 @@ export class DirectoryService {
   }
 
   /** Resolve one page (handling the name+profession merge), cache-served. */
-  private getHydratedPage(
+  private async getHydratedPage(
     userId: string,
     accessToken: string,
     query: SearchQueryDto,
@@ -90,10 +90,21 @@ export class DirectoryService {
       // A free-text term should match NAME or PROFESSION. SBC can't OR the two
       // params in one call, so we query both and merge (profession first — far
       // more useful for a directory: "designer" -> 235, not just 4 name hits).
-      return Promise.all([
+      // The two calls are INDEPENDENT: SBC intermittently 500s the profession
+      // filter under load, so we must not let that failure sink the (usually
+      // successful) name results — settle both and return whatever we got.
+      const [byProfession, byName] = await Promise.allSettled([
         this.fetchHydrated(userId, accessToken, { ...query, search: undefined, profession: term }),
         this.fetchHydrated(userId, accessToken, query),
-      ]).then(([byProfession, byName]) => this.mergeHydrated(byProfession, byName));
+      ]);
+      const profPage = byProfession.status === 'fulfilled' ? byProfession.value : null;
+      const namePage = byName.status === 'fulfilled' ? byName.value : null;
+      if (profPage && namePage) return this.mergeHydrated(profPage, namePage);
+      if (profPage ?? namePage) return (profPage ?? namePage)!;
+      // Both failed — surface a real error rather than a silent empty page.
+      throw byName.status === 'rejected'
+        ? byName.reason
+        : (byProfession as PromiseRejectedResult).reason;
     }
     return this.fetchHydrated(userId, accessToken, query);
   }

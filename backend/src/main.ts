@@ -1,6 +1,8 @@
+import { join } from 'node:path';
 import { RequestMethod, ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { Logger as PinoLogger } from 'nestjs-pino';
@@ -8,7 +10,15 @@ import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
   // rawBody: true captures the unparsed body for webhook HMAC verification.
-  const app = await NestFactory.create(AppModule, { bufferLogs: true, rawBody: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true,
+    rawBody: true,
+  });
+
+  // Static legal pages (privacy, terms, account deletion, support) served at the
+  // domain root, bypassing the /api/v1 prefix. Files live in backend/public,
+  // one level up from the compiled dist/ that runs this file.
+  app.useStaticAssets(join(__dirname, '..', 'public'), { extensions: ['html'] });
 
   // Use pino as the app logger.
   app.useLogger(app.get(PinoLogger));
