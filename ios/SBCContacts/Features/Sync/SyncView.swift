@@ -109,13 +109,13 @@ private struct SummaryDashboard: View {
     var body: some View {
         VStack(spacing: 10) {
             CriteriaRingCard(summary: summary)
-            // 2×2 rather than a row of four: the labels are words, not glyphs,
-            // and "CONTACTS" cannot be read at a quarter of a phone's width.
+            // 2×2 rather than a row of four: "Correspondances" cannot be read
+            // at a quarter of a phone's width.
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                StatTile(label: "Contacts", value: summary.syncedCount, systemImage: "person.2.fill", tint: SBCColors.primary, route: .syncedContacts)
-                StatTile(label: "Matches", value: summary.currentMatches, systemImage: "target", tint: SBCColors.secondary)
-                StatTile(label: "Vues", value: summary.savedMeCount, systemImage: "bolt.fill", tint: SBCColors.accent, route: .savedMe)
-                StatTile(label: "Favoris", value: summary.favoritesCount, systemImage: "heart.fill", tint: .red)
+                StatTile(label: "Synchronisés", value: summary.syncedCount, systemImage: "checkmark.circle.fill", tint: SBCColors.success, route: .syncedContacts)
+                StatTile(label: "En attente", value: summary.pendingCount, systemImage: "clock.fill", tint: SBCColors.accent, route: .syncedContacts)
+                StatTile(label: "Correspondances", value: summary.currentMatches, systemImage: "person.2.fill", tint: SBCColors.primary)
+                StatTile(label: "Critères", value: summary.activeCriteria, systemImage: "slider.horizontal.3", tint: SBCColors.secondaryDark)
             }
             if summary.failedCount > 0 {
                 Label("\(summary.failedCount) échec(s) — voir Mes contacts SBC", systemImage: "exclamationmark.circle")
@@ -189,9 +189,11 @@ private struct CriteriaRingCard: View {
     }
 }
 
-/// One counter, as its own card: the label rides at the top next to the icon
-/// and the number sits underneath at full size, so the four read as four facts
-/// rather than one block of digits.
+/// One counter, as its own card.
+///
+/// The label sits on its own line under the number rather than beside the
+/// icon: "Correspondances" is fifteen characters and needs the full width of
+/// the tile, which a label squeezed in next to the glyph does not have.
 private struct StatTile: View {
     let label: String
     let value: Int
@@ -211,25 +213,25 @@ private struct StatTile: View {
     }
 
     private var card: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: systemImage)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(tint)
-                    .frame(width: 34, height: 34)
-                    .background(tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                    .frame(width: 32, height: 32)
+                    .background(tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 Spacer()
-                Text(label.uppercased())
-                    .font(.montserrat(.caption2, .medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
             }
             Text(value, format: .number.locale(Locale(identifier: "fr_FR")))
-                .font(.montserrat(.title, .bold).monospacedDigit())
+                .font(.montserrat(.title2, .bold).monospacedDigit())
                 .contentTransition(.numericText())
+            Text(label)
+                .font(.montserrat(.footnote, .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
-        .padding(14)
+        .padding(13)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .accessibilityElement(children: .combine)

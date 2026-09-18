@@ -251,8 +251,8 @@ class _Dashboard extends StatelessWidget {
       children: [
         _CriteriaRingCard(summary: summary),
         const Gap(10),
-        // 2x2 rather than a row of four: the labels are words, not glyphs, and
-        // "CONTACTS" cannot be read at a quarter of a phone's width.
+        // 2x2 rather than a row of four: "Correspondances" cannot be read at a
+        // quarter of a phone's width.
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
@@ -261,20 +261,21 @@ class _Dashboard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _StatCard(
-                      label: 'Contacts',
+                      label: 'Synchronisés',
                       value: summary.syncedCount,
-                      icon: Icons.group_rounded,
-                      color: SbcColors.primary,
+                      icon: Icons.check_circle_rounded,
+                      color: SbcColors.success,
                       route: '/sync/contacts',
                     ),
                   ),
                   const Gap(10),
                   Expanded(
                     child: _StatCard(
-                      label: 'Matches',
-                      value: summary.currentMatches,
-                      icon: Icons.adjust_rounded,
-                      color: SbcColors.secondary,
+                      label: 'En attente',
+                      value: summary.pendingCount,
+                      icon: Icons.schedule_rounded,
+                      color: SbcColors.accent,
+                      route: '/sync/contacts',
                     ),
                   ),
                 ],
@@ -284,20 +285,19 @@ class _Dashboard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _StatCard(
-                      label: 'Vues',
-                      value: summary.savedMeCount,
-                      icon: Icons.bolt_rounded,
-                      color: SbcColors.accent,
-                      route: '/sync/saved-me',
+                      label: 'Correspondances',
+                      value: summary.currentMatches,
+                      icon: Icons.group_rounded,
+                      color: SbcColors.primary,
                     ),
                   ),
                   const Gap(10),
                   Expanded(
                     child: _StatCard(
-                      label: 'Favoris',
-                      value: summary.favoritesCount,
-                      icon: Icons.favorite_rounded,
-                      color: SbcColors.error,
+                      label: 'Critères',
+                      value: summary.activeCriteria,
+                      icon: Icons.tune_rounded,
+                      color: SbcColors.secondaryDark,
                     ),
                   ),
                 ],
@@ -477,9 +477,11 @@ class _RingPainter extends CustomPainter {
       old.fraction != fraction || old.track != track;
 }
 
-/// One counter, as its own card: the label rides at the top next to the icon
-/// and the number sits underneath at full size, so the four read as four facts
-/// rather than one block of digits.
+/// One counter, as its own card.
+///
+/// The label sits on its own line under the number rather than beside the
+/// icon: "Correspondances" is fifteen characters and needs the full width of
+/// the tile, which a label squeezed in next to the glyph does not have.
 class _StatCard extends StatelessWidget {
   const _StatCard({
     required this.label,
@@ -503,46 +505,37 @@ class _StatCard extends StatelessWidget {
     final scheme = theme.colorScheme;
 
     final content = Padding(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      padding: const EdgeInsets.fromLTRB(13, 13, 13, 13),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.13),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Icon(icon, size: 19, color: color),
-              ),
-              const Gap(8),
-              Expanded(
-                child: Text(
-                  label.toUpperCase(),
-                  textAlign: TextAlign.end,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    fontSize: 10,
-                    letterSpacing: 0.8,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            ],
+          Container(
+            width: 32,
+            height: 32,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.13),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, size: 18, color: color),
           ),
-          const Gap(12),
+          const Gap(8),
           Text(
             '$value',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.headlineMedium?.copyWith(
+            style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w800,
               height: 1,
+            ),
+          ),
+          const Gap(6),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
             ),
           ),
         ],
