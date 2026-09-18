@@ -101,4 +101,22 @@ class DirectoryRepository {
 
   Future<Member> profile(String sbcId) async =>
       Member.fromJson(await _api.get('/directory/members/$sbcId') as Map<String, dynamic>);
+
+  /// The régions members are actually registered in, most populated first.
+  ///
+  /// A live list, not a hardcoded one: SBC stores the région as typed, so a
+  /// name picked off a static list can be spelled in a way no member matches —
+  /// which is how a criterion ends up matching nobody. [country] is an ISO
+  /// code; omit it for every country at once.
+  Future<List<String>> regions({String? country}) async {
+    final data = await _api.get(
+      '/directory/regions',
+      query: {if (country != null) 'country': country},
+    ) as Map<String, dynamic>;
+    return (data['regions'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map((r) => (r['region'] ?? '').toString())
+        .where((r) => r.isNotEmpty)
+        .toList();
+  }
 }

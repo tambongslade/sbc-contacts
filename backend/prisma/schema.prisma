@@ -181,6 +181,7 @@ enum SyncRunStatus {
   RUNNING
   COMPLETED
   FAILED
+  ABANDONED // started, never reported — the client backed out or was killed
 }
 
 /// One synchronisation operation, for the history view (cahier §17).
@@ -226,11 +227,18 @@ model SyncedContact {
   status          SyncStatus @default(PENDING)
   syncedAt        DateTime?
 
+  /// The run that intends to write this contact, while it is still PENDING.
+  /// Cleared once the device reports an outcome. Without it a PENDING row
+  /// outlived the run that created it, so every abandoned run left its targets
+  /// queued forever and "en attente" counted runs nobody ever finished.
+  syncRunId String? @db.Uuid
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([userId, memberId, deviceId])
   @@index([userId, status])
+  @@index([syncRunId])
   @@map("synced_contacts")
 }
 

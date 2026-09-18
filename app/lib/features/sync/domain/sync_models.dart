@@ -132,6 +132,9 @@ class SyncSummary {
     required this.failedCount,
     required this.activeCriteria,
     required this.currentMatches,
+    this.criteriaCount = 0,
+    this.favoritesCount = 0,
+    this.savedMeCount = 0,
     this.lastSyncAt,
   });
 
@@ -141,6 +144,13 @@ class SyncSummary {
         failedCount: (json['failedCount'] as num?)?.toInt() ?? 0,
         activeCriteria: (json['activeCriteria'] as num?)?.toInt() ?? 0,
         currentMatches: (json['currentMatches'] as num?)?.toInt() ?? 0,
+        // Falls back to the active count so an older backend still renders a
+        // sane "N / M critères" instead of "3 / 0".
+        criteriaCount: (json['criteriaCount'] as num?)?.toInt() ??
+            (json['activeCriteria'] as num?)?.toInt() ??
+            0,
+        favoritesCount: (json['favoritesCount'] as num?)?.toInt() ?? 0,
+        savedMeCount: (json['savedMeCount'] as num?)?.toInt() ?? 0,
         lastSyncAt: json['lastSyncAt'] == null
             ? null
             : DateTime.tryParse(json['lastSyncAt'].toString()),
@@ -150,7 +160,14 @@ class SyncSummary {
   final int pendingCount;
   final int failedCount;
   final int activeCriteria;
+
+  /// Every criterion, active or paused — the denominator of the dashboard ring.
+  final int criteriaCount;
   final int currentMatches;
+  final int favoritesCount;
+
+  /// How many members have saved your contact (§21).
+  final int savedMeCount;
   final DateTime? lastSyncAt;
 }
 
@@ -258,6 +275,7 @@ class SavedMeEntry {
     this.country,
     this.avatarUrl,
     this.phoneNumber,
+    this.alreadySaved = false,
   });
 
   factory SavedMeEntry.fromJson(Map<String, dynamic> json) => SavedMeEntry(
@@ -270,6 +288,7 @@ class SavedMeEntry {
         country: json['country'] as String?,
         avatarUrl: json['avatarUrl'] as String?,
         phoneNumber: json['phoneNumber'] as String?,
+        alreadySaved: json['alreadySaved'] as bool? ?? false,
       );
 
   final String actorSbcId;
@@ -280,6 +299,9 @@ class SavedMeEntry {
   final String? country;
   final String? avatarUrl;
   final String? phoneNumber;
+
+  /// Whether you have already saved them back.
+  final bool alreadySaved;
 
   String get displayName {
     final n = (name ?? '').trim();

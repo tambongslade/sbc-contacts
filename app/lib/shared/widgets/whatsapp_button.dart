@@ -17,8 +17,8 @@ class WhatsAppButton extends StatelessWidget {
 
   final String? phoneNumber;
 
-  /// Name used to personalise the pre-filled WhatsApp message. Optional; the
-  /// message greets the contact by name when a usable one is provided.
+  /// Addressed in the pre-filled greeting, so the member does not have to type
+  /// "Salut X" themselves every time.
   final String? contactName;
   final double size;
 
