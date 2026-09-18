@@ -125,6 +125,38 @@ describe('CriteriaHydrationService', () => {
     expect(searchContacts).not.toHaveBeenCalled();
   });
 
+  it('keeps the other queries when SBC fails one of them', async () => {
+    // SBC intermittently 500s the profession filter under load. A criteria
+    // naming three professions must still hydrate on the two that answered.
+    const searchContacts = jest
+      .fn()
+      .mockResolvedValueOnce(page(2))
+      .mockRejectedValueOnce(new Error('SBC 500'))
+      .mockResolvedValueOnce(page(3));
+    const { service, members, cache } = build(searchContacts);
+
+    await service.hydrate('user-1', {
+      ...base,
+      professions: ['Macon', 'Plombier', 'Medecin'],
+    });
+
+    expect(searchContacts).toHaveBeenCalledTimes(3);
+    expect(members.upsertMany).toHaveBeenCalledTimes(2);
+    // Partial success still counts as hydrated: the mirror did grow.
+    expect(cache.set).toHaveBeenCalled();
+  });
+
+  it('does not cache an outage where every query failed', async () => {
+    const searchContacts = jest.fn().mockRejectedValue(new Error('SBC 500'));
+    const { service, cache } = build(searchContacts);
+
+    await service.hydrate('user-1', { ...base, professions: ['Macon', 'Plombier'] });
+
+    // Nothing reached the mirror, so the next preview must try again rather
+    // than read a cache entry that says "already hydrated".
+    expect(cache.set).not.toHaveBeenCalled();
+  });
+
   it('never fails the caller when SBC is unreachable', async () => {
     const searchContacts = jest.fn().mockRejectedValue(new Error('SBC is down'));
     const { service, cache } = build(searchContacts);

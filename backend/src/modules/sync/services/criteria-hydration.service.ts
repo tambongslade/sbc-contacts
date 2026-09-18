@@ -67,21 +67,55 @@ export class CriteriaHydrationService {
   }
 
   private async fetchAll(accessToken: string, criteria: MatchCriteria): Promise<number> {
+    const combinations = this.combinations(criteria);
     let mirrored = 0;
-    for (const combination of this.combinations(criteria)) {
-      for (let page = 1; page <= CriteriaHydrationService.MAX_PAGES; page++) {
-        const data = await this.sbc.searchContacts(accessToken, {
-          ...combination,
-          page,
-          limit: CriteriaHydrationService.PAGE_SIZE,
-        });
-        if (data.items.length === 0) break;
-        await this.members.upsertMany(data.items);
-        mirrored += data.items.length;
-        if (!data.hasMore) break;
+    let failed = 0;
+
+    for (const combination of combinations) {
+      try {
+        mirrored += await this.fetchCombination(accessToken, combination);
+      } catch (err) {
+        // Each combination stands alone. SBC intermittently 500s the profession
+        // filter under load, and one such query must not sink the other eleven
+        // — a criteria naming three professions would otherwise hydrate nothing
+        // because one of them was unlucky.
+        failed++;
+        this.logger.warn(
+          `Criteria hydration: one query failed (${String((err as Error).message)})`,
+        );
       }
     }
-    this.logger.log(`Criteria hydration mirrored ${mirrored} member(s)`);
+
+    // Every query failing is not partial success, it is the outage the caller's
+    // cache must not hold onto — see hydrate().
+    if (failed === combinations.length && combinations.length > 0) {
+      throw new Error(`all ${failed} SBC quer(ies) failed`);
+    }
+
+    this.logger.log(
+      `Criteria hydration mirrored ${mirrored} member(s)` +
+        (failed ? ` (${failed}/${combinations.length} quer(ies) failed)` : ''),
+    );
+    return mirrored;
+  }
+
+  /** One combination, paged. Throws if SBC does — the caller decides. */
+  private async fetchCombination(
+    accessToken: string,
+    combination: SbcContactQuery,
+  ): Promise<number> {
+    let mirrored = 0;
+    for (let page = 1; page <= CriteriaHydrationService.MAX_PAGES; page++) {
+      const data = await this.sbc.searchContacts(accessToken, {
+        ...combination,
+        page,
+        limit: CriteriaHydrationService.PAGE_SIZE,
+      });
+      if (data.items.length === 0) break;
+      await this.members.upsertMany(data.items);
+      mirrored += data.items.length;
+      if (!data.hasMore) break;
+    }
     return mirrored;
   }
 
