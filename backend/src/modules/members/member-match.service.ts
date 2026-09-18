@@ -19,22 +19,31 @@ export class MemberMatchService {
 
   buildWhere(c: MatchCriteria): Prisma.MemberWhereInput {
     const where: Prisma.MemberWhereInput = {};
-    // Matched against every spelling of each country, not just the ISO code:
-    // rows mirrored before ingest normalised still hold "Cameroun", and a
-    // criteria asking for CM must still find them.
+
+    // The mirror stores country, région and profession exactly as SBC sent
+    // them, and SBC sends them as they were typed — "Cameroun", "cameroun" and
+    // "CAMEROUN" all sit in the same column. Every one of these is therefore
+    // matched case-insensitively; an exact IN silently dropped every spelling
+    // but the one the alias table happened to list.
+    //
+    // Each field is its own OR group and the groups are ANDed, so a criteria
+    // naming a country AND a région means both, not either.
+    const groups: Prisma.MemberWhereInput[] = [];
     if (c.countries?.length) {
-      where.country = { in: c.countries.flatMap((code) => countryAliases(code)) };
+      // Still expanded through the alias table first: a criteria asks for "CM"
+      // and the mirror may hold the display name, which no amount of case
+      // folding turns into the code.
+      const spellings = Array.from(
+        new Set(c.countries.flatMap((code) => countryAliases(code)).map((s) => s.toLowerCase())),
+      );
+      groups.push({ OR: this.anyOfInsensitive('country', spellings) });
     }
-    // Case-insensitive, one OR per value: SBC stores région and profession as
-    // they were typed, so "Littoral", "littoral" and "LITTORAL" are all in the
-    // mirror and an exact `in` silently dropped two of the three.
-    if (c.cities?.length) where.OR = this.anyOfInsensitive('city', c.cities);
+    if (c.cities?.length) groups.push({ OR: this.anyOfInsensitive('city', c.cities) });
     if (c.professions?.length) {
-      const professions = this.anyOfInsensitive('profession', c.professions);
-      // Two insensitive sets can't both live on `OR` — that would read as
-      // "région OR profession" when a criteria means both.
-      where.AND = [...((where.AND as Prisma.MemberWhereInput[]) ?? []), { OR: professions }];
+      groups.push({ OR: this.anyOfInsensitive('profession', c.professions) });
     }
+    if (groups.length) where.AND = groups;
+
     if (c.interests?.length) where.interests = { hasSome: c.interests };
     if (c.sex) where.sex = c.sex;
     if (c.ageMin != null || c.ageMax != null) {
@@ -48,7 +57,7 @@ export class MemberMatchService {
 
   /** `field` equals any of `values`, ignoring case. */
   private anyOfInsensitive(
-    field: 'city' | 'profession',
+    field: 'country' | 'city' | 'profession',
     values: string[],
   ): Prisma.MemberWhereInput[] {
     return values.map((value) => ({
@@ -84,8 +93,10 @@ export class MemberMatchService {
   matchesMember(member: Member, c: MatchCriteria): boolean {
     if (
       c.countries?.length &&
-      (!member.country ||
-        !c.countries.some((code) => countryAliases(code).includes(member.country as string)))
+      !MemberMatchService.eq(
+        member.country,
+        c.countries.flatMap((code) => countryAliases(code)),
+      )
     )
       return false;
     if (c.cities?.length && !MemberMatchService.eq(member.city, c.cities)) return false;
