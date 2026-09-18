@@ -6,6 +6,15 @@ import Foundation
 enum DemoMode {
     static let isEnabled = ProcessInfo.processInfo.arguments.contains("-demo")
 
+    /// Which tab to open on launch — `-tab synchro`. Lets a screen be checked
+    /// in the simulator without driving the UI, which needs accessibility
+    /// permissions a build machine does not have.
+    static var initialTab: String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-tab"), args.indices.contains(i + 1) else { return nil }
+        return args[i + 1].lowercased()
+    }
+
     static func session() -> URLSession {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [DemoURLProtocol.self]

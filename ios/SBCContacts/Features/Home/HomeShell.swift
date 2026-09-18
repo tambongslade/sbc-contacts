@@ -5,9 +5,24 @@ import SwiftUI
 struct HomeShell: View {
     enum Tab: Hashable {
         case search, sync, favorites, notifications, account
+
+        /// Always `.search`, except in a debug build launched with `-tab`.
+        static var initial: Tab {
+            #if DEBUG
+            switch DemoMode.initialTab {
+            case "synchro", "sync": return .sync
+            case "favoris", "favorites": return .favorites
+            case "alertes", "notifications": return .notifications
+            case "profil", "account": return .account
+            default: return .search
+            }
+            #else
+            return .search
+            #endif
+        }
     }
 
-    @State private var tab: Tab = .search
+    @State private var tab: Tab = Tab.initial
     @State private var directory: DirectoryStore
     @State private var favorites: FavoritesStore
     @State private var sync: SyncStore
