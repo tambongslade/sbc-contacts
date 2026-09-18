@@ -40,6 +40,7 @@ describe('SyncService — abandoned runs', () => {
       {} as never,
       { record: jest.fn() } as never,
       {} as never,
+      { hydrate: jest.fn() } as never,
     );
     return { service, prisma, findMany, deleteMany, updateMany };
   }
@@ -79,5 +80,67 @@ describe('SyncService — abandoned runs', () => {
     expect(deleteMany).not.toHaveBeenCalled();
     expect(updateMany).not.toHaveBeenCalled();
     expect(result.pendingCount).toBe(0);
+  });
+});
+
+/**
+ * A run that names only a criteria never passed through the preview or the
+ * matches list, so nothing had pulled SBC's members into the mirror for it. It
+ * used to expand the criteria against whatever the mirror happened to hold and
+ * sync a fraction of what the member was shown — or nobody at all.
+ */
+describe('SyncService — a run started from a criteria alone', () => {
+  const criteria = {
+    id: 'crit-1',
+    countries: ['CM'],
+    cities: ['Littoral'],
+    professions: [],
+    interests: [],
+    sex: null,
+    ageMin: null,
+    ageMax: null,
+  };
+
+  function build() {
+    const hydrate = jest.fn().mockResolvedValue(undefined);
+    const find = jest.fn().mockResolvedValue([]);
+    const prisma = {
+      syncCriteria: { findFirst: jest.fn().mockResolvedValue(criteria) },
+      syncedContact: { findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn() },
+      syncRun: {
+        findMany: jest.fn().mockResolvedValue([]),
+        create: jest.fn().mockResolvedValue({ id: 'run-1' }),
+      },
+    };
+    const service = new SyncService(
+      prisma as never,
+      {} as never,
+      { find } as never,
+      { record: jest.fn() } as never,
+      {} as never,
+      { hydrate } as never,
+    );
+    return { service, hydrate, find };
+  }
+
+  it('hydrates the criteria from SBC before expanding it', async () => {
+    const { service, hydrate, find } = build();
+    await service.start('user-1', { criteriaId: 'crit-1' } as never);
+
+    expect(hydrate).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ countries: ['CM'], cities: ['Littoral'] }),
+    );
+    // Order matters: matching the mirror before filling it is the whole bug.
+    expect(hydrate.mock.invocationCallOrder[0]).toBeLessThan(find.mock.invocationCallOrder[0]);
+  });
+
+  it('matches on the same criteria it hydrated', async () => {
+    const { service, hydrate, find } = build();
+    await service.start('user-1', { criteriaId: 'crit-1' } as never);
+
+    const [, hydrated] = hydrate.mock.calls[0] as [string, unknown];
+    const [matched] = find.mock.calls[0] as [unknown];
+    expect(matched).toEqual(hydrated);
   });
 });
