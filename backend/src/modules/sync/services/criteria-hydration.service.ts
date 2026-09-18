@@ -36,9 +36,27 @@ export class CriteriaHydrationService {
    *  enumerated — the member is waiting on this. */
   private static readonly MAX_COMBINATIONS = 12;
 
-  /** Pages per combination, at [PAGE_SIZE] each. */
-  private static readonly MAX_PAGES = 3;
+  /**
+   * Pages per combination, at [PAGE_SIZE] each.
+   *
+   * Three was far too shallow: a criteria naming only a country is a single
+   * combination, so it saw 300 members of a base with thousands and the
+   * preview read like the bug it was meant to fix. Twelve pages is 1200 per
+   * combination, and [BUDGET_MS] stops a broad criteria walking the whole base
+   * while somebody waits on the screen.
+   */
+  private static readonly MAX_PAGES = 12;
   private static readonly PAGE_SIZE = 100;
+
+  /**
+   * How long hydration may spend before it stops asking for more pages.
+   *
+   * It stops between pages, never mid-flight, and whatever was mirrored by
+   * then counts — a partial hydration still matches far more than none. This
+   * is a blocking call on a screen, so the ceiling is what the member will sit
+   * through, not what the base would eventually yield.
+   */
+  private static readonly BUDGET_MS = 20_000;
 
   constructor(
     private readonly sbcTokens: SbcTokenService,
@@ -68,12 +86,17 @@ export class CriteriaHydrationService {
 
   private async fetchAll(accessToken: string, criteria: MatchCriteria): Promise<number> {
     const combinations = this.combinations(criteria);
+    const deadline = Date.now() + CriteriaHydrationService.BUDGET_MS;
     let mirrored = 0;
     let failed = 0;
 
     for (const combination of combinations) {
+      if (Date.now() > deadline) {
+        this.logger.warn('Criteria hydration hit its time budget; mirrored what it had');
+        break;
+      }
       try {
-        mirrored += await this.fetchCombination(accessToken, combination);
+        mirrored += await this.fetchCombination(accessToken, combination, deadline);
       } catch (err) {
         // Each combination stands alone. SBC intermittently 500s the profession
         // filter under load, and one such query must not sink the other eleven
@@ -103,9 +126,11 @@ export class CriteriaHydrationService {
   private async fetchCombination(
     accessToken: string,
     combination: SbcContactQuery,
+    deadline: number,
   ): Promise<number> {
     let mirrored = 0;
     for (let page = 1; page <= CriteriaHydrationService.MAX_PAGES; page++) {
+      if (page > 1 && Date.now() > deadline) break;
       const data = await this.sbc.searchContacts(accessToken, {
         ...combination,
         page,

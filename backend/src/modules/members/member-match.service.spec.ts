@@ -37,7 +37,9 @@ describe('MemberMatchService.buildWhere', () => {
     // Country still expands through the alias table — a criteria asks for "CM"
     // and the mirror may hold the display name, which case folding alone never
     // turns into the code.
-    const countries = groups[0].OR.map((clause) => {
+    // The country group also carries the région widening for rows with no
+    // country of their own, so read past it to the spellings themselves.
+    const countries = groups[0].OR.filter((clause) => 'country' in clause).map((clause) => {
       const field = clause.country as { equals: string; mode: string };
       expect(field.mode).toBe('insensitive');
       return field.equals;
@@ -78,5 +80,43 @@ describe('MemberMatchService.buildWhere', () => {
   it('ignores empty arrays and nullish scalars', () => {
     const where = svc.buildWhere({ ...base, sex: null, ageMin: null, ageMax: null });
     expect(where).toEqual({});
+  });
+});
+
+/**
+ * SBC's search sends no country, so almost every mirrored member has none and
+ * a country criteria matched a handful of rows out of thousands. Matching now
+ * reaches those rows through the région instead.
+ */
+describe('MemberMatchService — a country the mirror never recorded', () => {
+  const svc = new MemberMatchService({} as never);
+  const base: MatchCriteria = { countries: [], cities: [], professions: [], interests: [] };
+
+  it('matches a member with no country whose région is Cameroonian', () => {
+    const member = { country: null, city: 'Littoral' } as Parameters<typeof svc.matchesMember>[0];
+    expect(svc.matchesMember(member, { ...base, countries: ['CM'] })).toBe(true);
+  });
+
+  it('does not let a région overrule a country the member does have', () => {
+    // "Littoral" is Benin's too. This member is Béninois and says so, so a
+    // Cameroonian criteria must not claim them.
+    const member = { country: 'BJ', city: 'Littoral' } as Parameters<typeof svc.matchesMember>[0];
+    expect(svc.matchesMember(member, { ...base, countries: ['CM'] })).toBe(false);
+    expect(svc.matchesMember(member, { ...base, countries: ['BJ'] })).toBe(true);
+  });
+
+  it('ignores a région belonging to some other country', () => {
+    const member = { country: null, city: 'Dakar' } as Parameters<typeof svc.matchesMember>[0];
+    expect(svc.matchesMember(member, { ...base, countries: ['CM'] })).toBe(false);
+    expect(svc.matchesMember(member, { ...base, countries: ['SN'] })).toBe(true);
+  });
+
+  it('scopes the SQL widening to rows with no country', () => {
+    const where = svc.buildWhere({ ...base, countries: ['CM'] });
+    const [group] = where.AND as Array<{ OR: Array<Record<string, unknown>> }>;
+    const widening = group.OR.find((clause) => 'AND' in clause) as {
+      AND: Array<Record<string, unknown>>;
+    };
+    expect(widening.AND[0]).toEqual({ country: null });
   });
 });

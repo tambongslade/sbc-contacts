@@ -1,3 +1,4 @@
+import { countryForRegion } from '../../common/utils/region-country';
 import { toIsoCountry } from '../../common/utils/country';
 import {
   BadGatewayException,
@@ -269,16 +270,25 @@ export class SbcClientService {
     const asStrArr = (v: unknown): string[] | undefined =>
       Array.isArray(v) ? v.map(String) : undefined;
     const id = pick('id', '_id');
+    const region = pick('city', 'ville', 'region', 'town') as string | undefined;
     return {
       id: id != null ? String(id) : '',
       name: pick('name', 'nom') as string | undefined,
       firstName: pick('firstName', 'prenom', 'prénom') as string | undefined,
       profession: pick('profession', 'metier', 'métier') as string | undefined,
       // SBC uses `region` for location (no city on list items).
-      city: pick('city', 'ville', 'region', 'town') as string | undefined,
+      city: region,
       // Normalised on the way IN, not just on the way out: the mirror is what
       // saved criteria match against, and they match on ISO codes.
-      country: toIsoCountry(pick('country', 'pays') as string | undefined),
+      //
+      // SBC's search sends no country at all, so without the fallback the
+      // column is empty for essentially every member and "Pays: Cameroun"
+      // matches nobody. The région is the only location SBC does send, and it
+      // resolves to a country whenever it belongs to just one — a shared name
+      // like "Centre" stays empty rather than becoming a guess.
+      country:
+        toIsoCountry(pick('country', 'pays') as string | undefined) ??
+        countryForRegion(region),
       sex: pick('sex', 'sexe', 'gender') as string | undefined,
       age: pick('age') != null ? Number(pick('age')) : undefined,
       interests: asStrArr(pick('interests', 'centresInteret', 'centres_interet')),

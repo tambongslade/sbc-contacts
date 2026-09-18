@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Member, Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { countryAliases } from '../../common/utils/country';
+import { regionsForCountry } from '../../common/utils/region-country';
 import { MatchCriteria } from './member.view';
 
 /**
@@ -30,13 +31,7 @@ export class MemberMatchService {
     // naming a country AND a région means both, not either.
     const groups: Prisma.MemberWhereInput[] = [];
     if (c.countries?.length) {
-      // Still expanded through the alias table first: a criteria asks for "CM"
-      // and the mirror may hold the display name, which no amount of case
-      // folding turns into the code.
-      const spellings = Array.from(
-        new Set(c.countries.flatMap((code) => countryAliases(code)).map((s) => s.toLowerCase())),
-      );
-      groups.push({ OR: this.anyOfInsensitive('country', spellings) });
+      groups.push({ OR: this.countryClauses(c.countries) });
     }
     if (c.cities?.length) groups.push({ OR: this.anyOfInsensitive('city', c.cities) });
     if (c.professions?.length) {
@@ -53,6 +48,37 @@ export class MemberMatchService {
       };
     }
     return where;
+  }
+
+  /**
+   * Members of any of these countries.
+   *
+   * Two ways in. The country column, matched across every spelling the alias
+   * table knows and ignoring case — and, for rows that have no country at all,
+   * the région.
+   *
+   * The second is not a nicety. SBC's search sends no country, so the column is
+   * only ever filled by the ingest fallback, which refuses to resolve a région
+   * shared between countries — and "Littoral" and "Centre", the two it refuses
+   * for Cameroon, are where most Cameroonian members live. Without this a
+   * criteria asking for Cameroon misses Douala entirely.
+   *
+   * Scoped to `country: null`, so an inferred match can never overrule a
+   * country the member actually has.
+   */
+  private countryClauses(codes: string[]): Prisma.MemberWhereInput[] {
+    const spellings = Array.from(
+      new Set(codes.flatMap((code) => countryAliases(code)).map((s) => s.toLowerCase())),
+    );
+    const clauses = this.anyOfInsensitive('country', spellings);
+
+    const regions = Array.from(new Set(codes.flatMap((code) => regionsForCountry(code))));
+    if (regions.length) {
+      clauses.push({
+        AND: [{ country: null }, { OR: this.anyOfInsensitive('city', regions) }],
+      });
+    }
+    return clauses;
   }
 
   /** `field` equals any of `values`, ignoring case. */
@@ -91,14 +117,21 @@ export class MemberMatchService {
    * a DB round-trip per criteria. Mirrors buildWhere() exactly.
    */
   matchesMember(member: Member, c: MatchCriteria): boolean {
-    if (
-      c.countries?.length &&
-      !MemberMatchService.eq(
+    if (c.countries?.length) {
+      const byCountry = MemberMatchService.eq(
         member.country,
         c.countries.flatMap((code) => countryAliases(code)),
-      )
-    )
-      return false;
+      );
+      // Same two ways in as countryClauses(), and the same scoping: the région
+      // only stands in for a country the member does not have.
+      const byRegion =
+        !member.country &&
+        MemberMatchService.eq(
+          member.city,
+          c.countries.flatMap((code) => regionsForCountry(code)),
+        );
+      if (!byCountry && !byRegion) return false;
+    }
     if (c.cities?.length && !MemberMatchService.eq(member.city, c.cities)) return false;
     if (c.professions?.length && !MemberMatchService.eq(member.profession, c.professions))
       return false;
