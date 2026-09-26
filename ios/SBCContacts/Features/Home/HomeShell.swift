@@ -23,6 +23,10 @@ struct HomeShell: View {
     }
 
     @State private var tab: Tab = Tab.initial
+    /// Seeded from `-route` in debug builds, empty otherwise — lets a pushed
+    /// screen be opened straight from the command line.
+    @State private var searchPath = NavigationPath()
+    @State private var syncPath = NavigationPath()
     @State private var directory: DirectoryStore
     @State private var favorites: FavoritesStore
     @State private var sync: SyncStore
@@ -35,15 +39,22 @@ struct HomeShell: View {
         _sync = State(initialValue: SyncStore(repo: services.sync))
         _regions = State(initialValue: RegionsStore(repo: services.directory))
         _notifications = State(initialValue: NotificationsStore(repo: services.notifications))
+        #if DEBUG
+        let path = DemoMode.initialPath()
+        switch Tab.initial {
+        case .sync: _syncPath = State(initialValue: path)
+        default: _searchPath = State(initialValue: path)
+        }
+        #endif
     }
 
     var body: some View {
         TabView(selection: $tab) {
-            NavigationStack { SearchView().appRoutes() }
+            NavigationStack(path: $searchPath) { SearchView().appRoutes() }
                 .tabItem { Label("Recherche", systemImage: "magnifyingglass") }
                 .tag(Tab.search)
 
-            NavigationStack { SyncView().appRoutes() }
+            NavigationStack(path: $syncPath) { SyncView().appRoutes() }
                 .tabItem { Label("Synchro", systemImage: "arrow.triangle.2.circlepath") }
                 .tag(Tab.sync)
 

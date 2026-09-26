@@ -1,5 +1,6 @@
 #if DEBUG
 import Foundation
+import SwiftUI
 
 /// Debug-only offline mode: launch with `-demo` to run the whole app on canned
 /// data (no SBC login, no network), so screens can be checked in the simulator.
@@ -13,6 +14,33 @@ enum DemoMode {
         let args = ProcessInfo.processInfo.arguments
         guard let i = args.firstIndex(of: "-tab"), args.indices.contains(i + 1) else { return nil }
         return args[i + 1].lowercased()
+    }
+
+    /// Which pushed screen to open on top of that tab — `-route profile`.
+    /// Same reason as `initialTab`: a screen deeper than a tab is worth looking
+    /// at (and screenshotting) without driving the UI.
+    static var initialRoute: String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-route"), args.indices.contains(i + 1) else { return nil }
+        return args[i + 1].lowercased()
+    }
+
+    /// The `-route` value as a navigation path, empty when none was given.
+    static func initialPath() -> NavigationPath {
+        var path = NavigationPath()
+        switch initialRoute {
+        case "profile":
+            path.append(AppRoute.profile(sbcId: "demo-1"))
+        case "review":
+            path.append(AppRoute.syncReview(criteriaId: "c1", label: "Designers de Douala"))
+        case "criteria":
+            path.append(AppRoute.criteriaNew)
+        case "contacts":
+            path.append(AppRoute.syncedContacts)
+        default:
+            break
+        }
+        return path
     }
 
     static func session() -> URLSession {
@@ -149,7 +177,10 @@ final class DemoURLProtocol: URLProtocol {
         case path.hasSuffix("/notifications"):
             return page([
                 ["id": "n1", "type": "CONTACT_SAVED", "title": "Quelqu'un t'a enregistré", "body": "Awa Diop vient d'ajouter ton contact à son répertoire.", "createdAt": now],
-                ["id": "n2", "type": "NEW_MATCH", "title": "3 nouveaux membres", "body": "Ils correspondent à « Designers de Douala ».", "createdAt": now, "readAt": now],
+                ["id": "n2", "type": "NEW_MATCH", "title": "Nouveau membre correspondant à tes critères", "body": "Awa Diop — Enseignant, Dakar (Designers de Douala)", "createdAt": now,
+                 // Real NEW_MATCH rows carry this; it is what puts the
+                 // "Enregistrer" button on the alert.
+                 "data": ["memberSbcId": "demo-1", "criteriaId": "c1"]],
             ])
         case path.hasSuffix("/directory/search"):
             return page((0..<20).map(member), total: 48_124)
