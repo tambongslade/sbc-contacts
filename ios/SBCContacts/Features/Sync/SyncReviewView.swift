@@ -20,6 +20,7 @@ struct SyncReviewView: View {
     @State private var state: LoadState = .loading
     @State private var selected: Set<String> = []
     @State private var runner: SyncRunner?
+    @State private var loadingMore = false
 
     var body: some View {
         content
@@ -97,15 +98,37 @@ struct SyncReviewView: View {
 
             Divider()
 
-            List(page.items) { member in
-                TargetRow(
-                    member: member,
-                    selected: selected.contains(member.sbcId),
-                    enabled: !running
-                ) { on in
-                    if on { selected.insert(member.sbcId) } else { selected.remove(member.sbcId) }
+            List {
+                ForEach(Array(page.items.enumerated()), id: \.element.id) { index, member in
+                    TargetRow(
+                        member: member,
+                        selected: selected.contains(member.sbcId),
+                        enabled: !running
+                    ) { on in
+                        if on { selected.insert(member.sbcId) } else { selected.remove(member.sbcId) }
+                    }
+                    .listRowBackground(SBCColors.surface)
+                    // Same prefetch distance the annuaire uses: ask for the next
+                    // page five rows out, so the list is already longer by the
+                    // time the scroll reaches the end.
+                    .onAppear {
+                        if index >= page.items.count - 5 {
+                            Task { await loadMore() }
+                        }
+                    }
                 }
-                .listRowBackground(SBCColors.surface)
+
+                if page.hasMore {
+                    HStack(spacing: 10) {
+                        ProgressView().controlSize(.small)
+                        Text("Chargement des membres suivants…")
+                            .font(.sbc(.labelMedium))
+                            .foregroundStyle(SBCColors.onSurfaceVariant)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .listRowBackground(SBCColors.surface)
+                }
             }
             .listStyle(.plain)
         }
@@ -120,7 +143,13 @@ struct SyncReviewView: View {
                         selected = Set(selectable)
                     }
                 }
-                .buttonStyle(OutlinedButtonStyle(minHeight: 48))
+                // Hugs its label. Both styles are full-width by default, and
+                // the Synchroniser button's layoutPriority means it claims that
+                // width first — leaving this one its padding and nothing else,
+                // so "Tout / rien" wrapped into slivers too narrow to draw and
+                // the button rendered as an empty box taller than the bar.
+                .buttonStyle(OutlinedButtonStyle(minHeight: 48, fullWidth: false))
+                .fixedSize(horizontal: true, vertical: false)
                 .disabled(running)
 
                 Button {
@@ -152,6 +181,37 @@ struct SyncReviewView: View {
             state = .loaded(page)
         } catch {
             state = .failed(error)
+        }
+    }
+
+    /// Next page, appended. The matches endpoint orders by `lastSeenAt`, which
+    /// hydration moves, so a member can be pushed onto a page already loaded —
+    /// appending blind would put duplicate ids in the ForEach. Dropped here
+    /// rather than in Paginated.concat, which has no notion of identity.
+    private func loadMore() async {
+        guard case let .loaded(page) = state, page.hasMore, !loadingMore else { return }
+        guard !(runner?.running ?? false) else { return }
+        loadingMore = true
+        defer { loadingMore = false }
+        do {
+            let next = try await services.sync.matches(id: criteriaId, page: page.page + 1)
+            // State can have moved while the request was in flight.
+            guard case let .loaded(current) = state else { return }
+            var seen = Set(current.items.map(\.id))
+            let fresh = next.items.filter { seen.insert($0.id).inserted }
+            state = .loaded(
+                Paginated(
+                    items: current.items + fresh,
+                    total: next.total,
+                    page: next.page,
+                    limit: next.limit,
+                    totalPages: next.totalPages,
+                    hasMore: next.hasMore
+                )
+            )
+        } catch {
+            // A failed page must not blank the members already on screen.
+            toasts.show(error.localizedDescription)
         }
     }
 

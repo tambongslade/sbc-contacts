@@ -34,12 +34,10 @@ struct NotificationsView: View {
             )
         case let .loaded(items):
             List(items) { item in
-                NotificationRow(notification: item)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        Task { await store.markRead(item) }
-                    }
-                    .listRowBackground(SBCColors.surface)
+                NotificationRow(notification: item) {
+                    Task { await store.markRead(item) }
+                }
+                .listRowBackground(SBCColors.surface)
             }
             .listStyle(.plain)
             .refreshable {
@@ -52,6 +50,21 @@ struct NotificationsView: View {
 
 private struct NotificationRow: View {
     let notification: AppNotification
+    let onRead: () -> Void
+
+    @Environment(\.services) private var services
+    @Environment(ToastCenter.self) private var toasts
+    @Environment(SyncStore.self) private var sync
+
+    @State private var saving = false
+    @State private var saved = false
+
+    /// A NEW_MATCH is the one alert with somebody to act on: §11 is "tell me
+    /// when a new member matches", and being told is only half of it.
+    private var savableMemberId: String? {
+        guard notification.type == "NEW_MATCH" else { return nil }
+        return notification.memberSbcId
+    }
 
     private static let dateFormat = Date.FormatStyle()
         .day(.twoDigits).month(.twoDigits).hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)
@@ -86,6 +99,10 @@ private struct NotificationRow: View {
                 Text(notification.body)
                     .font(.sbc(.bodyMedium))
                     .foregroundStyle(SBCColors.onSurfaceVariant)
+                if let memberId = savableMemberId {
+                    saveButton(memberId: memberId)
+                        .padding(.top, 10)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -94,7 +111,52 @@ private struct NotificationRow: View {
                 .foregroundStyle(SBCColors.onSurface)
         }
         .padding(.vertical, 6)
-        .accessibilityElement(children: .combine)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onRead)
         .accessibilityHint(notification.isRead ? "" : "Marquer comme lue")
+    }
+
+    /// Saves the matched member straight from the alert. The notification only
+    /// carries an sbcId, so the member is fetched first — the same record the
+    /// profile screen saves, so the contact written is identical.
+    @ViewBuilder
+    private func saveButton(memberId: String) -> some View {
+        // Laid out as "button, then all the slack" rather than a bare button:
+        // inside the row's VStack the label was proposed almost no width, wrapped
+        // into slivers too narrow to draw, and left an empty outline behind — the
+        // same failure the "Tout / rien" button had. fixedSize() on the Text is
+        // what actually guarantees it, so the icon can never be all that renders.
+        HStack(spacing: 0) {
+            Button {
+                Task { await save(memberId: memberId) }
+            } label: {
+                HStack(spacing: 8) {
+                    if saving {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: saved ? "checkmark" : "person.badge.plus")
+                    }
+                    Text(saved ? "Enregistré" : "Enregistrer")
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+            }
+            .buttonStyle(OutlinedButtonStyle(minHeight: 38, fullWidth: false))
+            .disabled(saving || saved)
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func save(memberId: String) async {
+        saving = true
+        defer { saving = false }
+        do {
+            let member = try await services.directory.profile(sbcId: memberId)
+            await addMemberToPhone(member, services: services, toasts: toasts, directory: nil, sync: sync)
+            saved = true
+        } catch {
+            toasts.show(error.localizedDescription)
+        }
     }
 }

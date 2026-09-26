@@ -9,12 +9,23 @@ struct AppNotification: Identifiable, Sendable, Equatable {
     var createdAt: Date
     var readAt: Date?
 
+    /// Who the alert is about, from the notification's `data` payload. A
+    /// NEW_MATCH carries it, which is what lets the row offer to save the
+    /// person without first asking the backend who they are.
+    var memberSbcId: String?
+    var criteriaId: String?
+
     var isRead: Bool { readAt != nil }
 }
 
 extension AppNotification: Decodable {
     private enum CodingKeys: String, CodingKey {
-        case id, type, title, body, createdAt, readAt
+        case id, type, title, body, createdAt, readAt, data
+    }
+
+    /// Keys inside the free-form `data` object the backend attaches.
+    private enum DataKeys: String, CodingKey {
+        case memberSbcId, criteriaId
     }
 
     init(from decoder: Decoder) throws {
@@ -25,6 +36,12 @@ extension AppNotification: Decodable {
         body = c.string(.body) ?? ""
         createdAt = c.date(.createdAt) ?? Date(timeIntervalSince1970: 1_577_836_800)
         readAt = c.date(.readAt)
+        // Absent on notification types that carry no member, and absent on
+        // older rows written before the payload existed — hence optional, never
+        // a decoding failure.
+        let payload = try? c.nestedContainer(keyedBy: DataKeys.self, forKey: .data)
+        memberSbcId = payload?.string(.memberSbcId)
+        criteriaId = payload?.string(.criteriaId)
     }
 }
 
