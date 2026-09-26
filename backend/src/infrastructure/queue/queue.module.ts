@@ -7,6 +7,7 @@ export const QUEUE_NAMES = {
   MATCHING: 'matching', // new-member detection (§11)
   NOTIFICATIONS: 'notifications', // push/sms/email dispatch (§19)
   WEBHOOKS: 'webhooks', // inbound SBC webhook processing (§20)
+  CRITERIA_SWEEP: 'criteria-sweep', // periodic re-check of active criteria (§11)
 } as const;
 
 /**
@@ -38,6 +39,7 @@ export const QUEUE_NAMES = {
       { name: QUEUE_NAMES.MATCHING },
       { name: QUEUE_NAMES.NOTIFICATIONS },
       { name: QUEUE_NAMES.WEBHOOKS },
+      { name: QUEUE_NAMES.CRITERIA_SWEEP },
     ),
   ],
   exports: [BullModule],

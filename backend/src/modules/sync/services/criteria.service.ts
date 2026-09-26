@@ -33,6 +33,12 @@ export class CriteriaService {
         ageMin: dto.ageMin ?? null,
         ageMax: dto.ageMax ?? null,
         isActive: dto.isActive ?? true,
+        // Baseline for the sweep (§11). Everything already mirrored — and
+        // everything the first hydration is about to mirror — predates this
+        // criteria, so only members that turn up later count as "new". Without
+        // the stamp the first sweep would treat the whole mirror as new and
+        // notify on every one of them.
+        lastCheckedAt: new Date(),
       },
     });
     await this.audit.record({

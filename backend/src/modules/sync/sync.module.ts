@@ -4,6 +4,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { CriteriaController } from './controllers/criteria.controller';
 import { SyncController } from './controllers/sync.controller';
 import { CriteriaHydrationService } from './services/criteria-hydration.service';
+import { CriteriaSweepProcessor } from './services/criteria-sweep.processor';
+import { CriteriaSweepService } from './services/criteria-sweep.service';
 import { CriteriaService } from './services/criteria.service';
 import { SyncService } from './services/sync.service';
 
@@ -17,7 +19,13 @@ import { SyncService } from './services/sync.service';
   // AuthModule: SbcTokenService, to hydrate criteria straight from SBC.
   imports: [NotificationsModule, AuthModule],
   controllers: [CriteriaController, SyncController],
-  providers: [CriteriaHydrationService, CriteriaService, SyncService],
+  providers: [
+    CriteriaHydrationService,
+    CriteriaService,
+    CriteriaSweepService,
+    CriteriaSweepProcessor,
+    SyncService,
+  ],
   exports: [CriteriaService],
 })
 export class SyncModule {}
