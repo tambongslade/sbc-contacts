@@ -1,11 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:sbc_contacts/shared/widgets/skeletons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:sbc_contacts/features/sync/application/sync_controllers.dart';
 import 'package:sbc_contacts/features/sync/application/sync_runner.dart';
-import 'package:sbc_contacts/core/network/paginated.dart';
-import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/features/directory/domain/member.dart';
 import 'package:sbc_contacts/shared/widgets/empty_state.dart';
 import 'package:sbc_contacts/shared/widgets/member_avatar.dart';
@@ -28,54 +28,40 @@ class SyncReviewScreen extends ConsumerStatefulWidget {
 
 class _SyncReviewScreenState extends ConsumerState<SyncReviewScreen> {
   final Set<String> _selected = {};
-  bool _primed = false;
+  final Set<String> _primed = {};
+  final ScrollController _scroll = ScrollController();
 
-  /// Pages fetched after the first, which the provider owns. A criteria can
-  /// match thousands of members; loading only the first 50 made the rest
-  /// unreachable.
-  final List<Member> _more = [];
-  Paginated<Member>? _lastPage;
-  bool _loadingMore = false;
-
-  /// Everything not already on the device starts selected — the common case is
-  /// "save them all", with opting out one tap away.
-  ///
-  /// Deliberately only the first page: scrolling is browsing, not choosing, so
-  /// members paged in later start unselected rather than silently growing a
-  /// write to the phone book behind the member's back.
-  void _prime(List<Member> items) {
-    if (_primed) return;
-    _primed = true;
-    _selected.addAll(items.where((t) => !t.isSynced).map((t) => t.sbcId));
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_onScroll);
   }
 
-  /// Next page, appended. The endpoint orders by `lastSeenAt`, which hydration
-  /// moves, so a member can be pushed onto a page already loaded — appending
-  /// blind would show them twice.
-  Future<void> _loadMore(Paginated<Member> first) async {
-    final current = _lastPage ?? first;
-    if (_loadingMore || !current.hasMore) return;
-    setState(() => _loadingMore = true);
-    try {
-      final next = await ref
-          .read(syncRepositoryProvider)
-          .matches(widget.criteriaId, page: current.page + 1);
-      if (!mounted) return;
-      final seen = {
-        ...first.items.map((m) => m.sbcId),
-        ..._more.map((m) => m.sbcId),
-      };
-      setState(() {
-        _more.addAll(next.items.where((m) => seen.add(m.sbcId)));
-        _lastPage = next;
-      });
-    } catch (e) {
-      // A failed page must not blank the members already on screen.
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
-      }
-    } finally {
-      if (mounted) setState(() => _loadingMore = false);
+  @override
+  void dispose() {
+    _scroll.removeListener(_onScroll);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// Ask for the next page once the member is within a screenful of the end, so
+  /// the list keeps growing as they swipe rather than stopping at page one.
+  void _onScroll() {
+    if (!_scroll.hasClients) return;
+    final position = _scroll.position;
+    if (position.pixels >= position.maxScrollExtent - 600) {
+      unawaited(ref.read(criteriaMatchesProvider(widget.criteriaId).notifier).loadMore());
+    }
+  }
+
+  /// Everything not already on the device starts selected — the common case is
+  /// "save them all", with opting out one tap away. Runs per member id (not once
+  /// overall) so members from a freshly loaded page arrive pre-selected too,
+  /// while any the member deliberately unchecked stay unchecked.
+  void _prime(List<Member> items) {
+    for (final t in items) {
+      if (!_primed.add(t.sbcId)) continue; // already seen this one
+      if (!t.isSynced) _selected.add(t.sbcId);
     }
   }
 
@@ -104,7 +90,8 @@ class _SyncReviewScreenState extends ConsumerState<SyncReviewScreen> {
             child: const Text('Réessayer'),
           ),
         ),
-        data: (page) {
+        data: (matches) {
+          final page = matches.page;
           if (page.items.isEmpty) {
             return const EmptyState(
               icon: Icons.person_search,
@@ -113,8 +100,6 @@ class _SyncReviewScreenState extends ConsumerState<SyncReviewScreen> {
             );
           }
           _prime(page.items);
-          final items = [...page.items, ..._more];
-          final hasMore = (_lastPage ?? page).hasMore;
           return Column(
             children: [
               _Header(total: page.total, selected: _selected.length),
@@ -124,29 +109,15 @@ class _SyncReviewScreenState extends ConsumerState<SyncReviewScreen> {
               const Divider(height: 1),
               Expanded(
                 child: ListView.builder(
-                  // One extra row for the "loading the next page" footer.
-                  itemCount: items.length + (hasMore ? 1 : 0),
+                  controller: _scroll,
+                  // One extra row for the footer while more pages remain: a
+                  // spinner as they load, a nudge to keep scrolling otherwise.
+                  itemCount: page.items.length + (page.hasMore ? 1 : 0),
                   itemBuilder: (context, i) {
-                    if (i >= items.length) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 20),
-                        child: Center(
-                          child: SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        ),
-                      );
+                    if (i >= page.items.length) {
+                      return _LoadMoreFooter(loading: matches.loadingMore);
                     }
-                    // Same prefetch distance the annuaire uses: ask five rows
-                    // out, so the list is already longer by the time the scroll
-                    // reaches the end.
-                    if (hasMore && i >= items.length - 5) {
-                      WidgetsBinding.instance
-                          .addPostFrameCallback((_) => _loadMore(page));
-                    }
-                    final t = items[i];
+                    final t = page.items[i];
                     return _TargetTile(
                       target: t,
                       selected: _selected.contains(t.sbcId),
@@ -167,7 +138,7 @@ class _SyncReviewScreenState extends ConsumerState<SyncReviewScreen> {
         },
       ),
       bottomNavigationBar: async.maybeWhen(
-        data: (page) => SafeArea(
+        data: (matches) => SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
@@ -177,7 +148,7 @@ class _SyncReviewScreenState extends ConsumerState<SyncReviewScreen> {
                     onPressed: progress.running
                         ? null
                         : () => setState(() {
-                              final selectable = [...page.items, ..._more]
+                              final selectable = matches.page.items
                                   .where((t) => !t.isSynced)
                                   .map((t) => t.sbcId);
                               if (_selected.length == selectable.length) {
@@ -290,6 +261,30 @@ class _Outcome extends StatelessWidget {
       child: Text(
         parts.isEmpty ? 'Rien à synchroniser.' : parts.join(' · '),
         style: TextStyle(color: scheme.onSecondaryContainer),
+      ),
+    );
+  }
+}
+
+class _LoadMoreFooter extends StatelessWidget {
+  const _LoadMoreFooter({required this.loading});
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: Center(
+        child: loading
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Text(
+                'Faites défiler pour charger plus…',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
       ),
     );
   }

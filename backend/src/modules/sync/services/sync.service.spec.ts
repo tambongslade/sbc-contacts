@@ -102,7 +102,7 @@ describe('SyncService — a run started from a criteria alone', () => {
   };
 
   function build() {
-    const hydrate = jest.fn().mockResolvedValue(undefined);
+    const enqueueDeepWalk = jest.fn().mockResolvedValue(undefined);
     const find = jest.fn().mockResolvedValue([]);
     const prisma = {
       syncCriteria: { findFirst: jest.fn().mockResolvedValue(criteria) },
@@ -118,29 +118,31 @@ describe('SyncService — a run started from a criteria alone', () => {
       { find } as never,
       { record: jest.fn() } as never,
       {} as never,
-      { hydrate } as never,
+      { enqueueDeepWalk } as never,
     );
-    return { service, hydrate, find };
+    return { service, enqueueDeepWalk, find };
   }
 
-  it('hydrates the criteria from SBC before expanding it', async () => {
-    const { service, hydrate, find } = build();
+  it('kicks off the background hydration before expanding the criteria', async () => {
+    const { service, enqueueDeepWalk, find } = build();
     await service.start('user-1', { criteriaId: 'crit-1' } as never);
 
-    expect(hydrate).toHaveBeenCalledWith(
+    expect(enqueueDeepWalk).toHaveBeenCalledWith(
       'user-1',
       expect.objectContaining({ countries: ['CM'], cities: ['Littoral'] }),
     );
-    // Order matters: matching the mirror before filling it is the whole bug.
-    expect(hydrate.mock.invocationCallOrder[0]).toBeLessThan(find.mock.invocationCallOrder[0]);
+    // Order matters: kicking the mirror fill before reading it is the whole bug.
+    expect(enqueueDeepWalk.mock.invocationCallOrder[0]).toBeLessThan(
+      find.mock.invocationCallOrder[0],
+    );
   });
 
-  it('matches on the same criteria it hydrated', async () => {
-    const { service, hydrate, find } = build();
+  it('matches on the same criteria it enqueued', async () => {
+    const { service, enqueueDeepWalk, find } = build();
     await service.start('user-1', { criteriaId: 'crit-1' } as never);
 
-    const [, hydrated] = hydrate.mock.calls[0] as [string, unknown];
+    const [, enqueued] = enqueueDeepWalk.mock.calls[0] as [string, unknown];
     const [matched] = find.mock.calls[0] as [unknown];
-    expect(matched).toEqual(hydrated);
+    expect(matched).toEqual(enqueued);
   });
 });

@@ -9,6 +9,7 @@ export const QUEUE_NAMES = {
   WEBHOOKS: 'webhooks', // inbound SBC webhook processing (§20)
   CRITERIA_SWEEP: 'criteria-sweep', // periodic re-check of active criteria (§11)
   SBC_DATA: 'sbc-data', // SBC Data: match a sent request and route it to pros
+  HYDRATION: 'hydration', // deep mirror fill for a criteria (§10)
 } as const;
 
 /**
@@ -42,6 +43,7 @@ export const QUEUE_NAMES = {
       { name: QUEUE_NAMES.WEBHOOKS },
       { name: QUEUE_NAMES.CRITERIA_SWEEP },
       { name: QUEUE_NAMES.SBC_DATA },
+      { name: QUEUE_NAMES.HYDRATION },
     ),
   ],
   exports: [BullModule],

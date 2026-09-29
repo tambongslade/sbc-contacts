@@ -7,6 +7,7 @@ import { CriteriaHydrationService } from './services/criteria-hydration.service'
 import { CriteriaSweepProcessor } from './services/criteria-sweep.processor';
 import { CriteriaSweepService } from './services/criteria-sweep.service';
 import { CriteriaService } from './services/criteria.service';
+import { HydrationProcessor } from './services/hydration.processor';
 import { SyncService } from './services/sync.service';
 
 /**
@@ -25,6 +26,7 @@ import { SyncService } from './services/sync.service';
     CriteriaSweepService,
     CriteriaSweepProcessor,
     SyncService,
+    HydrationProcessor,
   ],
   exports: [CriteriaService],
 })

@@ -112,10 +112,7 @@ export class CriteriaService {
   async preview(userId: string, id: string): Promise<{ criteriaId: string; matchCount: number }> {
     const criteria = await this.get(userId, id);
     const where = this.toMatch(criteria);
-    // Pull SBC's members for this criteria into the mirror first, otherwise the
-    // count only covers members the caller happened to have searched for.
-    await this.hydration.hydrate(userId, where);
-    const matchCount = await this.match.count(where);
+    const matchCount = await this.matchCount(userId, where);
     await this.prisma.syncCriteria.update({
       where: { id },
       data: { lastCheckedAt: new Date(), lastMatchCount: matchCount },
@@ -125,10 +122,19 @@ export class CriteriaService {
 
   /** Match count for unsaved criteria (live count on the create screen, §10). */
   async previewAdhoc(userId: string, dto: PreviewCriteriaDto): Promise<{ matchCount: number }> {
-    const where = this.dtoToMatch(dto);
-    await this.hydration.hydrate(userId, where);
-    const matchCount = await this.match.count(where);
-    return { matchCount };
+    return { matchCount: await this.matchCount(userId, this.dtoToMatch(dto)) };
+  }
+
+  /**
+   * The headline count the member is asking for: SBC's own total for the
+   * criteria, computed cheaply and cached. Falls back to the mirror count when
+   * SBC can't answer (down, or the caller's session lapsed) — the old
+   * behaviour. Either way the deep walk that fills the mirror is enqueued, so
+   * the matches list catches up to this number in the background.
+   */
+  private async matchCount(userId: string, where: MatchCriteria): Promise<number> {
+    const sbcTotal = await this.hydration.previewTotal(userId, where);
+    return sbcTotal ?? this.match.count(where);
   }
 
   async matches(
@@ -138,7 +144,11 @@ export class CriteriaService {
   ): Promise<PaginatedResult<MemberView>> {
     const criteria = await this.get(userId, id);
     const where = this.toMatch(criteria);
-    await this.hydration.hydrate(userId, where);
+    // Keep filling the mirror in the background so paging reaches the whole
+    // country; the page itself is served from whatever is mirrored so far, so it
+    // is always full rows the member can save — never an empty page ahead of the
+    // walk.
+    await this.hydration.enqueueDeepWalk(userId, where);
     const [rows, total] = await Promise.all([
       this.match.find(where, { skip: pagination.skip, take: pagination.limit }),
       this.match.count(where),

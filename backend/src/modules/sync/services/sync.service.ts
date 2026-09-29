@@ -483,13 +483,12 @@ export class SyncService {
       });
       if (!criteria) throw new NotFoundException('Criteria not found');
       const where = this.toMatch(criteria);
-      // Same hydration the preview and the matches list do. A caller that
-      // names only the criteria never went through either, so without this the
-      // run would expand the criteria against whatever the mirror happened to
-      // hold and sync a fraction of what the member was shown — or nobody.
-      // Cached, so the usual path (review screen, then the ticked members) does
-      // not pay for it twice.
-      await this.hydration.hydrate(userId, where);
+      // Same background fill the preview and the matches list kick off. A caller
+      // that names only the criteria never went through either, so without this
+      // the run would expand the criteria against whatever the mirror happened
+      // to hold. Deduped, so the usual path (review screen, then the ticked
+      // members) does not re-trigger it.
+      await this.hydration.enqueueDeepWalk(userId, where);
       const members = await this.match.find(where, { take: MAX_TARGETS });
       return { members, criteriaId: criteria.id };
     }
