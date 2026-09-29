@@ -9,7 +9,7 @@ import Foundation
 /// - transparently refresh the token on 401 (single-flight) and retry once.
 actor APIClient {
     enum Method: String, Sendable {
-        case get = "GET", post = "POST", patch = "PATCH", delete = "DELETE"
+        case get = "GET", post = "POST", put = "PUT", patch = "PATCH", delete = "DELETE"
     }
 
     private let baseURL: URL
@@ -35,6 +35,10 @@ actor APIClient {
 
     func patch<T: Decodable & Sendable>(_ path: String, body: some Encodable & Sendable) async throws -> T {
         try decode(try await send(.patch, path, body: encode(body)))
+    }
+
+    func put<T: Decodable & Sendable>(_ path: String, body: some Encodable & Sendable) async throws -> T {
+        try decode(try await send(.put, path, body: encode(body)))
     }
 
     func delete<T: Decodable & Sendable>(_ path: String) async throws -> T {

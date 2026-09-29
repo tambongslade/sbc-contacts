@@ -16,6 +16,8 @@ struct AccountView: View {
                         .appearAnimation()
                     SubscriptionBlock(user: user)
                         .appearAnimation(delay: 0.06)
+                    ShortcutsBlock()
+                        .appearAnimation(delay: 0.09)
                     InfoBlock(user: user)
                         .appearAnimation(delay: 0.12)
                     LogoutButton()
@@ -246,6 +248,66 @@ private struct InfoBlock: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Shortcuts
+
+/// Espace pro, and Favoris now that "Demandes" has its tab slot.
+private struct ShortcutsBlock: View {
+    @Environment(RequestsStore.self) private var requests
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel(text: "Mon espace")
+            SurfaceCard(padding: 0) {
+                VStack(spacing: 0) {
+                    ShortcutLink(
+                        route: requests.isPro ? .proSpace : .proProfileForm,
+                        systemImage: "briefcase.fill",
+                        tone: SBCColors.primary,
+                        title: requests.isPro ? "Espace pro" : "Devenir pro",
+                        detail: requests.isPro ? "Services, statistiques, abonnement" : "Reçois les demandes qui te correspondent"
+                    )
+                    Divider().padding(.leading, 68)
+                    ShortcutLink(route: .favorites, systemImage: "star.fill", tone: SBCColors.accent, title: "Mes favoris", detail: nil)
+                }
+            }
+        }
+    }
+}
+
+private struct ShortcutLink: View {
+    let route: AppRoute
+    let systemImage: String
+    let tone: Color
+    let title: String
+    let detail: String?
+
+    var body: some View {
+        NavigationLink(value: route) {
+            HStack(spacing: 12) {
+                IconTile(systemImage: systemImage, tone: tone)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.sbc(.bodyLarge, weight: .semibold))
+                        .foregroundStyle(SBCColors.onSurface)
+                    if let detail {
+                        Text(detail)
+                            .font(.sbc(.bodySmall))
+                            .foregroundStyle(SBCColors.onSurfaceVariant)
+                    }
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(SBCColors.onSurfaceVariant)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

@@ -9,6 +9,14 @@ enum AppRoute: Hashable {
     case syncReview(criteriaId: String, label: String)
     case criteriaNew
     case criteriaEdit(SyncCriteria)
+    case favorites
+    case requestNew
+    case requestReview(ServiceRequestItem)
+    case request(id: String)
+    case inbox(InboxItem)
+    case proSpace
+    case proProfileForm
+    case proAddServices
 }
 
 extension SyncCriteria: Hashable {
@@ -34,6 +42,22 @@ extension View {
                 CriteriaEditView(existing: nil)
             case let .criteriaEdit(criteria):
                 CriteriaEditView(existing: criteria)
+            case .favorites:
+                FavoritesView()
+            case .requestNew:
+                RequestComposerView()
+            case let .requestReview(request):
+                RequestReviewView(request: request)
+            case let .request(id):
+                RequestDetailView(requestId: id)
+            case let .inbox(item):
+                InboxDetailView(item: item)
+            case .proSpace:
+                ProSpaceView()
+            case .proProfileForm:
+                ProProfileFormView()
+            case .proAddServices:
+                AddServicesView()
             }
         }
     }

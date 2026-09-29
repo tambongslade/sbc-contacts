@@ -239,8 +239,8 @@ export class RequestsService {
     await this.notifications.create({
       userId: chosen.pro.userId,
       type: NotificationType.REQUEST_SELECTED,
-      title: 'Tu as été retenu',
-      body: `Le client t’a choisi pour : ${what}. Il va te contacter.`,
+      title: 'Ta proposition a été retenue',
+      body: `Pour : ${what}. La personne qui a fait la demande va te contacter.`,
       data: { requestId: id },
     });
     // Only pros who spent effort answering hear back; the silent ones just see

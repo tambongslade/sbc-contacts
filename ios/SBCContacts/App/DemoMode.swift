@@ -7,6 +7,17 @@ import SwiftUI
 enum DemoMode {
     static let isEnabled = ProcessInfo.processInfo.arguments.contains("-demo")
 
+    /// `-api http://localhost:3099/api/v1 -access-token <jwt>`: run the real
+    /// app against a local backend with a session minted for a test user, so
+    /// a new flow can be driven end to end without an SBC login.
+    static var localSession: (baseURL: URL, token: String)? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let a = args.firstIndex(of: "-api"), args.indices.contains(a + 1), let url = URL(string: args[a + 1]),
+              let t = args.firstIndex(of: "-access-token"), args.indices.contains(t + 1)
+        else { return nil }
+        return (url, args[t + 1])
+    }
+
     /// Which tab to open on launch — `-tab synchro`. Lets a screen be checked
     /// in the simulator without driving the UI, which needs accessibility
     /// permissions a build machine does not have.
