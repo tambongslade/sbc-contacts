@@ -115,7 +115,7 @@ const JUDGE_SCHEMA = {
   required: ['verdicts'],
 };
 
-const STRUCTURE_SYSTEM = `Tu structures les services d'un professionnel pour SBC Data, une plateforme africaine francophone de mise en relation.
+const STRUCTURE_SYSTEM = `Tu structures les services d'un professionnel pour SBC Network, une application africaine francophone de mise en relation.
 Le professionnel écrit librement ce qu'il sait faire. Renvoie :
 - profession : son métier, au masculin singulier, en français courant (ex. "Coiffeur", "Plombier", "Graphiste").
 - category : la famille de services (ex. "Locks", "Plomberie sanitaire", "Identité visuelle").
@@ -123,7 +123,7 @@ Le professionnel écrit librement ce qu'il sait faire. Renvoie :
 - synonyms : les autres mots qu'un client utiliserait pour la même prestation, y compris l'argot et les variantes locales (ex. locks, dreads, dreadlocks).
 - specialties : les précisions mentionnées (ex. homme, femme, enfant, une technique). Vide si rien n'est dit.`;
 
-const ANALYSIS_SYSTEM = `Tu analyses une demande de service pour SBC Data, une plateforme africaine francophone qui transmet la demande aux professionnels pertinents.
+const ANALYSIS_SYSTEM = `Tu analyses une demande de service pour SBC Network, une application africaine francophone qui transmet la demande aux professionnels pertinents.
 Extrais uniquement ce que la personne a dit ; mets null ou [] pour le reste, sans deviner.
 - profession : le métier probable du professionnel recherché (ex. "Coiffeur").
 - service : la prestation précise demandée (ex. "Réparation de locks").
@@ -133,7 +133,7 @@ Extrais uniquement ce que la personne a dit ; mets null ou [] pour le reste, san
 - constraints : toute condition importante (ex. "femme uniquement", "matériel fourni").
 Pose une clarificationQuestion courte UNIQUEMENT si la prestation elle-même est ambiguë au point que des professionnels différents seraient concernés (ex. "Vous cherchez une réparation ou une nouvelle pose ?"), avec 2 à 4 clarificationOptions. Jamais pour une date, un budget ou un lieu manquant. Si une réponse de clarification est fournie, intègre-la et ne repose pas de question.`;
 
-const JUDGE_SYSTEM = `Tu vérifies si des services de professionnels répondent à une demande client sur SBC Data.
+const JUDGE_SYSTEM = `Tu vérifies si des services de professionnels répondent à une demande client sur SBC Network.
 Pour chaque service candidat, donne relevance entre 0 et 1 : 1 = ce service réalise exactement la prestation demandée, 0.5 = proche ou partiel, 0 = autre métier ou autre prestation.
 Juge uniquement la prestation, pas le lieu ni le prix.`;
 
