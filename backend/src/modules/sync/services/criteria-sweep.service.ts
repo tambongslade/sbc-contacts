@@ -73,11 +73,14 @@ export class CriteriaSweepService {
   }
 
   private async sweepOne(criteria: SyncCriteria): Promise<number> {
-    // Pull whatever SBC has for this criteria into the mirror first; without it
-    // the sweep can only ever see members somebody happened to search for.
-    await this.hydration.hydrate(criteria.userId, toMatchCriteria(criteria));
-
     const matchCriteria = toMatchCriteria(criteria);
+
+    // Pull whatever SBC has for this criteria into the mirror first; without it
+    // the sweep can only ever see members somebody happened to search for. Run
+    // the walk inline (not the queued enqueueDeepWalk) so matching below sees a
+    // filled mirror rather than racing a background job.
+    await this.hydration.hydrateFull({ userId: criteria.userId, criteria: matchCriteria });
+
     const sinceBaseline = criteria.lastCheckedAt;
     const checkedAt = new Date();
 
