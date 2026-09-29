@@ -47,6 +47,11 @@ export const configuration = (env: EnvironmentVariables) => ({
       .filter(Boolean),
     webhookSecret: env.SBC_WEBHOOK_SECRET,
   },
+  gemini: {
+    apiKey: env.GEMINI_API_KEY,
+    model: env.GEMINI_MODEL,
+    embeddingModel: env.GEMINI_EMBEDDING_MODEL,
+  },
   throttle: {
     ttl: env.THROTTLE_TTL,
     limit: env.THROTTLE_LIMIT,

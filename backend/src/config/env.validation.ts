@@ -119,6 +119,21 @@ export class EnvironmentVariables {
   @IsOptional()
   SBC_WEBHOOK_SECRET = '';
 
+  // --- Gemini (SBC Data: request analysis, service structuring, matching) ---
+  // Optional so the rest of the app boots without it; SBC Data then falls
+  // back to keyword matching and asks nothing of the AI.
+  @IsString()
+  @IsOptional()
+  GEMINI_API_KEY = '';
+
+  @IsString()
+  @IsOptional()
+  GEMINI_MODEL = 'gemini-flash-latest';
+
+  @IsString()
+  @IsOptional()
+  GEMINI_EMBEDDING_MODEL = 'gemini-embedding-001';
+
   // --- Throttling ---
   @IsInt()
   @Transform(({ value }) => parseInt(value as string, 10))
