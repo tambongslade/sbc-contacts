@@ -8,6 +8,7 @@ export const QUEUE_NAMES = {
   NOTIFICATIONS: 'notifications', // push/sms/email dispatch (§19)
   WEBHOOKS: 'webhooks', // inbound SBC webhook processing (§20)
   CRITERIA_SWEEP: 'criteria-sweep', // periodic re-check of active criteria (§11)
+  SBC_DATA: 'sbc-data', // SBC Data: match a sent request and route it to pros
 } as const;
 
 /**
@@ -40,6 +41,7 @@ export const QUEUE_NAMES = {
       { name: QUEUE_NAMES.NOTIFICATIONS },
       { name: QUEUE_NAMES.WEBHOOKS },
       { name: QUEUE_NAMES.CRITERIA_SWEEP },
+      { name: QUEUE_NAMES.SBC_DATA },
     ),
   ],
   exports: [BullModule],

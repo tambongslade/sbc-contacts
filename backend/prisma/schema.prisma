@@ -54,6 +54,8 @@ model User {
   devices        Device[]
   addedByMe      AddedEvent[]    @relation("actor")
   reviews        MemberReview[]
+  proProfile      ProProfile?
+  serviceRequests ServiceRequest[]
 
   @@index([deletedAt])
   @@map("users")
@@ -306,6 +308,10 @@ enum NotificationType {
   SYNC_AVAILABLE // pending contacts ready to sync
   SYNC_ERROR // a sync failed
   CONTACT_SAVED // someone saved you to their phone (§21)
+  REQUEST_RECEIVED // SBC Data: a request matching your services (Data §9)
+  REQUEST_RESPONSE // SBC Data: a pro answered your request (Data §11)
+  REQUEST_SELECTED // SBC Data: the requester chose you (Data §12)
+  REQUEST_CLOSED // SBC Data: a request you answered is no longer open (Data §12)
 }
 
 /// In-app notification store (cahier §19). Push/SMS/email are dispatched via
@@ -392,4 +398,189 @@ model WebhookEvent {
 
   @@index([type])
   @@map("webhook_events")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  SBC Data — requests routed to professionals ("cahier SBC Data")
+//  The requester describes a need; the AI structures it; matching picks the
+//  pros whose services fit; they answer; the requester chooses.
+// ─────────────────────────────────────────────────────────────
+
+/// How a service is delivered (Data §3, §4). Shared by profiles, services and
+/// requests so matching compares like with like.
+enum ServiceMode {
+  HOME // à domicile
+  ON_SITE // dans l'établissement du pro
+  ONLINE // en ligne
+  DELIVERY // livraison
+}
+
+/// What a pro adds on top of the SBC profile we already hold (Data §3). Name,
+/// photo, WhatsApp, country come from `User`; nothing is asked twice (Data §2).
+model ProProfile {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @unique @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  profession   String
+  description  String
+  city         String
+  /// Neighbourhoods / towns served besides `city`.
+  zones        String[]      @default([])
+  modes        ServiceMode[] @default([])
+  availability String // free text for now ("lun-sam 8h-18h", "sur rendez-vous")
+  priceMin     Int?
+  priceMax     Int?
+  shopUrl      String
+  /// Defaults to the SBC phone number; a pro may route requests elsewhere.
+  whatsapp     String?
+
+  /// Receiving requests is the paid part (Data §17: 2 000 FCFA/mois). Until
+  /// payments exist an admin switches it on; `receivingUntil` null = no expiry.
+  receivingEnabled Boolean   @default(false)
+  receivingUntil   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  services   ProService[]
+  dispatches RequestDispatch[]
+
+  @@index([receivingEnabled])
+  @@map("pro_profiles")
+}
+
+/// One service a pro offers, as structured by the AI and validated by the pro
+/// (Data §4, §5). `synonyms` feed search and are never shown to the pro.
+model ProService {
+  id    String     @id @default(uuid()) @db.Uuid
+  proId String     @db.Uuid
+  pro   ProProfile @relation(fields: [proId], references: [id], onDelete: Cascade)
+
+  name        String // "Réparation de locks"
+  category    String // "Locks" — groups a pro's sub-services
+  profession  String // "Coiffeur"
+  synonyms    String[]      @default([])
+  specialties String[]      @default([])
+  description String?
+  priceMin    Int?
+  priceMax    Int?
+  modes       ServiceMode[] @default([]) // empty = the profile's modes
+  zones       String[]      @default([]) // empty = the profile's zones
+  delay       String?
+  isActive    Boolean       @default(true)
+
+  /// Gemini embedding of name + category + profession + synonyms, for the
+  /// semantic half of matching. Empty until computed.
+  embedding Float[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dispatches RequestDispatch[]
+
+  @@index([proId, isActive])
+  @@map("pro_services")
+}
+
+/// Data §16.
+enum RequestStatus {
+  DRAFT // analysed, waiting for the requester to confirm
+  MATCHING // confirmed, matching in progress
+  SENT // routed to at least one pro
+  RESPONDED // at least one pro is interested
+  SELECTED // a pro was chosen
+  COMPLETED
+  CANCELLED
+  NO_MATCH // no pro fits
+  NO_RESPONSE // routed, but nobody answered in time
+}
+
+/// A need described in free text (Data §6, §7).
+model ServiceRequest {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  rawText String
+  status  RequestStatus @default(DRAFT)
+
+  // The AI's structured reading (Data §7), editable by the requester before
+  // sending. Kept as columns because matching filters on them.
+  profession  String?
+  service     String?
+  specialties String[]     @default([])
+  city        String?
+  district    String?
+  mode        ServiceMode?
+  desiredDate String? // as understood ("samedi", "15/10")
+  desiredTime String?
+  budget      Int? // FCFA
+  constraints String[]     @default([])
+
+  /// A short question the AI asks when the need is ambiguous (Data §7).
+  clarificationQuestion String?
+  clarificationOptions  String[] @default([])
+  clarificationAnswer   String?
+
+  embedding Float[] @default([])
+
+  selectedDispatchId String?   @db.Uuid
+  sentAt             DateTime?
+  completedAt        DateTime?
+  /// Requester's word on the job (Data §15): false = reported as not done.
+  wasPerformed       Boolean?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dispatches RequestDispatch[]
+
+  @@index([userId, status])
+  @@map("service_requests")
+}
+
+/// Data §10.
+enum DispatchStatus {
+  SENT
+  VIEWED
+  INTERESTED
+  QUESTION
+  UNAVAILABLE
+  DECLINED
+  SELECTED
+  LOST // another pro was chosen, or the request closed
+}
+
+/// A request routed to one pro, the pro's answer, and why they were picked.
+model RequestDispatch {
+  id        String         @id @default(uuid()) @db.Uuid
+  requestId String         @db.Uuid
+  request   ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  proId     String         @db.Uuid
+  pro       ProProfile     @relation(fields: [proId], references: [id], onDelete: Cascade)
+  serviceId String?        @db.Uuid
+  service   ProService?    @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+
+  /// Internal ranking score (Data §8) — never shown to the requester.
+  score   Float
+  /// Why this pro was selected, for the back-office matching logs (Data §21).
+  reasons Json?
+
+  status DispatchStatus @default(SENT)
+
+  // The pro's proposal (Data §10).
+  price        Int?
+  availability String?
+  delay        String?
+  message      String?
+
+  viewedAt    DateTime?
+  respondedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([requestId, proId])
+  @@index([proId, status])
+  @@map("request_dispatches")
 }

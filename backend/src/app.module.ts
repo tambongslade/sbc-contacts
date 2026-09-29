@@ -25,6 +25,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { MatchingModule } from './modules/matching/matching.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { HealthModule } from './modules/health/health.module';
+import { SbcDataModule } from './modules/sbc-data/sbc-data.module';
 
 const nodeEnv = process.env.NODE_ENV ?? 'development';
 
@@ -99,6 +100,7 @@ const nodeEnv = process.env.NODE_ENV ?? 'development';
     NotificationsModule,
     MatchingModule,
     WebhooksModule,
+    SbcDataModule,
     HealthModule,
   ],
   providers: [

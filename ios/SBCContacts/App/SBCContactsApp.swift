@@ -8,9 +8,13 @@ struct SBCContactsApp: App {
 
     init() {
         #if DEBUG
-        let services = DemoMode.isEnabled
-            ? AppServices(storage: InMemoryTokenStorage(access: "demo", refresh: "demo"), session: DemoMode.session())
-            : AppServices()
+        let services = if DemoMode.isEnabled {
+            AppServices(storage: InMemoryTokenStorage(access: "demo", refresh: "demo"), session: DemoMode.session())
+        } else if let local = DemoMode.localSession {
+            AppServices(storage: InMemoryTokenStorage(access: local.token), baseURL: local.baseURL)
+        } else {
+            AppServices()
+        }
         #else
         let services = AppServices()
         #endif
