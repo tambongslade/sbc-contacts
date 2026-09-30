@@ -74,6 +74,20 @@ export class CriteriaHydrationService {
   /** Don't re-enqueue a deep walk we already ran for this criteria this recently. */
   private static readonly DEEP_TTL = 600; // seconds
 
+  /**
+   * Kill-switch for the background deep walk (§10).
+   *
+   * The walk pages SBC ~2400× back-to-back and, unthrottled, trips SBC's per-IP
+   * rate limit — a 429 with a 15-minute IP ban that blocks the whole directory,
+   * real users included. Disabled by default until the shared SBC rate limiter
+   * lands; set SYNC_DEEP_WALK_ENABLED=true to turn it back on. Gating this off
+   * leaves [previewTotal]'s single-page-per-combination count (user-facing,
+   * ~12 requests) untouched — only the deep walk stops.
+   */
+  private static deepWalkEnabled(): boolean {
+    return process.env.SYNC_DEEP_WALK_ENABLED === 'true';
+  }
+
   constructor(
     private readonly sbcTokens: SbcTokenService,
     private readonly sbc: SbcClientService,
@@ -152,6 +166,7 @@ export class CriteriaHydrationService {
    * or paging the matches list never piles up walks of the same country.
    */
   async enqueueDeepWalk(userId: string, criteria: MatchCriteria): Promise<void> {
+    if (!CriteriaHydrationService.deepWalkEnabled()) return;
     const hash = this.hash(criteria);
     const guard = `sync:deepwalk:v1:${hash}`;
     // Set-if-absent: the first caller within the window wins the walk.
@@ -182,6 +197,10 @@ export class CriteriaHydrationService {
    * only when every query failed.
    */
   async hydrateFull(job: HydrationJob): Promise<number> {
+    if (!CriteriaHydrationService.deepWalkEnabled()) {
+      this.logger.warn('Deep hydration disabled (SYNC_DEEP_WALK_ENABLED unset); skipping walk');
+      return 0;
+    }
     const accessToken = await this.sbcTokens.getValidAccessToken(job.userId);
     const combinations = this.combinations(job.criteria);
     const deadline = Date.now() + CriteriaHydrationService.DEEP_BUDGET_MS;

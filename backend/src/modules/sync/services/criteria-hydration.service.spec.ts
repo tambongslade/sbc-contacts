@@ -9,6 +9,16 @@ import { MatchCriteria } from '../../members/member.view';
 describe('CriteriaHydrationService', () => {
   const base: MatchCriteria = { countries: [], cities: [], professions: [], interests: [] };
 
+  // The deep walk ships gated off in production (SYNC_DEEP_WALK_ENABLED) until
+  // the shared SBC rate limiter lands; these tests exercise its enabled logic.
+  const prevDeepWalk = process.env.SYNC_DEEP_WALK_ENABLED;
+  beforeAll(() => {
+    process.env.SYNC_DEEP_WALK_ENABLED = 'true';
+  });
+  afterAll(() => {
+    process.env.SYNC_DEEP_WALK_ENABLED = prevDeepWalk;
+  });
+
   function build(searchContacts = jest.fn()) {
     const cache = {
       get: jest.fn().mockResolvedValue(null),
