@@ -1,6 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SbcClientService } from './sbc-client.service';
+import { SbcRateLimiterService } from './sbc-rate-limiter.service';
 
 function mockFetch(status: number, body: unknown, contentType = 'application/json') {
   return jest.fn().mockResolvedValue({
@@ -22,6 +23,15 @@ describe('SbcClientService', () => {
         'sbc.redirectUri': 'https://app/cb',
       })[k],
   } as unknown as ConfigService;
+
+  // A pass-through limiter: acquire never blocks, and we spy on pauseBackground.
+  function limiter() {
+    return {
+      acquire: jest.fn().mockResolvedValue(undefined),
+      pauseBackground: jest.fn().mockResolvedValue(undefined),
+      isPaused: jest.fn().mockResolvedValue(false),
+    } as unknown as SbcRateLimiterService;
+  }
 
   afterEach(() => jest.restoreAllMocks());
 
@@ -51,7 +61,7 @@ describe('SbcClientService', () => {
       },
     });
 
-    const svc = new SbcClientService(config);
+    const svc = new SbcClientService(config, limiter());
     const res = await svc.searchContacts('token', { country: 'CM' });
 
     expect(res.total).toBe(1);
@@ -78,7 +88,7 @@ describe('SbcClientService', () => {
       message: 'No active subscription',
     });
 
-    const svc = new SbcClientService(config);
+    const svc = new SbcClientService(config, limiter());
     try {
       await svc.searchContacts('token', {});
       fail('should have thrown');
@@ -93,12 +103,37 @@ describe('SbcClientService', () => {
   it('builds a query string from filters', async () => {
     const fetchMock = mockFetch(200, { success: true, data: { items: [], total: 0 } });
     global.fetch = fetchMock;
-    const svc = new SbcClientService(config);
-    await svc.searchContacts('token', { country: 'CM', profession: 'Maçon', interests: ['a', 'b'] });
+    const svc = new SbcClientService(config, limiter());
+    await svc.searchContacts('token', {
+      country: 'CM',
+      profession: 'Maçon',
+      interests: ['a', 'b'],
+    });
     const calledUrl = fetchMock.mock.calls[0][0] as string;
     expect(calledUrl).toContain('/api/contacts/sso/search?');
     expect(calledUrl).toContain('country=CM');
     expect(calledUrl).toContain('interests=a');
     expect(calledUrl).toContain('interests=b');
+  });
+
+  it('coerces a numeric phoneNumber to a string (Prisma expects String)', async () => {
+    // SBC sometimes sends phoneNumber as an Int (237651069173); left a number it
+    // crashes the member upsert. It must arrive as a string.
+    global.fetch = mockFetch(200, {
+      success: true,
+      data: { users: [{ _id: 'm1', name: 'Momo', phoneNumber: 237651069173 }], totalCount: 1 },
+    });
+    const svc = new SbcClientService(config, limiter());
+    const res = await svc.searchContacts('token', {});
+    expect(res.items[0].phoneNumber).toBe('237651069173');
+    expect(typeof res.items[0].phoneNumber).toBe('string');
+  });
+
+  it('pauses background SBC work when SBC answers 429', async () => {
+    global.fetch = mockFetch(429, { message: 'Too many requests from this IP' });
+    const lim = limiter();
+    const svc = new SbcClientService(config, lim);
+    await expect(svc.searchContacts('token', {})).rejects.toBeDefined();
+    expect(lim.pauseBackground).toHaveBeenCalled();
   });
 });

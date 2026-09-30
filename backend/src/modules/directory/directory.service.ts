@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Member } from '@prisma/client';
 import { createHash } from 'crypto';
 import { PaginatedResult, paginate } from '../../common/dto/pagination.dto';
@@ -32,9 +32,17 @@ export class DirectoryService {
   // round-trip AND the mirror-hydration DB writes on a hit).
   private static readonly SEARCH_TTL = 600; // seconds (10 min)
 
+  // A longer-lived copy of each page, kept only as a fallback: when SBC is
+  // banning us (429) or down, a member still sees the last good page instead of
+  // an error. Outlives SEARCH_TTL so it's there exactly when the fresh fetch
+  // can't be made.
+  private static readonly STALE_TTL = 6 * 3600; // seconds (6 h)
+
   // The région list only moves as the mirror grows; an hour keeps the
   // group-by off the hot path without hiding new places for long.
   private static readonly REGIONS_TTL = 3600;
+
+  private readonly logger = new Logger(DirectoryService.name);
 
   constructor(
     private readonly sbcTokens: SbcTokenService,
@@ -126,21 +134,41 @@ export class DirectoryService {
    * Cache-served hydrated page: on a miss, hit SBC and upsert into the mirror;
    * on a hit, return instantly with no SBC call and no DB writes.
    */
-  private fetchHydrated(
+  private async fetchHydrated(
     userId: string,
     accessToken: string,
     query: SearchQueryDto,
   ): Promise<HydratedPage> {
-    const cacheKey = `dir:search:v2:${userId}:${this.hashQuery(query)}`;
-    return this.cache.getOrSet<HydratedPage>(cacheKey, DirectoryService.SEARCH_TTL, async () => {
-      const data = await this.sbc.searchContacts(accessToken, query);
+    const hash = this.hashQuery(query);
+    const cacheKey = `dir:search:v2:${userId}:${hash}`;
+    const staleKey = `dir:search:stale:v1:${userId}:${hash}`;
+
+    const cached = await this.cache.get<HydratedPage>(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const data = await this.sbc.searchContacts(accessToken, query, { caller: 'user' });
       const rows = await this.members.upsertMany(data.items);
       const bySbcId = new Map(rows.map((r) => [r.sbcId, r]));
       const ordered = data.items
         .map((i) => bySbcId.get(i.id))
         .filter((m): m is Member => Boolean(m));
-      return { rows: ordered, total: data.total, page: data.page, limit: data.limit };
-    });
+      const page = { rows: ordered, total: data.total, page: data.page, limit: data.limit };
+      await this.cache.set(cacheKey, page, DirectoryService.SEARCH_TTL);
+      await this.cache.set(staleKey, page, DirectoryService.STALE_TTL);
+      return page;
+    } catch (err) {
+      // SBC is banning or down. A stale page beats an error screen — the member
+      // keeps browsing what we last saw for this query.
+      const stale = await this.cache.get<HydratedPage>(staleKey);
+      if (stale) {
+        this.logger.warn(
+          `SBC unavailable; serving stale directory page (${(err as Error).message})`,
+        );
+        return stale;
+      }
+      throw err;
+    }
   }
 
   /** Merge two hydrated pages, de-duping by member id (profession first). */

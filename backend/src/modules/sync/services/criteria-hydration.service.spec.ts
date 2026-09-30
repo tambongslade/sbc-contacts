@@ -30,14 +30,17 @@ describe('CriteriaHydrationService', () => {
     const members = { upsertMany: jest.fn().mockResolvedValue([]) };
     const tokens = { getValidAccessToken: jest.fn().mockResolvedValue('token') };
     const queue = { add: jest.fn().mockResolvedValue(undefined) };
+    // Never paused, and the walk lock is always won, so tests see the walk run.
+    const rateLimiter = { isPaused: jest.fn().mockResolvedValue(false) };
     const service = new CriteriaHydrationService(
       tokens as never,
       { searchContacts } as never,
       members as never,
       cache as never,
+      rateLimiter as never,
       queue as never,
     );
-    return { service, cache, members, tokens, queue, searchContacts };
+    return { service, cache, members, tokens, queue, rateLimiter, searchContacts };
   }
 
   /** One page of `n` members, reporting `total` as the criteria's SBC total. */

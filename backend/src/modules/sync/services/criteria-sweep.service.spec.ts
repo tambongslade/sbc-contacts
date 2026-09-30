@@ -21,7 +21,7 @@ describe('CriteriaSweepService', () => {
       findNewSince: jest.fn().mockResolvedValue(fresh),
       count: jest.fn().mockResolvedValue(42),
     };
-    const hydration = { hydrate: jest.fn().mockResolvedValue(undefined) };
+    const hydration = { hydrateFull: jest.fn().mockResolvedValue(0) };
     const notifications = { notifyNewMatch: jest.fn().mockResolvedValue(true) };
 
     const service = new CriteriaSweepService(
@@ -68,8 +68,8 @@ describe('CriteriaSweepService', () => {
 
     await service.sweep();
 
-    expect(hydration.hydrate).toHaveBeenCalledWith('u1', expect.anything());
-    expect(hydration.hydrate.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(hydration.hydrateFull).toHaveBeenCalledWith(expect.objectContaining({ userId: 'u1' }));
+    expect(hydration.hydrateFull.mock.invocationCallOrder[0]).toBeLessThan(
       matcher.findNewSince.mock.invocationCallOrder[0],
     );
   });
@@ -105,7 +105,7 @@ describe('CriteriaSweepService', () => {
       active({ id: 'c1', userId: 'u1' }),
       active({ id: 'c2', userId: 'u2' }),
     ]);
-    hydration.hydrate.mockRejectedValueOnce(new Error('no SBC token'));
+    hydration.hydrateFull.mockRejectedValueOnce(new Error('no SBC token'));
 
     const result = await service.sweep();
 

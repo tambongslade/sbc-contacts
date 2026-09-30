@@ -20,6 +20,7 @@ import {
   SbcTokenResponse,
   SbcUser,
 } from './interfaces/sbc.interface';
+import { SbcCaller, SbcRateLimiterService } from './sbc-rate-limiter.service';
 
 /**
  * The ONLY place in the codebase that talks to SBC. Wraps the SSO endpoints
@@ -37,7 +38,10 @@ export class SbcClientService {
   private readonly allowedRedirectUris: string[];
   private static readonly TIMEOUT_MS = 10_000;
 
-  constructor(config: ConfigService) {
+  constructor(
+    config: ConfigService,
+    private readonly rateLimiter: SbcRateLimiterService,
+  ) {
     this.baseUrl = config.get<string>('sbc.baseUrl')!.replace(/\/$/, '');
     this.clientId = config.get<string>('sbc.clientId')!;
     this.clientSecret = config.get<string>('sbc.clientSecret')!;
@@ -45,9 +49,9 @@ export class SbcClientService {
     this.allowedRedirectUris = [
       this.redirectUri,
       ...(config.get<string>('sbc.extraRedirectUris') ?? '')
-          .split(',')
-          .map((u) => u.trim())
-          .filter((u) => u.length > 0),
+        .split(',')
+        .map((u) => u.trim())
+        .filter((u) => u.length > 0),
     ];
   }
 
@@ -94,10 +98,15 @@ export class SbcClientService {
    * The member's own contact list (cahier §6/§7), scoped to their subscription.
    * `contacts.read` scope + active subscription required — 403s carry a `code`.
    */
-  async searchContacts(accessToken: string, query: SbcContactQuery): Promise<SbcSearchData> {
+  async searchContacts(
+    accessToken: string,
+    query: SbcContactQuery,
+    opts: { caller?: SbcCaller } = {},
+  ): Promise<SbcSearchData> {
     const raw = await this.get<Record<string, unknown>>(
       `/api/contacts/sso/search${this.buildQuery(query)}`,
       accessToken,
+      opts.caller ?? 'user',
     );
     const normalized = this.normalizeSearch(raw, query);
     const firstUser = Array.isArray((raw as { users?: unknown[] }).users)
@@ -138,19 +147,33 @@ export class SbcClientService {
     return this.unwrap<T>(res, path);
   }
 
-  private async get<T>(path: string, accessToken: string): Promise<T> {
-    const res = await this.fetchWithTimeout(`${this.baseUrl}${path}`, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+  private async get<T>(path: string, accessToken: string, caller: SbcCaller = 'user'): Promise<T> {
+    const res = await this.fetchWithTimeout(
+      `${this.baseUrl}${path}`,
+      { method: 'GET', headers: { Authorization: `Bearer ${accessToken}` } },
+      caller,
+    );
     return this.unwrap<T>(res, path);
   }
 
-  private async fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  /**
+   * Every SBC request funnels through here, so this is where the shared rate
+   * limiter is enforced (before the call) and SBC's 429 ban is caught (after):
+   * a 429 pauses all background SBC work for its cooldown window. Auth/token
+   * calls default to 'user' priority — they must never be starved by a walk.
+   */
+  private async fetchWithTimeout(
+    url: string,
+    init: RequestInit,
+    caller: SbcCaller = 'user',
+  ): Promise<Response> {
+    await this.rateLimiter.acquire(caller);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), SbcClientService.TIMEOUT_MS);
     try {
-      return await fetch(url, { ...init, signal: controller.signal });
+      const res = await fetch(url, { ...init, signal: controller.signal });
+      if (res.status === 429) await this.rateLimiter.pauseBackground();
+      return res;
     } catch (err) {
       this.logger.error(`SBC request failed: ${(err as Error).name}`);
       throw new ServiceUnavailableException('SBC service is unreachable');
@@ -171,7 +194,12 @@ export class SbcClientService {
     // but the contacts search (the first-party controller) returns its own shape.
     // Return `data` when present, otherwise the raw body — the caller normalises it.
     if (res.ok) {
-      if (payload && typeof payload === 'object' && 'data' in payload && payload.success !== false) {
+      if (
+        payload &&
+        typeof payload === 'object' &&
+        'data' in payload &&
+        payload.success !== false
+      ) {
         return payload.data;
       }
       return payload as unknown as T;
@@ -269,13 +297,19 @@ export class SbcClientService {
     const pick = (...keys: string[]): unknown => keys.map((k) => c[k]).find((v) => v != null);
     const asStrArr = (v: unknown): string[] | undefined =>
       Array.isArray(v) ? v.map(String) : undefined;
+    // SBC sometimes sends string-typed fields as numbers — phoneNumber especially
+    // (e.g. 237651069173), which crashes the Prisma upsert ("Expected String,
+    // provided Int") and silently drops the member. Coerce every text field
+    // through here so a numeric value becomes its string, never a raw number.
+    const asStr = (v: unknown): string | undefined =>
+      v == null || typeof v === 'object' ? undefined : String(v);
     const id = pick('id', '_id');
-    const region = pick('city', 'ville', 'region', 'town') as string | undefined;
+    const region = asStr(pick('city', 'ville', 'region', 'town'));
     return {
       id: id != null ? String(id) : '',
-      name: pick('name', 'nom') as string | undefined,
-      firstName: pick('firstName', 'prenom', 'prénom') as string | undefined,
-      profession: pick('profession', 'metier', 'métier') as string | undefined,
+      name: asStr(pick('name', 'nom')),
+      firstName: asStr(pick('firstName', 'prenom', 'prénom')),
+      profession: asStr(pick('profession', 'metier', 'métier')),
       // SBC uses `region` for location (no city on list items).
       city: region,
       // Normalised on the way IN, not just on the way out: the mirror is what
@@ -287,14 +321,13 @@ export class SbcClientService {
       // resolves to a country whenever it belongs to just one — a shared name
       // like "Centre" stays empty rather than becoming a guess.
       country:
-        toIsoCountry(pick('country', 'pays') as string | undefined) ??
-        countryForRegion(region),
-      sex: pick('sex', 'sexe', 'gender') as string | undefined,
+        toIsoCountry(pick('country', 'pays') as string | undefined) ?? countryForRegion(region),
+      sex: asStr(pick('sex', 'sexe', 'gender')),
       age: pick('age') != null ? Number(pick('age')) : undefined,
       interests: asStrArr(pick('interests', 'centresInteret', 'centres_interet')),
       skills: asStrArr(pick('skills', 'competences', 'compétences')),
-      avatarUrl: pick('avatarUrl', 'photo', 'avatar') as string | undefined,
-      phoneNumber: pick('phoneNumber', 'phone', 'whatsapp', 'telephone') as string | undefined,
+      avatarUrl: asStr(pick('avatarUrl', 'photo', 'avatar')),
+      phoneNumber: asStr(pick('phoneNumber', 'phone', 'whatsapp', 'telephone')),
     };
   }
 }

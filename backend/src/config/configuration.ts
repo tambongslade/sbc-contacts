@@ -1,5 +1,12 @@
 import { EnvironmentVariables } from './env.validation';
 
+/** Parse an optional numeric env var; undefined when unset or not a number. */
+const numOrUndef = (v?: string): number | undefined => {
+  if (v === undefined || v.trim() === '') return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
+
 /**
  * Namespaced, typed config object built from the already-validated env.
  * Consume via ConfigService.get('app'|'redis'|'jwt'|'sbc'...).
@@ -46,6 +53,11 @@ export const configuration = (env: EnvironmentVariables) => ({
       .map((s) => s.trim())
       .filter(Boolean),
     webhookSecret: env.SBC_WEBHOOK_SECRET,
+    // Shared SBC rate-limiter tuning (optional; sensible defaults in the
+    // limiter). Model SBC's per-IP budget over its ~15-min ban window.
+    rateCapacity: numOrUndef(process.env.SBC_RATE_CAPACITY),
+    rateRefillPerSec: numOrUndef(process.env.SBC_RATE_REFILL_PER_SEC),
+    rateBackgroundReserve: numOrUndef(process.env.SBC_RATE_BACKGROUND_RESERVE),
   },
   gemini: {
     apiKey: env.GEMINI_API_KEY,

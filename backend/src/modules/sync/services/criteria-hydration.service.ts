@@ -6,6 +6,7 @@ import { RedisService } from '../../../infrastructure/cache/redis.service';
 import { QUEUE_NAMES } from '../../../infrastructure/queue/queue.module';
 import { SbcTokenService } from '../../auth/services/sbc-token.service';
 import { SbcClientService } from '../../sbc-client/sbc-client.service';
+import { SbcRateLimiterService } from '../../sbc-client/sbc-rate-limiter.service';
 import { SbcContactQuery } from '../../sbc-client/interfaces/sbc.interface';
 import { MembersService } from '../../members/members.service';
 import { MatchCriteria } from '../../members/member.view';
@@ -57,11 +58,13 @@ export class CriteriaHydrationService {
   /**
    * Pages the BACKGROUND walk may pull per combination, at [PAGE_SIZE] each.
    *
-   * Generous, because it runs off a queue and not on the member's screen: 200 ×
-   * 100 = 20 000 per combination, past SBC's largest single country, and
-   * [DEEP_BUDGET_MS] stops a pathological criteria before it walks forever.
+   * Deliberately small (20 × 100 = 2 000 per combination): one walk no longer
+   * tries to swallow a whole country in a single pass — that burst is what got
+   * the server IP banned. The rest of the country is mirrored across later
+   * passes of the 15-minute sweep, each spending only its slice of the shared
+   * SBC rate budget. [DEEP_BUDGET_MS] still stops a pathological criteria.
    */
-  private static readonly DEEP_MAX_PAGES = 200;
+  private static readonly DEEP_MAX_PAGES = 20;
 
   /**
    * How long the background walk may spend before it stops asking for more
@@ -74,18 +77,22 @@ export class CriteriaHydrationService {
   /** Don't re-enqueue a deep walk we already ran for this criteria this recently. */
   private static readonly DEEP_TTL = 600; // seconds
 
+  /** Only one deep walk runs at a time, server-wide — this lock's key/TTL. */
+  private static readonly WALK_LOCK_KEY = 'sbc:walk:lock:v1';
+  private static readonly WALK_LOCK_TTL = 6 * 60; // seconds (> DEEP_BUDGET_MS)
+
   /**
    * Kill-switch for the background deep walk (§10).
    *
-   * The walk pages SBC ~2400× back-to-back and, unthrottled, trips SBC's per-IP
-   * rate limit — a 429 with a 15-minute IP ban that blocks the whole directory,
-   * real users included. Disabled by default until the shared SBC rate limiter
-   * lands; set SYNC_DEEP_WALK_ENABLED=true to turn it back on. Gating this off
-   * leaves [previewTotal]'s single-page-per-combination count (user-facing,
-   * ~12 requests) untouched — only the deep walk stops.
+   * The walk is now throttled through the shared SBC rate limiter, capped at
+   * [DEEP_MAX_PAGES] per combination, single-flighted, and it stands down for
+   * SBC's cooldown after a 429 — so it is safe to run. The switch stays as an
+   * operational override: set SYNC_DEEP_WALK_ENABLED=false to stop it in an
+   * emergency without a redeploy. Left unset it is ON. Either way
+   * [previewTotal]'s user-facing count is unaffected — only the walk gates.
    */
   private static deepWalkEnabled(): boolean {
-    return process.env.SYNC_DEEP_WALK_ENABLED === 'true';
+    return process.env.SYNC_DEEP_WALK_ENABLED !== 'false';
   }
 
   constructor(
@@ -93,6 +100,7 @@ export class CriteriaHydrationService {
     private readonly sbc: SbcClientService,
     private readonly members: MembersService,
     private readonly cache: RedisService,
+    private readonly rateLimiter: SbcRateLimiterService,
     @InjectQueue(QUEUE_NAMES.HYDRATION) private readonly queue: Queue,
   ) {}
 
@@ -198,39 +206,68 @@ export class CriteriaHydrationService {
    */
   async hydrateFull(job: HydrationJob): Promise<number> {
     if (!CriteriaHydrationService.deepWalkEnabled()) {
-      this.logger.warn('Deep hydration disabled (SYNC_DEEP_WALK_ENABLED unset); skipping walk');
+      this.logger.warn('Deep hydration disabled (SYNC_DEEP_WALK_ENABLED=false); skipping walk');
       return 0;
     }
-    const accessToken = await this.sbcTokens.getValidAccessToken(job.userId);
-    const combinations = this.combinations(job.criteria);
-    const deadline = Date.now() + CriteriaHydrationService.DEEP_BUDGET_MS;
-    let mirrored = 0;
-    let failed = 0;
-
-    for (const combination of combinations) {
-      if (Date.now() > deadline) {
-        this.logger.warn('Deep hydration hit its time budget; mirrored what it had');
-        break;
-      }
-      try {
-        mirrored += await this.fetchCombination(accessToken, combination, deadline);
-      } catch (err) {
-        // Each combination stands alone. SBC intermittently 500s the profession
-        // filter under load, and one such query must not sink the others.
-        failed++;
-        this.logger.warn(`Deep hydration: one query failed (${String((err as Error).message)})`);
-      }
+    // SBC 429'd recently — its per-IP ban is still in force. Don't spend the
+    // window hammering a door we know is shut; the next sweep picks this up.
+    if (await this.rateLimiter.isPaused()) {
+      this.logger.warn('Deep hydration skipped: SBC in rate-limit cooldown');
+      return 0;
     }
-
-    if (failed === combinations.length && combinations.length > 0) {
-      throw new Error(`all ${failed} SBC quer(ies) failed`);
-    }
-
-    this.logger.log(
-      `Deep hydration mirrored ${mirrored} member(s)` +
-        (failed ? ` (${failed}/${combinations.length} quer(ies) failed)` : ''),
+    // One walk at a time, server-wide: two walks racing double the SBC load for
+    // no gain. Whoever holds the lock walks; the rest defer to a later sweep.
+    const lockWon = await this.cache.client.set(
+      CriteriaHydrationService.WALK_LOCK_KEY,
+      '1',
+      'EX',
+      CriteriaHydrationService.WALK_LOCK_TTL,
+      'NX',
     );
-    return mirrored;
+    if (!lockWon) {
+      this.logger.log('Deep hydration skipped: another walk is already running');
+      return 0;
+    }
+
+    try {
+      const accessToken = await this.sbcTokens.getValidAccessToken(job.userId);
+      const combinations = this.combinations(job.criteria);
+      const deadline = Date.now() + CriteriaHydrationService.DEEP_BUDGET_MS;
+      let mirrored = 0;
+      let failed = 0;
+
+      for (const combination of combinations) {
+        if (Date.now() > deadline) {
+          this.logger.warn('Deep hydration hit its time budget; mirrored what it had');
+          break;
+        }
+        // A 429 mid-walk pauses everything — stop rather than burn the cooldown.
+        if (await this.rateLimiter.isPaused()) {
+          this.logger.warn('Deep hydration stopping: SBC entered rate-limit cooldown');
+          break;
+        }
+        try {
+          mirrored += await this.fetchCombination(accessToken, combination, deadline);
+        } catch (err) {
+          // Each combination stands alone. SBC intermittently 500s the profession
+          // filter under load, and one such query must not sink the others.
+          failed++;
+          this.logger.warn(`Deep hydration: one query failed (${String((err as Error).message)})`);
+        }
+      }
+
+      if (failed === combinations.length && combinations.length > 0) {
+        throw new Error(`all ${failed} SBC quer(ies) failed`);
+      }
+
+      this.logger.log(
+        `Deep hydration mirrored ${mirrored} member(s)` +
+          (failed ? ` (${failed}/${combinations.length} quer(ies) failed)` : ''),
+      );
+      return mirrored;
+    } finally {
+      await this.cache.del(CriteriaHydrationService.WALK_LOCK_KEY);
+    }
   }
 
   /** One combination, walked to its end (or the deep budget). Throws if SBC does. */
@@ -242,11 +279,15 @@ export class CriteriaHydrationService {
     let mirrored = 0;
     for (let page = 1; page <= CriteriaHydrationService.DEEP_MAX_PAGES; page++) {
       if (page > 1 && Date.now() > deadline) break;
-      const data = await this.sbc.searchContacts(accessToken, {
-        ...combination,
-        page,
-        limit: CriteriaHydrationService.PAGE_SIZE,
-      });
+      const data = await this.sbc.searchContacts(
+        accessToken,
+        {
+          ...combination,
+          page,
+          limit: CriteriaHydrationService.PAGE_SIZE,
+        },
+        { caller: 'background' },
+      );
       if (data.items.length === 0) break;
       await this.members.upsertMany(data.items);
       mirrored += data.items.length;
