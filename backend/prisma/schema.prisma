@@ -39,6 +39,10 @@ model User {
   subscriptionTypes String[] @default([])
   isActivated       Boolean  @default(false)
 
+  /// bcrypt hash for the optional email+password login used by the admin
+  /// back-office (SSO stays the default). Null = this account is SSO-only.
+  passwordHash String?
+
   lastLoginAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

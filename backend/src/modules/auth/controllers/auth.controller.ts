@@ -15,6 +15,7 @@ import {
   CurrentUser,
 } from '../../../common/decorators/current-user.decorator';
 import { Public } from '../../../common/decorators/public.decorator';
+import { LoginDto } from '../dto/login.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { SsoCallbackDto } from '../dto/sso-callback.dto';
 import { IssuedTokens, SessionMeta } from '../services/token.service';
@@ -33,6 +34,16 @@ export class AuthController {
   @ApiOperation({ summary: 'Exchange an SBC authorization code for an app session' })
   ssoCallback(@Body() dto: SsoCallbackDto, @Req() req: Request): Promise<AuthResult> {
     return this.auth.ssoCallback(dto.code, this.meta(req, dto.deviceId), dto.redirectUri);
+  }
+
+  @Public()
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  // Password login for the admin back-office — tight limit, it's a brute-force target.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Email + password login (admin back-office)' })
+  login(@Body() dto: LoginDto, @Req() req: Request): Promise<AuthResult> {
+    return this.auth.loginWithPassword(dto.email, dto.password, this.meta(req, dto.deviceId));
   }
 
   @Public()

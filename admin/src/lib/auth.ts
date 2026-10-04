@@ -63,6 +63,16 @@ export function applyDevToken() {
   window.history.replaceState(null, '', window.location.pathname + window.location.hash);
 }
 
+/** Email + password sign-in (admin back-office). Works on any host. */
+export async function loginWithPassword(email: string, password: string): Promise<AdminUser> {
+  const result = await api<{ user: AdminUser; tokens: Tokens }>('/auth/login', {
+    method: 'POST',
+    body: { email, password },
+  });
+  tokens.set(result.tokens);
+  return result.user;
+}
+
 export function currentUser() {
   return api<AdminUser>('/auth/me');
 }
