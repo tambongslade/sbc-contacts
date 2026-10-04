@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthenticatedUser, CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { PaginatedResult } from '../../../common/dto/pagination.dto';
@@ -82,6 +93,18 @@ export class RequestsController {
     @Body() dto: CompleteRequestDto,
   ): Promise<RequestView> {
     return this.requests.complete(user.userId, user.sbcUserId, id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'Remove from "Mes demandes" (drafts erased, others cancelled and hidden)',
+  })
+  remove(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    return this.requests.remove(user.userId, id);
   }
 
   @Post(':id/cancel')

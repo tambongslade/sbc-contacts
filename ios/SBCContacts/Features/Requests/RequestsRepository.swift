@@ -63,6 +63,11 @@ struct RequestsRepository: Sendable {
         try await api.post("/data/requests/\(id)/complete", body: body)
     }
 
+    /// Drafts are erased; anything else is cancelled if still open, then hidden.
+    func remove(_ id: String) async throws {
+        try await api.delete("/data/requests/\(id)")
+    }
+
     func cancel(_ id: String) async throws -> ServiceRequestItem {
         try await api.post("/data/requests/\(id)/cancel")
     }

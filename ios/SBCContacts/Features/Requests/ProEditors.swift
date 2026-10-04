@@ -7,6 +7,9 @@ struct ProProfileFormView: View {
     @Environment(RequestsStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
+    /// Set by the guided setup to move on instead of closing.
+    var onSaved: (() -> Void)?
+
     @State private var profession = ""
     @State private var description = ""
     @State private var city = ""
@@ -116,7 +119,7 @@ struct ProProfileFormView: View {
                 whatsapp: whatsapp.nilIfBlank
             ))
             store.setProSpace(space)
-            dismiss()
+            if let onSaved { onSaved() } else { dismiss() }
         } catch {
             self.error = error.localizedDescription
         }
@@ -129,6 +132,9 @@ struct AddServicesView: View {
     @Environment(\.services) private var services
     @Environment(RequestsStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+
+    /// Set by the guided setup to move on instead of closing.
+    var onSaved: (() -> Void)?
 
     @State private var text = ""
     @State private var proposals: [ServiceProposal] = []
@@ -221,6 +227,13 @@ struct AddServicesView: View {
         }
         .navigationTitle("Ajouter un service")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let onSaved {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Plus tard", action: onSaved)
+                }
+            }
+        }
     }
 
     private func analyse() async {
@@ -241,7 +254,7 @@ struct AddServicesView: View {
         defer { saving = false }
         do {
             store.setProSpace(try await services.requests.addServices(proposals))
-            dismiss()
+            if let onSaved { onSaved() } else { dismiss() }
         } catch {
             self.error = error.localizedDescription
         }

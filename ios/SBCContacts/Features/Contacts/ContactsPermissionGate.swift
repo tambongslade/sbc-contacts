@@ -8,6 +8,10 @@ import UIKit
 /// reason first (cahier §12, §13, §20), and once access is denied it points at
 /// Settings, which is the only place left to grant it.
 private struct ContactsPermissionGate: ViewModifier {
+    /// Called once the member is past this prompt (or never needed it), so the
+    /// next prompt waits its turn — iOS shows one modal at a time.
+    let onSettled: () -> Void
+
     @Environment(ToastCenter.self) private var toasts
     @State private var presented = false
     @State private var blocked = false
@@ -21,11 +25,14 @@ private struct ContactsPermissionGate: ViewModifier {
                 guard !checked else { return }
                 checked = true
                 switch service.checkPermission() {
-                case .granted: return // already usable — never nag
+                case .granted: onSettled(); return // already usable — never nag
                 case .notDetermined: blocked = false
                 case .denied: blocked = true
                 }
                 presented = true
+            }
+            .onChange(of: presented) { _, showing in
+                if !showing { onSettled() }
             }
             .alert("Accès à vos contacts", isPresented: $presented) {
                 Button("Plus tard", role: .cancel) {}
@@ -60,7 +67,9 @@ private struct ContactsPermissionGate: ViewModifier {
 }
 
 extension View {
-    func contactsPermissionGate() -> some View { modifier(ContactsPermissionGate()) }
+    func contactsPermissionGate(onSettled: @escaping () -> Void = {}) -> some View {
+        modifier(ContactsPermissionGate(onSettled: onSettled))
+    }
 }
 
 /// Adds a member to the phone contacts (cahier §9), then records it so it

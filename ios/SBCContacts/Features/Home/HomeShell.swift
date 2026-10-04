@@ -33,6 +33,9 @@ struct HomeShell: View {
     @State private var regions: RegionsStore
     @State private var notifications: NotificationsStore
     @State private var requests: RequestsStore
+    @State private var contactsSettled = false
+    @State private var invitingPro = false
+    @Environment(AuthStore.self) private var auth
 
     init(services: AppServices) {
         _directory = State(initialValue: DirectoryStore(repo: services.directory))
@@ -84,9 +87,31 @@ struct HomeShell: View {
         .environment(requests)
         // Ask for contacts access once the shell is on screen, so the member
         // sees the app behind the explanation rather than a bare system dialog.
-        .contactsPermissionGate()
+        .contactsPermissionGate {
+            contactsSettled = true
+            inviteToBecomeProIfDue()
+        }
+        // After login, a member who is not a pro yet is invited to become one.
+        .sheet(isPresented: $invitingPro) {
+            ProOnboardingFlow().environment(requests)
+        }
         .task { await notifications.refreshUnreadCount() }
         .task { await regions.loadIfNeeded() }
-        .task { await requests.load() }
+        .task {
+            await requests.load()
+            inviteToBecomeProIfDue()
+        }
+    }
+
+    /// Both the pro profile and the contacts prompt must be settled first:
+    /// the profile to know whether they are a pro, the prompt because iOS
+    /// would drop a sheet raised on top of an alert.
+    private func inviteToBecomeProIfDue() {
+        guard contactsSettled, !invitingPro, let user = auth.user,
+              requests.proSpace != nil, !requests.isPro,
+              ProInvite.isDue(userId: user.id)
+        else { return }
+        ProInvite.markShown(userId: user.id)
+        invitingPro = true
     }
 }

@@ -132,6 +132,19 @@ struct ServiceRequestItem: Identifiable, Sendable, Hashable {
 
     var needsAnswer: Bool { clarificationQuestion != nil && clarificationAnswer == nil }
 
+    /// Not while a chosen pro is waiting to do the job: that one is closed
+    /// through "Prestation terminée ?" first.
+    var canDelete: Bool { status != .selected }
+
+    /// What deleting does, said before the member confirms.
+    var deleteWarning: String {
+        switch status {
+        case .draft: "Le brouillon sera supprimé."
+        case .matching, .sent, .responded: "La demande sera annulée pour les professionnels, puis retirée de ta liste."
+        default: "La demande sera retirée de ta liste."
+        }
+    }
+
     static func == (a: Self, b: Self) -> Bool { a.id == b.id && a.status == b.status && a.responses == b.responses }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
