@@ -176,3 +176,42 @@ struct DeleteRequestButton: View {
         }
     }
 }
+
+/// Always-on reminder for a pro whose setup is incomplete: on the inbox and
+/// the pro space, where they look for requests that cannot come yet.
+struct ProSetupBanner: View {
+    let missing: [ProSetupItem]
+
+    var body: some View {
+        if !missing.isEmpty {
+            NavigationLink(value: missing.contains(.profile) ? AppRoute.proProfileForm : AppRoute.proAddServices) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(SBCColors.accentDark)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Profil pro incomplet")
+                            .font(.sbc(.titleSmall, weight: .heavy))
+                        Text("Aucune demande ne peut t'arriver tant que ce n'est pas fait :")
+                            .font(.sbc(.bodySmall))
+                            .foregroundStyle(SBCColors.onSurfaceVariant)
+                        ForEach(missing, id: \.self) { item in
+                            Text("• \(item.todo)")
+                                .font(.sbc(.bodySmall, weight: .semibold))
+                        }
+                        Text("Compléter maintenant")
+                            .font(.sbc(.labelLarge, weight: .bold))
+                            .foregroundStyle(SBCColors.primary)
+                            .padding(.top, 4)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(SBCColors.onSurface)
+                .padding(14)
+                .background(SBCColors.accent.opacity(0.1), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(SBCColors.accent.opacity(0.4)))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}

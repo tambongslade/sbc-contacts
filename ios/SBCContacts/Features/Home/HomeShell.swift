@@ -34,7 +34,7 @@ struct HomeShell: View {
     @State private var notifications: NotificationsStore
     @State private var requests: RequestsStore
     @State private var contactsSettled = false
-    @State private var invitingPro = false
+    @State private var proPrompt: ProInvite?
     @Environment(AuthStore.self) private var auth
 
     init(services: AppServices) {
@@ -91,9 +91,10 @@ struct HomeShell: View {
             contactsSettled = true
             inviteToBecomeProIfDue()
         }
-        // After login, a member who is not a pro yet is invited to become one.
-        .sheet(isPresented: $invitingPro) {
-            ProOnboardingFlow().environment(requests)
+        // After login: a member who is not a pro is invited to become one, a
+        // pro with an incomplete setup is told what is missing.
+        .sheet(item: $proPrompt) { kind in
+            ProOnboardingFlow(kind: kind).environment(requests)
         }
         .task { await notifications.refreshUnreadCount() }
         .task { await regions.loadIfNeeded() }
@@ -104,14 +105,14 @@ struct HomeShell: View {
     }
 
     /// Both the pro profile and the contacts prompt must be settled first:
-    /// the profile to know whether they are a pro, the prompt because iOS
-    /// would drop a sheet raised on top of an alert.
+    /// the profile to know which prompt applies, the contacts prompt because
+    /// iOS would drop a sheet raised on top of an alert.
     private func inviteToBecomeProIfDue() {
-        guard contactsSettled, !invitingPro, let user = auth.user,
-              requests.proSpace != nil, !requests.isPro || ProInvite.forced,
-              ProInvite.isDue(userId: user.id)
+        guard contactsSettled, proPrompt == nil, let user = auth.user,
+              let space = requests.proSpace, let kind = ProInvite.kind(for: space),
+              kind.isDue(userId: user.id)
         else { return }
-        ProInvite.markShown(userId: user.id)
-        invitingPro = true
+        kind.markShown(userId: user.id)
+        proPrompt = kind
     }
 }

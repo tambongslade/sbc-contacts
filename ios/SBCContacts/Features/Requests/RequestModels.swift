@@ -225,6 +225,56 @@ struct ProSpace: Sendable, Equatable {
     var receivingActive: Bool
 }
 
+/// What a pro still has to do before requests can reach them.
+enum ProSetupItem: Hashable, Sendable {
+    case profile
+    case services
+
+    var todo: String {
+        switch self {
+        case .profile: "Compléter mon profil (métier, ville, disponibilité, boutique)"
+        case .services: "Ajouter au moins un service"
+        }
+    }
+}
+
+extension ProProfile {
+    /// Every field matching relies on is really filled in — not blank, not a
+    /// placeholder such as "À compléter".
+    var isComplete: Bool {
+        !isPlaceholder(profession) && !isPlaceholder(city) && !isPlaceholder(availability)
+            && !isPlaceholder(description) && description.count >= 10
+            && !modes.isEmpty
+            && !isPlaceholder(shopUrl) && isRealLink(shopUrl)
+    }
+}
+
+extension ProSpace {
+    /// Empty for a complete pro, and for someone who is not a pro at all.
+    var missingSetup: [ProSetupItem] {
+        guard let profile else { return [] }
+        var out: [ProSetupItem] = []
+        if !profile.isComplete { out.append(.profile) }
+        if !services.contains(where: \.isActive) { out.append(.services) }
+        return out
+    }
+}
+
+/// An http(s) link that is not a stand-in like example.com.
+func isRealLink(_ value: String) -> Bool {
+    guard let url = URL(string: value.trimmingCharacters(in: .whitespaces)),
+          url.scheme?.hasPrefix("http") == true, let host = url.host(), host.contains(".")
+    else { return false }
+    return !["example.com", "example.org", "example.net"].contains { host == $0 || host.hasSuffix("." + $0) }
+}
+
+/// Blank, or a stand-in someone typed to fill the field ("À compléter").
+func isPlaceholder(_ value: String) -> Bool {
+    let folded = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+    return folded.isEmpty || folded.hasPrefix("a completer") || folded == "-" || folded == "..."
+}
+
 /// A service the AI proposes; the pro keeps, edits or drops it.
 struct ServiceProposal: Identifiable, Sendable, Equatable, Codable {
     var id = UUID()

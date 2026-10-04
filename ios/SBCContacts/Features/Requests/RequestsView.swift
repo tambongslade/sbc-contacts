@@ -174,6 +174,7 @@ private struct ReceivedList: View {
 
     var body: some View {
         if let space = store.proSpace, space.profile != nil {
+            ProSetupBanner(missing: space.missingSetup)
             ReceivingBanner(active: space.receivingActive, until: space.profile?.receivingUntil)
             switch store.inbox {
             case .loading:

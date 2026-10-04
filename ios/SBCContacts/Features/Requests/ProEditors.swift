@@ -90,15 +90,17 @@ struct ProProfileFormView: View {
 
     private func fill() {
         guard let p = store.proSpace?.profile else { return }
-        profession = p.profession
-        description = p.description
-        city = p.city
-        zones = p.zones.joined(separator: ", ")
-        modes = Set(p.modes)
-        availability = p.availability
+        // Placeholders ("À compléter") show as empty fields, not as answers.
+        let real = { (s: String) in isPlaceholder(s) ? "" : s }
+        profession = real(p.profession)
+        description = real(p.description)
+        city = real(p.city)
+        zones = p.zones.filter { !isPlaceholder($0) }.joined(separator: ", ")
+        if !p.modes.isEmpty { modes = Set(p.modes) }
+        availability = real(p.availability)
         priceMin = p.priceMin.map(String.init) ?? ""
         priceMax = p.priceMax.map(String.init) ?? ""
-        shopUrl = p.shopUrl
+        shopUrl = real(p.shopUrl)
         whatsapp = p.whatsapp ?? ""
     }
 

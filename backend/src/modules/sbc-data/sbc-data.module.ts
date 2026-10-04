@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ReviewsModule } from '../reviews/reviews.module';
 import { GeminiClient } from './ai/gemini.client';
+import { ProSetupAssistant } from './ai/pro-setup-assistant';
 import { SbcDataAiService } from './ai/sbc-data-ai.service';
 import { SbcDataAdminController } from './controllers/admin.controller';
 import { ProController } from './controllers/pro.controller';
@@ -21,6 +22,7 @@ import { RequestsService } from './services/requests.service';
   controllers: [ProController, RequestsController, SbcDataAdminController],
   providers: [
     GeminiClient,
+    ProSetupAssistant,
     SbcDataAiService,
     RequestMatchingService,
     ProfessionalService,
