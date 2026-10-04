@@ -37,6 +37,9 @@ export interface RequestView extends RequestPublicView {
   selectedDispatchId: string | null;
   /** Pros the request went to; answers are in `responses`. */
   dispatchedCount: number;
+  /** "Interested" answers received so far, and the cap that locks it (Data §C). */
+  responseCount: number;
+  responseLimit: number;
   responses: ResponseView[];
 }
 

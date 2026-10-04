@@ -29,7 +29,11 @@ import {
   RequestsQueryDto,
   UpdateRequestDto,
 } from '../dto/sbc-data.dto';
-import { MatchCandidate, RequestMatchingService } from '../matching/request-matching.service';
+import {
+  MAX_RESPONSES,
+  MatchCandidate,
+  RequestMatchingService,
+} from '../matching/request-matching.service';
 import { RequestView, ResponseView, toPublicView } from '../sbc-data.views';
 
 /** Answers the requester sees and can choose from (Data §11). */
@@ -54,6 +58,9 @@ const MODE_LABEL: Record<ServiceMode, string> = {
   ONLINE: 'En ligne',
   DELIVERY: 'Livraison',
 };
+
+/** Routed but still unanswered after this long → NO_RESPONSE (Data §16). */
+const RESPONSE_TIMEOUT_MS = 48 * 60 * 60 * 1000; // 48h
 
 /**
  * The requester's side of SBC Data: describe → check the AI's reading →
@@ -160,6 +167,21 @@ export class RequestsService {
           status: candidates.length ? RequestStatus.SENT : RequestStatus.NO_MATCH,
         },
       });
+      // Predictive market analytics (Data §E): log what was sought and how many
+      // pros it reached. A zero here is an unfulfilled demand the admin report
+      // aggregates to find which professions to recruit for.
+      await tx.searchAnalytics.create({
+        data: {
+          userId: request.userId,
+          requestId: id,
+          term: analyticsTerm(request),
+          profession: request.profession,
+          city: request.city,
+          mode: request.mode,
+          matchedVendorCount: candidates.length,
+          fulfilled: candidates.length > 0,
+        },
+      });
     });
     this.logger.log(`Request ${id} routed to ${candidates.length} pro(s)`);
 
@@ -205,7 +227,12 @@ export class RequestsService {
   /** "Retenir ce professionnel" (Data §12). The others learn it is closed. */
   async select(userId: string, id: string, dispatchId: string): Promise<RequestView> {
     const request = await this.own(userId, id);
-    if (request.status !== RequestStatus.RESPONDED && request.status !== RequestStatus.SENT) {
+    const choosable: RequestStatus[] = [
+      RequestStatus.SENT,
+      RequestStatus.RESPONDED,
+      RequestStatus.LOCKED,
+    ];
+    if (!choosable.includes(request.status)) {
       throw new ConflictException('Un professionnel est déjà retenu, ou la demande est close');
     }
     const chosen = await this.prisma.requestDispatch.findUnique({
@@ -320,6 +347,41 @@ export class RequestsService {
   }
 
   /**
+   * Queue sweep: a request routed but never accepted within RESPONSE_TIMEOUT_MS
+   * is closed as NO_RESPONSE and the requester is told (Data §16). An accepted
+   * request has already left SENT (the first "interested" flips it to
+   * RESPONDED), so "still SENT past the deadline" is exactly "nobody answered".
+   */
+  async closeStale(now = new Date()): Promise<number> {
+    const cutoff = new Date(now.getTime() - RESPONSE_TIMEOUT_MS);
+    const stale = await this.prisma.serviceRequest.findMany({
+      where: { status: RequestStatus.SENT, sentAt: { lt: cutoff } },
+      select: { id: true, userId: true, service: true },
+    });
+    for (const r of stale) {
+      await this.prisma.$transaction([
+        this.prisma.requestDispatch.updateMany({
+          where: { requestId: r.id, status: { in: STILL_OPEN } },
+          data: { status: DispatchStatus.LOST },
+        }),
+        this.prisma.serviceRequest.update({
+          where: { id: r.id },
+          data: { status: RequestStatus.NO_RESPONSE },
+        }),
+      ]);
+      await this.notifications.create({
+        userId: r.userId,
+        type: NotificationType.REQUEST_NO_RESPONSE,
+        title: 'Aucune réponse à ta demande',
+        body: `Personne n’a répondu à temps pour : ${r.service ?? 'ta demande'}. Tu peux la renvoyer ou l’ajuster.`,
+        data: { requestId: r.id },
+      });
+    }
+    if (stale.length) this.logger.log(`Closed ${stale.length} stale request(s) as NO_RESPONSE`);
+    return stale.length;
+  }
+
+  /**
    * "Supprimer" from "Mes demandes". A draft never reached anyone, so it is
    * erased. Anything else is hidden instead: the pros who answered keep it in
    * their inbox and statistics. An open request is cancelled first so pros see
@@ -337,10 +399,12 @@ export class RequestsService {
       await this.prisma.serviceRequest.delete({ where: { id } });
       return;
     }
+    // LOCKED (cap reached) counts as open: its dispatches must close too.
     const open: RequestStatus[] = [
       RequestStatus.MATCHING,
       RequestStatus.SENT,
       RequestStatus.RESPONDED,
+      RequestStatus.LOCKED,
     ];
     await this.prisma.$transaction(async (tx) => {
       if (open.includes(request.status)) {
@@ -423,6 +487,8 @@ export class RequestsService {
       wasPerformed: request.wasPerformed,
       selectedDispatchId: request.selectedDispatchId,
       dispatchedCount: dispatches.length,
+      responseCount: request.responseCount,
+      responseLimit: MAX_RESPONSES,
       responses,
     };
   }
@@ -453,6 +519,11 @@ function dispatchData(requestId: string, c: MatchCandidate): Prisma.RequestDispa
     score: c.score,
     reasons: c.reasons as unknown as Prisma.InputJsonValue,
   };
+}
+
+/** The search term an analytics event is grouped by (Data §E). */
+function analyticsTerm(r: Pick<ServiceRequest, 'service' | 'profession' | 'rawText'>): string {
+  return (r.service || r.profession || r.rawText).trim().slice(0, 120);
 }
 
 /** What the request is embedded as for semantic matching. */

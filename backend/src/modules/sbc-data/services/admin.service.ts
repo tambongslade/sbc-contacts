@@ -11,6 +11,7 @@ import {
   AdminRequestsQueryDto,
   AdminServiceUpdateDto,
   SetReceivingDto,
+  UnfulfilledAnalyticsQueryDto,
 } from '../dto/sbc-data.dto';
 import { serviceDocument } from '../matching/request-matching.service';
 import { isReceivingActive } from '../sbc-data.views';
@@ -485,6 +486,46 @@ export class SbcDataAdminService {
       resource: `ProService:${id}`,
       before: pickService(before),
     });
+  }
+
+  // ── Unfulfilled demand ────────────────────────────────────────────────────
+
+  /** Needs the platform cannot serve yet, grouped by term, to target recruitment. */
+  async unfulfilled(query: UnfulfilledAnalyticsQueryDto) {
+    const createdAt =
+      query.from || query.to
+        ? {
+            ...(query.from ? { gte: new Date(query.from) } : {}),
+            ...(query.to ? { lte: new Date(query.to) } : {}),
+          }
+        : undefined;
+    const windowWhere: Prisma.SearchAnalyticsWhereInput = createdAt ? { createdAt } : {};
+
+    const gaps = await this.prisma.searchAnalytics.groupBy({
+      by: ['term'],
+      where: { ...windowWhere, fulfilled: false },
+      _count: { term: true },
+      _max: { createdAt: true },
+      orderBy: { _count: { term: 'desc' } },
+      take: query.limit,
+    });
+    const [searches, unfulfilled] = await Promise.all([
+      this.prisma.searchAnalytics.count({ where: windowWhere }),
+      this.prisma.searchAnalytics.count({ where: { ...windowWhere, fulfilled: false } }),
+    ]);
+    return {
+      window: { from: query.from ?? null, to: query.to ?? null },
+      totals: {
+        searches,
+        unfulfilled,
+        fulfilmentRate: searches ? (searches - unfulfilled) / searches : 1,
+      },
+      gaps: gaps.map((g) => ({
+        term: g.term,
+        count: g._count.term,
+        lastSearchedAt: g._max?.createdAt ?? null,
+      })),
+    };
   }
 
   // ── Reports ───────────────────────────────────────────────────────────────

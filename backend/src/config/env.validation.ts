@@ -134,6 +134,21 @@ export class EnvironmentVariables {
   @IsOptional()
   GEMINI_EMBEDDING_MODEL = 'gemini-embedding-001';
 
+  // --- Firebase Cloud Messaging (push delivery) ---
+  // All optional: with none set the push provider stays a no-op (logs only),
+  // so the app boots and every other channel keeps working without FCM creds.
+  @IsString()
+  @IsOptional()
+  FIREBASE_PROJECT_ID = '';
+
+  @IsString()
+  @IsOptional()
+  FIREBASE_CLIENT_EMAIL = '';
+
+  @IsString()
+  @IsOptional()
+  FIREBASE_PRIVATE_KEY = '';
+
   // --- Throttling ---
   @IsInt()
   @Transform(({ value }) => parseInt(value as string, 10))

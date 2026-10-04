@@ -5,6 +5,7 @@ import { tokens } from './lib/api';
 import { completeLoginFromUrl, currentUser, isAdmin, logout, applyDevToken, type AdminUser } from './lib/auth';
 import { useRoute } from './lib/router';
 import { Dashboard } from './pages/Dashboard';
+import { Gaps } from './pages/Gaps';
 import { Login } from './pages/Login';
 import { ProDetail } from './pages/ProDetail';
 import { Pros } from './pages/Pros';
@@ -47,6 +48,7 @@ export function App() {
       case 'requests': return id ? <RequestDetail id={id} /> : <Requests />;
       case 'pros': return id ? <ProDetail userId={id} /> : <Pros />;
       case 'services': return <Services />;
+      case 'gaps': return <Gaps />;
       case 'reports': return <Reports />;
       default: return <Dashboard />;
     }

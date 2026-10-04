@@ -6,6 +6,12 @@ import { cosine, coverage, fold, samePlace, tokens } from '../text';
 
 /** Most pros one request is sent to. More would only spam the long tail. */
 export const MAX_DISPATCHES = 10;
+/**
+ * Most "interested" answers a request accepts before it auto-locks (Data §C).
+ * The request is broadcast to up to MAX_DISPATCHES pros, but the first
+ * MAX_RESPONSES to say they can do it close it — the rest learn it is full.
+ */
+export const MAX_RESPONSES = 5;
 /** Most services the AI judge sees for one request. */
 const SHORTLIST = 20;
 /** Below this, a service is not a candidate at all. */

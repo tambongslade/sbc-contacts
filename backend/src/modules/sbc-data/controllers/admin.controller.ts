@@ -21,6 +21,7 @@ import {
   AdminServiceUpdateDto,
   MergeServiceDto,
   SetReceivingDto,
+  UnfulfilledAnalyticsQueryDto,
 } from '../dto/sbc-data.dto';
 import { SbcDataAdminService } from '../services/admin.service';
 
@@ -113,6 +114,14 @@ export class SbcDataAdminController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     await this.admin.deleteService(admin.userId, id);
+  }
+
+  @Get('analytics/unfulfilled')
+  @ApiOperation({
+    summary: 'Unfulfilled demands, grouped by term, to target recruitment (Data §E)',
+  })
+  unfulfilled(@Query() query: UnfulfilledAnalyticsQueryDto) {
+    return this.admin.unfulfilled(query);
   }
 
   @Get('reports')

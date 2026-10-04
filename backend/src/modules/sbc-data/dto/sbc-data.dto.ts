@@ -329,6 +329,27 @@ export class MergeServiceDto {
   intoId!: string;
 }
 
+/** Window + size for the unfulfilled-demand report (Data §E). */
+export class UnfulfilledAnalyticsQueryDto {
+  @ApiPropertyOptional({ description: 'Début de fenêtre (ISO date); omis = depuis toujours' })
+  @IsOptional()
+  @IsDateString()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'Fin de fenêtre (ISO date); omis = maintenant' })
+  @IsOptional()
+  @IsDateString()
+  to?: string;
+
+  @ApiPropertyOptional({ description: 'Nombre de termes renvoyés', default: 50 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limit = 50;
+}
+
 /** Switch request reception on/off until payments exist (Data §17). */
 export class SetReceivingDto {
   @ApiProperty() @IsBoolean() enabled!: boolean;
