@@ -7,6 +7,9 @@ struct ProProfileFormView: View {
     @Environment(RequestsStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
+    /// Set by the guided setup to move on instead of closing.
+    var onSaved: (() -> Void)?
+
     @State private var profession = ""
     @State private var description = ""
     @State private var city = ""
@@ -87,15 +90,17 @@ struct ProProfileFormView: View {
 
     private func fill() {
         guard let p = store.proSpace?.profile else { return }
-        profession = p.profession
-        description = p.description
-        city = p.city
-        zones = p.zones.joined(separator: ", ")
-        modes = Set(p.modes)
-        availability = p.availability
+        // Placeholders ("À compléter") show as empty fields, not as answers.
+        let real = { (s: String) in isPlaceholder(s) ? "" : s }
+        profession = real(p.profession)
+        description = real(p.description)
+        city = real(p.city)
+        zones = p.zones.filter { !isPlaceholder($0) }.joined(separator: ", ")
+        if !p.modes.isEmpty { modes = Set(p.modes) }
+        availability = real(p.availability)
         priceMin = p.priceMin.map(String.init) ?? ""
         priceMax = p.priceMax.map(String.init) ?? ""
-        shopUrl = p.shopUrl
+        shopUrl = real(p.shopUrl)
         whatsapp = p.whatsapp ?? ""
     }
 
@@ -116,7 +121,7 @@ struct ProProfileFormView: View {
                 whatsapp: whatsapp.nilIfBlank
             ))
             store.setProSpace(space)
-            dismiss()
+            if let onSaved { onSaved() } else { dismiss() }
         } catch {
             self.error = error.localizedDescription
         }
@@ -129,6 +134,9 @@ struct AddServicesView: View {
     @Environment(\.services) private var services
     @Environment(RequestsStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+
+    /// Set by the guided setup to move on instead of closing.
+    var onSaved: (() -> Void)?
 
     @State private var text = ""
     @State private var proposals: [ServiceProposal] = []
@@ -221,6 +229,13 @@ struct AddServicesView: View {
         }
         .navigationTitle("Ajouter un service")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let onSaved {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Plus tard", action: onSaved)
+                }
+            }
+        }
     }
 
     private func analyse() async {
@@ -241,7 +256,7 @@ struct AddServicesView: View {
         defer { saving = false }
         do {
             store.setProSpace(try await services.requests.addServices(proposals))
-            dismiss()
+            if let onSaved { onSaved() } else { dismiss() }
         } catch {
             self.error = error.localizedDescription
         }

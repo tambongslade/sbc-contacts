@@ -9,6 +9,7 @@ import {
   IsEnum,
   IsIn,
   IsInt,
+  IsObject,
   IsOptional,
   IsString,
   IsUrl,
@@ -75,6 +76,32 @@ export class UpsertProProfileDto {
   @IsString()
   @MaxLength(30)
   whatsapp?: string;
+}
+
+export class AssistantMessageDto {
+  @ApiProperty({ enum: ['user', 'assistant'] })
+  @IsIn(['user', 'assistant'])
+  role!: 'user' | 'assistant';
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(2000)
+  text!: string;
+}
+
+/** One turn of the setup conversation: the transcript and the draft so far. */
+export class AssistantTurnDto {
+  @ApiProperty({ type: [AssistantMessageDto] })
+  @IsArray()
+  @ArrayMaxSize(60)
+  @ValidateNested({ each: true })
+  @Type(() => AssistantMessageDto)
+  messages!: AssistantMessageDto[];
+
+  @ApiPropertyOptional({ description: 'The draft returned by the previous turn' })
+  @IsOptional()
+  @IsObject()
+  draft?: Record<string, unknown>;
 }
 
 export class StructureServicesDto {

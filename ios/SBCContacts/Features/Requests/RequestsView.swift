@@ -50,34 +50,38 @@ struct RequestsView: View {
 
 private struct MineList: View {
     @Environment(RequestsStore.self) private var store
+    @State private var deleting: ServiceRequestItem?
 
     var body: some View {
-        NeedPromptCard()
+        Group {
+            NeedPromptCard()
 
-        switch store.mine {
-        case .loading:
-            CardListSkeleton(rows: 2)
-        case let .failed(error):
-            EmptyStateView(systemImage: "exclamationmark.circle", title: "Erreur", message: error.localizedDescription) {
-                Button("Réessayer") { Task { await store.loadMine() } }.buttonStyle(.borderedProminent)
-            }
-        case let .loaded(list) where list.isEmpty:
-            Text("Tes demandes apparaîtront ici. Les professionnels concernés te répondent, tu compares et tu choisis.")
-                .font(.sbc(.bodyMedium))
-                .foregroundStyle(SBCColors.onSurfaceVariant)
-                .padding(.horizontal, 4)
-        case let .loaded(list):
-            let open = list.filter { $0.status.isOpen }
-            let closed = list.filter { !$0.status.isOpen }
-            if !open.isEmpty {
-                RequestSectionLabel(text: "En cours")
-                ForEach(open) { RequestRow(request: $0) }
-            }
-            if !closed.isEmpty {
-                RequestSectionLabel(text: "Terminées").padding(.top, 4)
-                ForEach(closed) { RequestRow(request: $0) }
+            switch store.mine {
+            case .loading:
+                CardListSkeleton(rows: 2)
+            case let .failed(error):
+                EmptyStateView(systemImage: "exclamationmark.circle", title: "Erreur", message: error.localizedDescription) {
+                    Button("Réessayer") { Task { await store.loadMine() } }.buttonStyle(.borderedProminent)
+                }
+            case let .loaded(list) where list.isEmpty:
+                Text("Tes demandes apparaîtront ici. Les professionnels concernés te répondent, tu compares et tu choisis.")
+                    .font(.sbc(.bodyMedium))
+                    .foregroundStyle(SBCColors.onSurfaceVariant)
+                    .padding(.horizontal, 4)
+            case let .loaded(list):
+                let open = list.filter { $0.status.isOpen }
+                let closed = list.filter { !$0.status.isOpen }
+                if !open.isEmpty {
+                    RequestSectionLabel(text: "En cours")
+                    ForEach(open) { RequestRow(request: $0, deleting: $deleting) }
+                }
+                if !closed.isEmpty {
+                    RequestSectionLabel(text: "Terminées").padding(.top, 4)
+                    ForEach(closed) { RequestRow(request: $0, deleting: $deleting) }
+                }
             }
         }
+        .confirmDeleteRequest($deleting)
     }
 }
 
@@ -118,6 +122,7 @@ private struct NeedPromptCard: View {
 
 private struct RequestRow: View {
     let request: ServiceRequestItem
+    @Binding var deleting: ServiceRequestItem?
 
     private var tag: (String, Color) {
         let answers = request.responses.filter { $0.status == .interested || $0.status == .question }.count
@@ -154,6 +159,11 @@ private struct RequestRow: View {
             }
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            if request.canDelete {
+                Button("Supprimer", systemImage: "trash", role: .destructive) { deleting = request }
+            }
+        }
     }
 }
 
@@ -164,6 +174,7 @@ private struct ReceivedList: View {
 
     var body: some View {
         if let space = store.proSpace, space.profile != nil {
+            ProSetupBanner(missing: space.missingSetup)
             ReceivingBanner(active: space.receivingActive, until: space.profile?.receivingUntil)
             switch store.inbox {
             case .loading:

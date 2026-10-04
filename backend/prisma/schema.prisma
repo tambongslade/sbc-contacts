@@ -537,6 +537,9 @@ model ServiceRequest {
   completedAt        DateTime?
   /// Requester's word on the job (Data §15): false = reported as not done.
   wasPerformed       Boolean?
+  /// The requester deleted it from "Mes demandes". Hidden, not erased: the
+  /// pros who answered keep it in their history and statistics.
+  hiddenAt           DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

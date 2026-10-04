@@ -38,14 +38,24 @@ export class GeminiClient {
   }
 
   /** Generate one JSON object that conforms to [schema] (OpenAPI subset). */
-  async generateJson<T>(system: string, prompt: string, schema: object): Promise<T> {
+  generateJson<T>(system: string, prompt: string, schema: object): Promise<T> {
+    return this.generateJsonChat<T>(system, [{ role: 'user', text: prompt }], schema);
+  }
+
+  /** Same, continuing a conversation: [turns] alternate user and model. */
+  async generateJsonChat<T>(
+    system: string,
+    turns: Array<{ role: 'user' | 'model'; text: string }>,
+    schema: object,
+    temperature = 0.1,
+  ): Promise<T> {
     const body = {
       systemInstruction: { parts: [{ text: system }] },
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      contents: turns.map((t) => ({ role: t.role, parts: [{ text: t.text }] })),
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: schema,
-        temperature: 0.1,
+        temperature,
       },
     };
     const res = await this.post<{

@@ -13,9 +13,11 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthenticatedUser, CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { PaginatedResult } from '../../../common/dto/pagination.dto';
+import { AssistantTurn } from '../ai/pro-setup-assistant';
 import { StructuredServices } from '../ai/sbc-data-ai.service';
 import {
   AddServicesDto,
+  AssistantTurnDto,
   InboxQueryDto,
   RespondDto,
   StructureServicesDto,
@@ -45,6 +47,15 @@ export class ProController {
     @Body() dto: UpsertProProfileDto,
   ): Promise<ProProfileView> {
     return this.pros.upsertProfile(user.userId, dto);
+  }
+
+  @Post('assistant')
+  @ApiOperation({ summary: 'One turn of the AI setup conversation — nothing is saved' })
+  assistant(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: AssistantTurnDto,
+  ): Promise<AssistantTurn> {
+    return this.pros.assistantTurn(user.userId, dto);
   }
 
   @Post('services/structure')

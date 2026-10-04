@@ -74,6 +74,11 @@ final class RequestsStore {
         mine = .loaded(list)
     }
 
+    func remove(requestId: String) {
+        guard case let .loaded(list) = mine else { return }
+        mine = .loaded(list.filter { $0.id != requestId })
+    }
+
     func upsert(_ item: InboxItem) {
         guard case var .loaded(list) = inbox, let i = list.firstIndex(where: { $0.id == item.id }) else { return }
         list[i] = item
