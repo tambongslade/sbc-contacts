@@ -6,10 +6,18 @@ import SwiftUI
 enum ProInvite {
     static let snooze: TimeInterval = 7 * 24 * 3600
 
-    static func isDue(userId: String, now: Date = .now) -> Bool {
+    /// Debug builds launched with `-pro-invite` show the invitation on every
+    /// launch, pro or not, so the sheet can be checked on any account.
+    static var forced: Bool {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-pro-invite") { return true }
+        ProcessInfo.processInfo.arguments.contains("-pro-invite")
+        #else
+        false
         #endif
+    }
+
+    static func isDue(userId: String, now: Date = .now) -> Bool {
+        if forced { return true }
         guard let last = UserDefaults.standard.object(forKey: key(userId)) as? Date else { return true }
         return now.timeIntervalSince(last) > snooze
     }

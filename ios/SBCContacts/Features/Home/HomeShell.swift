@@ -108,7 +108,7 @@ struct HomeShell: View {
     /// would drop a sheet raised on top of an alert.
     private func inviteToBecomeProIfDue() {
         guard contactsSettled, !invitingPro, let user = auth.user,
-              requests.proSpace != nil, !requests.isPro,
+              requests.proSpace != nil, !requests.isPro || ProInvite.forced,
               ProInvite.isDue(userId: user.id)
         else { return }
         ProInvite.markShown(userId: user.id)
