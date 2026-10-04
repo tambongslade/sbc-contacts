@@ -31,6 +31,17 @@ export class SsoBridgeController {
     const state = query.state ?? '';
     const hasCode = code.length > 0;
 
+    // The web back-office signs in through the same registered redirect_uri;
+    // its state carries an "admin." prefix so the code goes back to /admin
+    // instead of being shown for the mobile app.
+    if (hasCode && state.startsWith('admin.')) {
+      res.redirect(
+        302,
+        `/admin/?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`,
+      );
+      return;
+    }
+
     // Everything SBC sent (minus code/state) — surfaced when no code arrives.
     const otherParams = Object.entries(query)
       .filter(([k]) => k !== 'code' && k !== 'state')

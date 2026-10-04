@@ -282,6 +282,53 @@ export class CompleteRequestDto {
 
 // ── Admin ───────────────────────────────────────────────────────────────────
 
+export class AdminListQueryDto extends PaginationQueryDto {}
+
+export class AdminProsQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({ enum: ['on', 'off'], description: 'Reception active or not' })
+  @IsOptional()
+  @IsIn(['on', 'off'])
+  receiving?: 'on' | 'off';
+}
+
+export class AdminRequestsQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({ enum: RequestStatus })
+  @IsOptional()
+  @IsEnum(RequestStatus)
+  status?: RequestStatus;
+}
+
+/** Back-office correction of a service (Data §5, §21). */
+export class AdminServiceUpdateDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() @MinLength(2) @MaxLength(120) name?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(120) category?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) profession?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(40)
+  @IsString({ each: true })
+  @MaxLength(60, { each: true })
+  synonyms?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @MaxLength(60, { each: true })
+  specialties?: string[];
+
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
+}
+
+export class MergeServiceDto {
+  @ApiProperty({ description: 'The service that absorbs this one' })
+  @IsUUID()
+  intoId!: string;
+}
+
 /** Switch request reception on/off until payments exist (Data §17). */
 export class SetReceivingDto {
   @ApiProperty() @IsBoolean() enabled!: boolean;

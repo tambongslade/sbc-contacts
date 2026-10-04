@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* SBC Network tokens (from the iOS SBCColors), as HSL channels. */
+:root {
+  --background: 220 33% 97%;
+  --foreground: 225 13% 12%;
+  --card: 0 0% 100%;
+  --muted: 220 20% 94%;
+  --muted-foreground: 224 10% 40%;
+  --border: 221 17% 88%;
+  --ring: 220 88% 52%;
+  --primary: 220 88% 52%; /* #1862F0 */
+  --primary-foreground: 0 0% 100%;
+  --primary-soft: 222 88% 92%;
+  --brand-green: 74 64% 42%; /* #92B127 */
+  --brand-orange: 36 99% 48%; /* #F49101 */
+  --success: 160 84% 30%;
+  --success-soft: 152 60% 92%;
+  --warning: 32 100% 34%;
+  --warning-soft: 36 100% 93%;
+  --destructive: 0 72% 46%;
+  --destructive-soft: 0 86% 95%;
+  --radius: 14px;
+}
+
+html { -webkit-font-smoothing: antialiased; }
+body { @apply bg-background text-foreground font-sans; font-size: 15px; }
+:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }

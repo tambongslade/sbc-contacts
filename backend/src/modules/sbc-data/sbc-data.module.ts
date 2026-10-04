@@ -9,6 +9,7 @@ import { ProController } from './controllers/pro.controller';
 import { RequestsController } from './controllers/requests.controller';
 import { RequestMatchingService } from './matching/request-matching.service';
 import { SbcDataProcessor } from './sbc-data.processor';
+import { SbcDataAdminService } from './services/admin.service';
 import { ProfessionalService } from './services/professional.service';
 import { RequestsService } from './services/requests.service';
 
@@ -27,6 +28,7 @@ import { RequestsService } from './services/requests.service';
     RequestMatchingService,
     ProfessionalService,
     RequestsService,
+    SbcDataAdminService,
     SbcDataProcessor,
   ],
 })
