@@ -6,14 +6,15 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { AuthenticatedUser, CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
-import { SetReceivingDto } from '../dto/sbc-data.dto';
+import { SetReceivingDto, UnfulfilledAnalyticsQueryDto } from '../dto/sbc-data.dto';
 
 /**
  * The slice of the SBC Data back-office (Data §21) the MVP cannot run without:
@@ -73,5 +74,48 @@ export class SbcDataAdminController {
       },
     });
     return { request, dispatches };
+  }
+
+  @Get('analytics/unfulfilled')
+  @ApiOperation({
+    summary: 'Unfulfilled demands, grouped by term, to target recruitment (Data §E)',
+  })
+  async unfulfilled(@Query() query: UnfulfilledAnalyticsQueryDto) {
+    const createdAt =
+      query.from || query.to
+        ? {
+            ...(query.from ? { gte: new Date(query.from) } : {}),
+            ...(query.to ? { lte: new Date(query.to) } : {}),
+          }
+        : undefined;
+    const windowWhere: Prisma.SearchAnalyticsWhereInput = createdAt ? { createdAt } : {};
+
+    // The "Google Trends" aggregation: which needs the platform can't yet serve.
+    const gaps = await this.prisma.searchAnalytics.groupBy({
+      by: ['term'],
+      where: { ...windowWhere, fulfilled: false },
+      _count: { term: true },
+      _max: { createdAt: true },
+      orderBy: { _count: { term: 'desc' } },
+      take: query.limit,
+    });
+    const [searches, unfulfilled] = await Promise.all([
+      this.prisma.searchAnalytics.count({ where: windowWhere }),
+      this.prisma.searchAnalytics.count({ where: { ...windowWhere, fulfilled: false } }),
+    ]);
+
+    return {
+      window: { from: query.from ?? null, to: query.to ?? null },
+      totals: {
+        searches,
+        unfulfilled,
+        fulfilmentRate: searches ? (searches - unfulfilled) / searches : 1,
+      },
+      gaps: gaps.map((g) => ({
+        term: g.term,
+        count: g._count.term,
+        lastSearchedAt: g._max?.createdAt ?? null,
+      })),
+    };
   }
 }

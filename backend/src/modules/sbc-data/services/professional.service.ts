@@ -25,7 +25,7 @@ import {
   UpdateServiceDto,
   UpsertProProfileDto,
 } from '../dto/sbc-data.dto';
-import { serviceDocument } from '../matching/request-matching.service';
+import { MAX_RESPONSES, serviceDocument } from '../matching/request-matching.service';
 import {
   InboxItemView,
   ProProfileView,
@@ -40,8 +40,14 @@ const OPEN_DISPATCH: DispatchStatus[] = [
   DispatchStatus.VIEWED,
   DispatchStatus.QUESTION,
 ];
-/** Request states in which answers are still useful. */
+/** Request states in which answers are still useful (before the cap locks it). */
 const OPEN_REQUEST: RequestStatus[] = [RequestStatus.SENT, RequestStatus.RESPONDED];
+/** Dispatches still pending a decision — closed out when a request locks. */
+const PENDING_DISPATCH: DispatchStatus[] = [
+  DispatchStatus.SENT,
+  DispatchStatus.VIEWED,
+  DispatchStatus.QUESTION,
+];
 
 export interface ProStats {
   received: number;
@@ -217,7 +223,27 @@ export class ProfessionalService {
     }
 
     const status = DispatchStatus[dto.action];
-    const updated = await this.prisma.$transaction(async (tx) => {
+    const { updated, closedOut, locked } = await this.prisma.$transaction(async (tx) => {
+      // The "max 5 responses" rule (Data §C). A single guarded UPDATE both
+      // checks the cap and claims a slot: it only matches while the request is
+      // open and below MAX_RESPONSES, so concurrent "interested" answers
+      // serialise on the row and the sixth one is turned away.
+      if (status === DispatchStatus.INTERESTED) {
+        const claimed = await tx.serviceRequest.updateMany({
+          where: {
+            id: requestId,
+            status: { in: OPEN_REQUEST },
+            responseCount: { lt: MAX_RESPONSES },
+          },
+          data: { responseCount: { increment: 1 } },
+        });
+        if (claimed.count === 0) {
+          throw new ConflictException(
+            `Cette demande a atteint son maximum de ${MAX_RESPONSES} réponses`,
+          );
+        }
+      }
+
       const row = await tx.requestDispatch.update({
         where: { id: dispatch.id },
         data: {
@@ -231,15 +257,57 @@ export class ProfessionalService {
         },
         include: { request: true, service: true },
       });
-      if (status === DispatchStatus.INTERESTED && row.request.status === RequestStatus.SENT) {
-        await tx.serviceRequest.update({
-          where: { id: requestId },
-          data: { status: RequestStatus.RESPONDED },
-        });
-        row.request.status = RequestStatus.RESPONDED;
+
+      let closed: Array<{ userId: string; respondedAt: Date | null }> = [];
+      let didLock = false;
+      if (status === DispatchStatus.INTERESTED) {
+        // `row.request.responseCount` already reflects the increment above
+        // (reads see the transaction's own writes).
+        if (row.request.responseCount >= MAX_RESPONSES) {
+          // Cap hit: lock the request and close the still-pending dispatches so
+          // nobody else can answer, then warn the ones who had engaged (Data §C).
+          const pending = await tx.requestDispatch.findMany({
+            where: { requestId, id: { not: row.id }, status: { in: PENDING_DISPATCH } },
+            include: { pro: { select: { userId: true } } },
+          });
+          if (pending.length) {
+            await tx.requestDispatch.updateMany({
+              where: { id: { in: pending.map((p) => p.id) } },
+              data: { status: DispatchStatus.LOST },
+            });
+          }
+          await tx.serviceRequest.update({
+            where: { id: requestId },
+            data: { status: RequestStatus.LOCKED },
+          });
+          row.request.status = RequestStatus.LOCKED;
+          closed = pending.map((p) => ({ userId: p.pro.userId, respondedAt: p.respondedAt }));
+          didLock = true;
+        } else if (row.request.status === RequestStatus.SENT) {
+          await tx.serviceRequest.update({
+            where: { id: requestId },
+            data: { status: RequestStatus.RESPONDED },
+          });
+          row.request.status = RequestStatus.RESPONDED;
+        }
       }
-      return row;
+      return { updated: row, closedOut: closed, locked: didLock };
     });
+
+    if (locked) {
+      const what = dispatch.request.service ?? 'cette demande';
+      // Only pros who spent effort (asked a question) hear back; silent ones
+      // just see the request as closed in their inbox.
+      for (const o of closedOut.filter((o) => o.respondedAt)) {
+        await this.notifications.create({
+          userId: o.userId,
+          type: NotificationType.REQUEST_CLOSED,
+          title: 'Demande complète',
+          body: `Le maximum de réponses a été atteint pour : ${what}.`,
+          data: { requestId },
+        });
+      }
+    }
 
     if (status === DispatchStatus.INTERESTED || status === DispatchStatus.QUESTION) {
       const pro = await this.prisma.proProfile.findUniqueOrThrow({

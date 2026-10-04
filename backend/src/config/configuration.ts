@@ -56,6 +56,12 @@ export const configuration = (env: EnvironmentVariables) => ({
     ttl: env.THROTTLE_TTL,
     limit: env.THROTTLE_LIMIT,
   },
+  fcm: {
+    projectId: env.FIREBASE_PROJECT_ID,
+    clientEmail: env.FIREBASE_CLIENT_EMAIL,
+    // Private keys are usually stored with literal "\n" — unescape them here.
+    privateKey: env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+  },
 });
 
 export type AppConfiguration = ReturnType<typeof configuration>;

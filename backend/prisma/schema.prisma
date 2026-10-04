@@ -312,6 +312,7 @@ enum NotificationType {
   REQUEST_RESPONSE // SBC Data: a pro answered your request (Data §11)
   REQUEST_SELECTED // SBC Data: the requester chose you (Data §12)
   REQUEST_CLOSED // SBC Data: a request you answered is no longer open (Data §12)
+  REQUEST_NO_RESPONSE // SBC Data: nobody answered the requester's demand in time
 }
 
 /// In-app notification store (cahier §19). Push/SMS/email are dispatched via
@@ -489,6 +490,7 @@ enum RequestStatus {
   MATCHING // confirmed, matching in progress
   SENT // routed to at least one pro
   RESPONDED // at least one pro is interested
+  LOCKED // the cap of interested answers was reached; no more are taken (Data §C)
   SELECTED // a pro was chosen
   COMPLETED
   CANCELLED
@@ -504,6 +506,11 @@ model ServiceRequest {
 
   rawText String
   status  RequestStatus @default(DRAFT)
+
+  /// Interested answers received so far (Data §C). Capped at MAX_RESPONSES;
+  /// the request auto-locks and stops taking answers once the cap is hit.
+  /// Bumped with an atomic, guarded UPDATE so the cap holds under concurrency.
+  responseCount Int @default(0)
 
   // The AI's structured reading (Data §7), editable by the requester before
   // sending. Kept as columns because matching filters on them.
@@ -583,4 +590,32 @@ model RequestDispatch {
   @@unique([requestId, proId])
   @@index([proId, status])
   @@map("request_dispatches")
+}
+
+/// Predictive market analytics (Data §E, the "Google Trends" feature). Every
+/// matching run logs one lightweight event: what was sought and how many pros
+/// it reached. `matchedVendorCount == 0` (fulfilled = false) is an unfulfilled
+/// demand — the admin report groups these to surface market gaps to recruit for.
+/// No FK on `userId` so an event survives member-cache churn like reviews do.
+model SearchAnalytics {
+  id String @id @default(uuid()) @db.Uuid
+
+  userId    String? @db.Uuid
+  requestId String? @db.Uuid
+
+  /// The need as a search term (the AI `service`, else `profession`, else raw).
+  term       String
+  profession String?
+  city       String?
+  mode       ServiceMode?
+
+  matchedVendorCount Int
+  /// matchedVendorCount > 0 — denormalised so the gap report is a cheap filter.
+  fulfilled          Boolean
+
+  createdAt DateTime @default(now())
+
+  @@index([fulfilled, createdAt])
+  @@index([term])
+  @@map("search_analytics")
 }
