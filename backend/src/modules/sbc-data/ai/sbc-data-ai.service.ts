@@ -127,7 +127,9 @@ const ANALYSIS_SYSTEM = `Tu analyses une demande de service pour SBC Network, un
 Extrais uniquement ce que la personne a dit ; mets null ou [] pour le reste, sans deviner.
 - profession : le métier probable du professionnel recherché (ex. "Coiffeur").
 - service : la prestation précise demandée (ex. "Réparation de locks").
-- mode : HOME (à domicile), ON_SITE (chez le professionnel), ONLINE (à distance), DELIVERY (livraison), ou null.
+- mode : HOME (à domicile, "chez moi"), ON_SITE (chez le professionnel), ONLINE (en ligne, "online", à distance), DELIVERY (livraison), ou null.
+- city : la VILLE réelle où la prestation a lieu, écrite normalement (ex. "Yaoundé", "Douala", "Bafoussam"). Si la personne ne donne qu'un quartier ou un lieu-dit (ex. "Simbock", "Bonapriso", "Akwa", "Bastos"), déduis la ville qui le contient et mets-la ici (ex. "Simbock" → "Yaoundé"). N'écris JAMAIS dans city une manière de faire ("chez moi", "à domicile", "en ligne", "online", "livraison") : ce sont des modes, pas des lieux. Aucun lieu réel donné → null.
+- district : le quartier ou lieu-dit précis si mentionné (ex. "Simbock"), sinon null. Ne répète pas la ville ici.
 - budget : un montant entier en FCFA, ou null.
 - desiredDate / desiredTime : tels que compris ("samedi", "14h").
 - constraints : toute condition importante (ex. "femme uniquement", "matériel fourni").
