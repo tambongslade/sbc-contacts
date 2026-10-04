@@ -77,3 +77,9 @@ export function samePlace(a: string | null | undefined, b: string | null | undef
   const fa = fold(a);
   return fa.length > 0 && fa === fold(b);
 }
+
+/** Blank, or a stand-in typed to fill a field ("À compléter", "-"). */
+export function isPlaceholder(value: string | null | undefined): boolean {
+  const f = fold(value);
+  return f.length === 0 || f.startsWith('a completer') || f === 'na' || f === 'n a';
+}

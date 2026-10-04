@@ -182,6 +182,7 @@ export class RequestsService {
   async list(userId: string, query: RequestsQueryDto): Promise<PaginatedResult<RequestView>> {
     const where: Prisma.ServiceRequestWhereInput = {
       userId,
+      hiddenAt: null,
       ...(query.status ? { status: query.status } : {}),
     };
     const [rows, total] = await this.prisma.$transaction([
@@ -318,11 +319,53 @@ export class RequestsService {
     return this.view(updated);
   }
 
+  /**
+   * "Supprimer" from "Mes demandes". A draft never reached anyone, so it is
+   * erased. Anything else is hidden instead: the pros who answered keep it in
+   * their inbox and statistics. An open request is cancelled first so pros see
+   * it close; one with a chosen pro must be closed through "Prestation
+   * terminée" so that pro is not left with a job that vanished.
+   */
+  async remove(userId: string, id: string): Promise<void> {
+    const request = await this.own(userId, id);
+    if (request.status === RequestStatus.SELECTED) {
+      throw new ConflictException(
+        'Un professionnel est retenu : indique d’abord si la prestation a été réalisée',
+      );
+    }
+    if (request.status === RequestStatus.DRAFT) {
+      await this.prisma.serviceRequest.delete({ where: { id } });
+      return;
+    }
+    const open: RequestStatus[] = [
+      RequestStatus.MATCHING,
+      RequestStatus.SENT,
+      RequestStatus.RESPONDED,
+    ];
+    await this.prisma.$transaction(async (tx) => {
+      if (open.includes(request.status)) {
+        await tx.requestDispatch.updateMany({
+          where: { requestId: id, status: { in: STILL_OPEN } },
+          data: { status: DispatchStatus.LOST },
+        });
+      }
+      await tx.serviceRequest.update({
+        where: { id },
+        data: {
+          hiddenAt: new Date(),
+          ...(open.includes(request.status) ? { status: RequestStatus.CANCELLED } : {}),
+        },
+      });
+    });
+  }
+
   // ── helpers ───────────────────────────────────────────────────────────────
 
   private async own(userId: string, id: string): Promise<ServiceRequest> {
     const request = await this.prisma.serviceRequest.findUnique({ where: { id } });
-    if (!request || request.userId !== userId) throw new NotFoundException('Demande introuvable');
+    if (!request || request.userId !== userId || request.hiddenAt) {
+      throw new NotFoundException('Demande introuvable');
+    }
     return request;
   }
 

@@ -16,9 +16,11 @@ import { PaginatedResult, paginate } from '../../../common/dto/pagination.dto';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { AssistantTurn, ProDraft, ProSetupAssistant, sanitise } from '../ai/pro-setup-assistant';
 import { SbcDataAiService, StructuredServices } from '../ai/sbc-data-ai.service';
 import {
   AddServicesDto,
+  AssistantTurnDto,
   InboxQueryDto,
   ProServiceInputDto,
   RespondDto,
@@ -67,6 +69,7 @@ export class ProfessionalService {
     private readonly ai: SbcDataAiService,
     private readonly notifications: NotificationsService,
     private readonly audit: AuditService,
+    private readonly assistant: ProSetupAssistant,
   ) {}
 
   async getProfile(userId: string): Promise<ProProfileView> {
@@ -120,6 +123,49 @@ export class ProfessionalService {
   /** AI proposals only — nothing is saved until the pro validates (Data §4). */
   structure(text: string): Promise<StructuredServices> {
     return this.ai.structureServices(text);
+  }
+
+  /**
+   * One turn of the setup conversation. Nothing is saved: the app confirms
+   * the finished draft through [upsertProfile] and [addServices]. The first
+   * turn starts from whatever profile already exists, so a pro whose profile
+   * holds placeholders is only asked for what is really missing.
+   */
+  async assistantTurn(userId: string, dto: AssistantTurnDto): Promise<AssistantTurn> {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: {
+        name: true,
+        country: true,
+        proProfile: {
+          include: { services: { where: { isActive: true }, select: { name: true } } },
+        },
+      },
+    });
+    const pro = user.proProfile;
+    const start: ProDraft = (dto.draft as ProDraft | undefined) ?? {
+      profile: {
+        profession: pro?.profession ?? null,
+        description: pro?.description ?? null,
+        city: pro?.city ?? null,
+        zones: pro?.zones ?? [],
+        modes: pro?.modes ?? [],
+        availability: pro?.availability ?? null,
+        priceMin: pro?.priceMin ?? null,
+        priceMax: pro?.priceMax ?? null,
+        shopUrl: pro?.shopUrl ?? null,
+      },
+      services: [],
+    };
+    return this.assistant.turn(
+      {
+        name: user.name,
+        country: user.country,
+        existingServices: pro?.services.map((s) => s.name) ?? [],
+      },
+      dto.messages,
+      sanitise(start),
+    );
   }
 
   async addServices(userId: string, dto: AddServicesDto): Promise<ProProfileView> {

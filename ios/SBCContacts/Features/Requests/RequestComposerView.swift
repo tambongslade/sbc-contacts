@@ -126,6 +126,8 @@ struct RequestReviewView: View {
     @State private var error: String?
     @State private var editing = false
     @State private var sent: ServiceRequestItem?
+    @State private var deleting: ServiceRequestItem?
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView {
@@ -199,6 +201,12 @@ struct RequestReviewView: View {
         }
         .navigationTitle("Résumé")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                DeleteRequestButton(request: request, target: $deleting)
+            }
+        }
+        .confirmDeleteRequest($deleting) { dismiss() }
         .sheet(isPresented: $editing) {
             EditReadingSheet(request: request) { updated in
                 request = updated

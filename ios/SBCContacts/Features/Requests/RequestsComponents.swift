@@ -119,3 +119,99 @@ extension ButtonStyle where Self == FilledButtonStyle {
     /// The tall primary button used at the bottom of a flow.
     static var large: FilledButtonStyle { FilledButtonStyle(minHeight: 52) }
 }
+
+/// Asks, then deletes a request and drops it from "Mes demandes".
+private struct DeleteRequestConfirmation: ViewModifier {
+    @Binding var target: ServiceRequestItem?
+    var onDeleted: () -> Void = {}
+
+    @Environment(\.services) private var services
+    @Environment(RequestsStore.self) private var store
+    @Environment(ToastCenter.self) private var toasts
+
+    func body(content: Content) -> some View {
+        content.alert(
+            "Supprimer cette demande ?",
+            isPresented: Binding(get: { target != nil }, set: { if !$0 { target = nil } }),
+            presenting: target
+        ) { request in
+            Button("Annuler", role: .cancel) {}
+            Button("Supprimer", role: .destructive) {
+                Task {
+                    do {
+                        try await services.requests.remove(request.id)
+                        store.remove(requestId: request.id)
+                        toasts.show("Demande supprimée.")
+                        onDeleted()
+                    } catch {
+                        toasts.show(error.localizedDescription)
+                    }
+                }
+            }
+        } message: { request in
+            Text(request.deleteWarning)
+        }
+    }
+}
+
+extension View {
+    func confirmDeleteRequest(_ target: Binding<ServiceRequestItem?>, onDeleted: @escaping () -> Void = {}) -> some View {
+        modifier(DeleteRequestConfirmation(target: target, onDeleted: onDeleted))
+    }
+}
+
+/// Trash button for a request's toolbar.
+struct DeleteRequestButton: View {
+    let request: ServiceRequestItem
+    @Binding var target: ServiceRequestItem?
+
+    var body: some View {
+        if request.canDelete {
+            Button(role: .destructive) {
+                target = request
+            } label: {
+                Image(systemName: "trash")
+            }
+            .accessibilityLabel("Supprimer la demande")
+        }
+    }
+}
+
+/// Always-on reminder for a pro whose setup is incomplete: on the inbox and
+/// the pro space, where they look for requests that cannot come yet.
+struct ProSetupBanner: View {
+    let missing: [ProSetupItem]
+
+    var body: some View {
+        if !missing.isEmpty {
+            NavigationLink(value: missing.contains(.profile) ? AppRoute.proProfileForm : AppRoute.proAddServices) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(SBCColors.accentDark)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Profil pro incomplet")
+                            .font(.sbc(.titleSmall, weight: .heavy))
+                        Text("Aucune demande ne peut t'arriver tant que ce n'est pas fait :")
+                            .font(.sbc(.bodySmall))
+                            .foregroundStyle(SBCColors.onSurfaceVariant)
+                        ForEach(missing, id: \.self) { item in
+                            Text("• \(item.todo)")
+                                .font(.sbc(.bodySmall, weight: .semibold))
+                        }
+                        Text("Compléter maintenant")
+                            .font(.sbc(.labelLarge, weight: .bold))
+                            .foregroundStyle(SBCColors.primary)
+                            .padding(.top, 4)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(SBCColors.onSurface)
+                .padding(14)
+                .background(SBCColors.accent.opacity(0.1), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(SBCColors.accent.opacity(0.4)))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}

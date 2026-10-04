@@ -15,6 +15,8 @@ struct RequestDetailView: View {
     @State private var completing = false
     @State private var confirmCancel = false
     @State private var choosing: RequestResponse?
+    @State private var deleting: ServiceRequestItem?
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         Group {
@@ -29,6 +31,12 @@ struct RequestDetailView: View {
         .background(SBCColors.background)
         .navigationTitle("Demande")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if let request { DeleteRequestButton(request: request, target: $deleting) }
+            }
+        }
+        .confirmDeleteRequest($deleting) { dismiss() }
         .task { await load() }
         .task(id: request?.status == .matching) {
             // Matching runs on the server for a few seconds; follow it.

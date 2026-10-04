@@ -33,6 +33,9 @@ struct HomeShell: View {
     @State private var regions: RegionsStore
     @State private var notifications: NotificationsStore
     @State private var requests: RequestsStore
+    @State private var contactsSettled = false
+    @State private var proPrompt: ProInvite?
+    @Environment(AuthStore.self) private var auth
 
     init(services: AppServices) {
         _directory = State(initialValue: DirectoryStore(repo: services.directory))
@@ -84,9 +87,32 @@ struct HomeShell: View {
         .environment(requests)
         // Ask for contacts access once the shell is on screen, so the member
         // sees the app behind the explanation rather than a bare system dialog.
-        .contactsPermissionGate()
+        .contactsPermissionGate {
+            contactsSettled = true
+            inviteToBecomeProIfDue()
+        }
+        // After login: a member who is not a pro is invited to become one, a
+        // pro with an incomplete setup is told what is missing.
+        .sheet(item: $proPrompt) { kind in
+            ProOnboardingFlow(kind: kind).environment(requests)
+        }
         .task { await notifications.refreshUnreadCount() }
         .task { await regions.loadIfNeeded() }
-        .task { await requests.load() }
+        .task {
+            await requests.load()
+            inviteToBecomeProIfDue()
+        }
+    }
+
+    /// Both the pro profile and the contacts prompt must be settled first:
+    /// the profile to know which prompt applies, the contacts prompt because
+    /// iOS would drop a sheet raised on top of an alert.
+    private func inviteToBecomeProIfDue() {
+        guard contactsSettled, proPrompt == nil, let user = auth.user,
+              let space = requests.proSpace, let kind = ProInvite.kind(for: space),
+              kind.isDue(userId: user.id)
+        else { return }
+        kind.markShown(userId: user.id)
+        proPrompt = kind
     }
 }

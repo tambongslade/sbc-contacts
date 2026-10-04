@@ -13,6 +13,7 @@ struct ProSpaceView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let space = store.proSpace, let profile = space.profile {
+                    ProSetupBanner(missing: space.missingSetup)
                     SubscriptionCard(active: space.receivingActive, until: profile.receivingUntil)
                     if let stats { StatsBlock(stats: stats) }
                     ServicesBlock(services: space.services)
