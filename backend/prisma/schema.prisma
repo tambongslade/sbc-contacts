@@ -317,6 +317,7 @@ enum NotificationType {
   REQUEST_SELECTED // SBC Data: the requester chose you (Data §12)
   REQUEST_CLOSED // SBC Data: a request you answered is no longer open (Data §12)
   REQUEST_NO_RESPONSE // SBC Data: nobody answered the requester's demand in time
+  REQUEST_MESSAGE // SBC Data: a new message in a request conversation (Data §10)
 }
 
 /// In-app notification store (cahier §19). Push/SMS/email are dispatched via
@@ -594,6 +595,8 @@ model RequestDispatch {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  messages DispatchMessage[]
+
   @@unique([requestId, proId])
   @@index([proId, status])
   @@map("request_dispatches")
@@ -625,4 +628,24 @@ model SearchAnalytics {
   @@index([fulfilled, createdAt])
   @@index([term])
   @@map("search_analytics")
+}
+
+enum MessageAuthor {
+  PRO
+  REQUESTER
+}
+
+/// The conversation between a requester and one pro about a request: the
+/// pro's "Poser une question" and the replies (Data §10). Contact details stay
+/// out of it — those are exchanged on WhatsApp once the requester chooses.
+model DispatchMessage {
+  id         String          @id @default(uuid()) @db.Uuid
+  dispatchId String          @db.Uuid
+  dispatch   RequestDispatch @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  author     MessageAuthor
+  text       String
+  createdAt  DateTime        @default(now())
+
+  @@index([dispatchId, createdAt])
+  @@map("dispatch_messages")
 }

@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import {
   DispatchStatus,
+  MessageAuthor,
   NotificationType,
   Prisma,
   ProService as ProServiceRow,
@@ -29,6 +30,8 @@ import {
 } from '../dto/sbc-data.dto';
 import { MAX_RESPONSES, serviceDocument } from '../matching/request-matching.service';
 import {
+  CLOSED_REQUEST,
+  CONVERSATION_DISPATCH,
   InboxItemView,
   ProProfileView,
   isReceivingActive,
@@ -224,7 +227,7 @@ export class ProfessionalService {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.requestDispatch.findMany({
         where,
-        include: { request: true, service: true },
+        include: { request: true, service: true, messages: { orderBy: { createdAt: 'asc' } } },
         orderBy: { createdAt: 'desc' },
         skip: query.skip,
         take: query.limit,
@@ -301,8 +304,16 @@ export class ProfessionalService {
           respondedAt: new Date(),
           viewedAt: dispatch.viewedAt ?? new Date(),
         },
-        include: { request: true, service: true },
+        include: { request: true, service: true, messages: { orderBy: { createdAt: 'asc' } } },
       });
+      if (status === DispatchStatus.QUESTION) {
+        // The question opens the conversation the requester can answer (Data §10).
+        row.messages.push(
+          await tx.dispatchMessage.create({
+            data: { dispatchId: row.id, author: MessageAuthor.PRO, text: dto.message!.trim() },
+          }),
+        );
+      }
 
       let closed: Array<{ userId: string; respondedAt: Date | null }> = [];
       let didLock = false;
@@ -379,6 +390,35 @@ export class ProfessionalService {
     return toInboxItem(updated);
   }
 
+  /**
+   * A message from the pro in the request conversation, after a question or
+   * alongside a proposal. Closed once the pro bowed out or the request ended.
+   */
+  async sendMessage(userId: string, requestId: string, text: string): Promise<InboxItemView> {
+    const dispatch = await this.ownDispatch(userId, requestId);
+    if (
+      !CONVERSATION_DISPATCH.includes(dispatch.status) ||
+      CLOSED_REQUEST.includes(dispatch.request.status)
+    ) {
+      throw new ConflictException('Cette conversation est close');
+    }
+    await this.prisma.dispatchMessage.create({
+      data: { dispatchId: dispatch.id, author: MessageAuthor.PRO, text: text.trim() },
+    });
+    const pro = await this.prisma.proProfile.findUniqueOrThrow({
+      where: { id: dispatch.proId },
+      select: { profession: true, user: { select: { name: true } } },
+    });
+    await this.notifications.create({
+      userId: dispatch.request.userId,
+      type: NotificationType.REQUEST_MESSAGE,
+      title: `Message de ${pro.user.name?.trim() || pro.profession}`,
+      body: text.trim().slice(0, 140),
+      data: { requestId, dispatchId: dispatch.id },
+    });
+    return this.inboxItem(userId, requestId);
+  }
+
   async stats(userId: string): Promise<ProStats> {
     const pro = await this.requireProfile(userId);
     const [byStatus, completed, services] = await this.prisma.$transaction([
@@ -451,7 +491,7 @@ export class ProfessionalService {
     const pro = await this.requireProfile(userId);
     const dispatch = await this.prisma.requestDispatch.findUnique({
       where: { requestId_proId: { requestId, proId: pro.id } },
-      include: { request: true, service: true },
+      include: { request: true, service: true, messages: { orderBy: { createdAt: 'asc' } } },
     });
     if (!dispatch) throw new NotFoundException('Demande introuvable');
     if (dispatch.request.status === RequestStatus.CANCELLED) {

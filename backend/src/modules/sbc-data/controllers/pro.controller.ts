@@ -19,6 +19,7 @@ import {
   AddServicesDto,
   AssistantTurnDto,
   InboxQueryDto,
+  MessageDto,
   RespondDto,
   StructureServicesDto,
   UpdateServiceDto,
@@ -116,6 +117,16 @@ export class ProController {
     @Body() dto: RespondDto,
   ): Promise<InboxItemView> {
     return this.pros.respond(user.userId, requestId, dto);
+  }
+
+  @Post('inbox/:requestId/messages')
+  @ApiOperation({ summary: 'Write to the requester in the request conversation' })
+  sendMessage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('requestId', ParseUUIDPipe) requestId: string,
+    @Body() dto: MessageDto,
+  ): Promise<InboxItemView> {
+    return this.pros.sendMessage(user.userId, requestId, dto.text);
   }
 
   @Get('stats')

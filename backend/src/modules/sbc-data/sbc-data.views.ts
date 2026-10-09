@@ -1,4 +1,5 @@
 import {
+  DispatchMessage,
   DispatchStatus,
   ProProfile,
   ProService,
@@ -65,9 +66,42 @@ export interface ResponseView {
   delay: string | null;
   message: string | null;
   respondedAt: Date | null;
+  messages: MessageView[];
 }
 
 /** A pro's inbox row (Data §18). */
+/** Dispatch states in which the pro and the requester can still talk. */
+export const CONVERSATION_DISPATCH: DispatchStatus[] = [
+  DispatchStatus.QUESTION,
+  DispatchStatus.INTERESTED,
+  DispatchStatus.SELECTED,
+];
+
+/** Request states that are over: no more talking, can be relaunched. */
+export const CLOSED_REQUEST: RequestStatus[] = [
+  RequestStatus.COMPLETED,
+  RequestStatus.CANCELLED,
+  RequestStatus.NO_MATCH,
+  RequestStatus.NO_RESPONSE,
+];
+
+/** One line of a request conversation (Data §10). */
+export interface MessageView {
+  id: string;
+  author: 'PRO' | 'REQUESTER';
+  text: string;
+  createdAt: Date;
+}
+
+export function toMessages(rows: DispatchMessage[] | undefined): MessageView[] {
+  return (rows ?? []).map((m) => ({
+    id: m.id,
+    author: m.author,
+    text: m.text,
+    createdAt: m.createdAt,
+  }));
+}
+
 export interface InboxItemView {
   dispatchId: string;
   status: DispatchStatus;
@@ -80,6 +114,7 @@ export interface InboxItemView {
   viewedAt: Date | null;
   respondedAt: Date | null;
   createdAt: Date;
+  messages: MessageView[];
 }
 
 export function toPublicView(r: ServiceRequest): RequestPublicView {
@@ -102,7 +137,11 @@ export function toPublicView(r: ServiceRequest): RequestPublicView {
 }
 
 export function toInboxItem(
-  d: RequestDispatch & { request: ServiceRequest; service: ProService | null },
+  d: RequestDispatch & {
+    request: ServiceRequest;
+    service: ProService | null;
+    messages?: DispatchMessage[];
+  },
 ): InboxItemView {
   return {
     dispatchId: d.id,
@@ -116,6 +155,7 @@ export function toInboxItem(
     viewedAt: d.viewedAt,
     respondedAt: d.respondedAt,
     createdAt: d.createdAt,
+    messages: toMessages(d.messages),
   };
 }
 

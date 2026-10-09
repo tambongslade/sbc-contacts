@@ -68,6 +68,59 @@ struct RequestsRepository: Sendable {
         try await api.delete("/data/requests/\(id)")
     }
 
+    private struct RequesterMessageBody: Encodable, Sendable { let dispatchId: String; let text: String }
+    private struct MessageBody: Encodable, Sendable { let text: String }
+
+    /// Answer a pro's question, or write to a pro who answered.
+    func sendMessage(requestId: String, dispatchId: String, text: String) async throws -> ServiceRequestItem {
+        try await api.post("/data/requests/\(requestId)/messages", body: RequesterMessageBody(dispatchId: dispatchId, text: text))
+    }
+
+    /// "Relancer cette demande": a new draft with the same need.
+    func reopen(_ id: String) async throws -> ServiceRequestItem {
+        try await api.post("/data/requests/\(id)/reopen")
+    }
+
+    /// The pro writes to the requester in the request conversation.
+    func proSendMessage(requestId: String, text: String) async throws -> InboxItem {
+        try await api.post("/data/pro/inbox/\(requestId)/messages", body: MessageBody(text: text))
+    }
+
+    struct ServiceUpdate: Encodable, Sendable {
+        var name: String
+        var description: String?
+        var specialties: [String]
+        var priceMin: Int?
+        var priceMax: Int?
+        var modes: [ServiceMode]
+        var zones: [String]
+        var delay: String?
+        var isActive: Bool
+
+        private enum CodingKeys: String, CodingKey {
+            case name, description, specialties, priceMin, priceMax, modes, zones, delay, isActive
+        }
+
+        /// Cleared fields go out as null so the server clears them too; a
+        /// missing key would mean "leave as it was".
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(name, forKey: .name)
+            try c.encode(description, forKey: .description)
+            try c.encode(specialties, forKey: .specialties)
+            try c.encode(priceMin, forKey: .priceMin)
+            try c.encode(priceMax, forKey: .priceMax)
+            try c.encode(modes, forKey: .modes)
+            try c.encode(zones, forKey: .zones)
+            try c.encode(delay, forKey: .delay)
+            try c.encode(isActive, forKey: .isActive)
+        }
+    }
+
+    func updateService(_ id: String, _ body: ServiceUpdate) async throws -> ProSpace {
+        try await api.patch("/data/pro/services/\(id)", body: body)
+    }
+
     func cancel(_ id: String) async throws -> ServiceRequestItem {
         try await api.post("/data/requests/\(id)/cancel")
     }

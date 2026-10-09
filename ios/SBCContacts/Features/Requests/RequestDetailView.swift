@@ -16,6 +16,8 @@ struct RequestDetailView: View {
     @State private var confirmCancel = false
     @State private var choosing: RequestResponse?
     @State private var deleting: ServiceRequestItem?
+    @State private var writingTo: RequestResponse?
+    @State private var relaunched: ServiceRequestItem?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -92,8 +94,10 @@ struct RequestDetailView: View {
                         ResponseCard(
                             response: response,
                             request: request,
-                            canChoose: (request.status == .responded || request.status == .sent) && !busy
-                        ) { choosing = response }
+                            canChoose: request.status.isChoosing && !busy,
+                            onChoose: { choosing = response },
+                            onWrite: { writingTo = response }
+                        )
                     }
                 }
 
@@ -109,12 +113,33 @@ struct RequestDetailView: View {
                     Button("Prestation terminée ?") { completing = true }
                         .buttonStyle(.large)
                 }
-            } else if [.sent, .responded, .matching].contains(request.status) {
+            } else if request.status.isClosed {
+                // Data §19: a finished request can be sent again as a new one.
+                BottomActionBar {
+                    Button {
+                        Task { await relaunch() }
+                    } label: {
+                        Label("Relancer cette demande", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(OutlinedButtonStyle(minHeight: 48))
+                    .disabled(busy)
+                }
+            } else if [.sent, .responded, .locked, .matching].contains(request.status) {
                 Button("Annuler la demande", role: .destructive) { confirmCancel = true }
                     .font(.sbc(.labelLarge, weight: .semibold))
                     .padding(.bottom, 8)
             }
         }
+        .sheet(item: $writingTo) { response in
+            MessageComposer(
+                title: response.status == .question ? "Répondre" : "Écrire à \(response.displayName)",
+                placeholder: "Ton message",
+                hint: "Reste dans l'application pour les détails ; tes coordonnées ne sont pas partagées."
+            ) { text in
+                await write(text, to: response)
+            }
+        }
+        .navigationDestination(item: $relaunched) { RequestReviewView(request: $0) }
         .sheet(isPresented: $completing) {
             CompleteRequestSheet(request: request) { updated in
                 self.request = updated
@@ -159,6 +184,32 @@ struct RequestDetailView: View {
         }
     }
 
+    private func write(_ text: String, to response: RequestResponse) async -> Bool {
+        guard let request else { return false }
+        do {
+            let updated = try await services.requests.sendMessage(requestId: request.id, dispatchId: response.id, text: text)
+            self.request = updated
+            store.upsert(updated)
+            return true
+        } catch {
+            toasts.show(error.localizedDescription)
+            return false
+        }
+    }
+
+    private func relaunch() async {
+        guard let request else { return }
+        busy = true
+        defer { busy = false }
+        do {
+            let draft = try await services.requests.reopen(request.id)
+            store.upsert(draft)
+            relaunched = draft
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
     private func cancel() async {
         guard let request else { return }
         do {
@@ -181,7 +232,7 @@ private struct StatusTimeline: View {
         switch status {
         case .draft, .matching: 0
         case .sent, .noMatch, .noResponse, .cancelled, .unknown: 1
-        case .responded: 2
+        case .responded, .locked: 2
         case .selected: 3
         case .completed: 4
         }
@@ -237,6 +288,9 @@ private struct ResponseCard: View {
     let request: ServiceRequestItem
     let canChoose: Bool
     let onChoose: () -> Void
+    let onWrite: () -> Void
+
+    private var canWrite: Bool { response.status.canTalk && !request.status.isClosed }
 
     @Environment(\.openURL) private var openURL
 
@@ -280,10 +334,26 @@ private struct ResponseCard: View {
                     }
                 }
 
-                if let message = response.message, !message.isEmpty {
-                    Text("« \(message) »")
-                        .font(.sbc(.bodyMedium))
-                        .foregroundStyle(SBCColors.onSurface)
+                if !response.messages.isEmpty {
+                    ConversationThread(messages: response.messages, me: .requester, otherName: response.displayName)
+                    if canWrite {
+                        Button {
+                            onWrite()
+                        } label: {
+                            Label(response.messages.last?.author == .pro ? "Répondre" : "Écrire", systemImage: "arrowshape.turn.up.left")
+                        }
+                        .buttonStyle(OutlinedButtonStyle(minHeight: 42))
+                    }
+                } else {
+                    if let message = response.message, !message.isEmpty {
+                        Text("« \(message) »")
+                            .font(.sbc(.bodyMedium))
+                            .foregroundStyle(SBCColors.onSurface)
+                    }
+                    if canWrite {
+                        Button("Poser une question à \(response.displayName)", action: onWrite)
+                            .buttonStyle(.text)
+                    }
                 }
 
                 HStack(spacing: 8) {

@@ -16,6 +16,7 @@ import { PaginatedResult } from '../../../common/dto/pagination.dto';
 import {
   CompleteRequestDto,
   CreateRequestDto,
+  RequesterMessageDto,
   RequestsQueryDto,
   SelectProDto,
   UpdateRequestDto,
@@ -105,6 +106,25 @@ export class RequestsController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     return this.requests.remove(user.userId, id);
+  }
+
+  @Post(':id/messages')
+  @ApiOperation({ summary: "Answer a pro's question, or write to a pro who answered" })
+  sendMessage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RequesterMessageDto,
+  ): Promise<RequestView> {
+    return this.requests.sendMessage(user.userId, id, dto.dispatchId, dto.text);
+  }
+
+  @Post(':id/reopen')
+  @ApiOperation({ summary: '"Relancer cette demande": a new draft with the same need' })
+  reopen(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<RequestView> {
+    return this.requests.reopen(user.userId, id);
   }
 
   @Post(':id/cancel')

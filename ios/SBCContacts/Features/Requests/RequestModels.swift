@@ -34,6 +34,7 @@ enum RequestStatus: String, Sendable {
     case matching = "MATCHING"
     case sent = "SENT"
     case responded = "RESPONDED"
+    case locked = "LOCKED"
     case selected = "SELECTED"
     case completed = "COMPLETED"
     case cancelled = "CANCELLED"
@@ -47,6 +48,7 @@ enum RequestStatus: String, Sendable {
         case .matching: "Recherche en cours"
         case .sent: "Envoyée"
         case .responded: "Réponses reçues"
+        case .locked: "Réponses complètes"
         case .selected: "Professionnel retenu"
         case .completed: "Terminée"
         case .cancelled: "Annulée"
@@ -56,10 +58,16 @@ enum RequestStatus: String, Sendable {
         }
     }
 
+    /// Pros' answers are in and the member is choosing among them.
+    var isChoosing: Bool { self == .sent || self == .responded || self == .locked }
+
+    /// Over: no more messages, and "Relancer cette demande" is offered.
+    var isClosed: Bool { self == .completed || self == .cancelled || self == .noMatch || self == .noResponse }
+
     /// Still going: shown under "En cours" rather than "Terminées".
     var isOpen: Bool {
         switch self {
-        case .draft, .matching, .sent, .responded, .selected: true
+        case .draft, .matching, .sent, .responded, .locked, .selected: true
         default: false
         }
     }
@@ -93,6 +101,30 @@ enum DispatchStatus: String, Sendable {
 
     /// The pro can still answer.
     var isOpen: Bool { self == .sent || self == .viewed || self == .question }
+}
+
+/// One line of the conversation between a requester and a pro (Data §10).
+struct ConversationMessage: Identifiable, Sendable, Equatable, Decodable {
+    enum Author: String, Sendable { case pro = "PRO", requester = "REQUESTER" }
+    var id: String
+    var author: Author
+    var text: String
+    var createdAt: Date
+
+    private enum CodingKeys: String, CodingKey { case id, author, text, createdAt }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.string(.id) ?? UUID().uuidString
+        author = Author(rawValue: c.string(.author) ?? "") ?? .pro
+        text = c.string(.text) ?? ""
+        createdAt = c.date(.createdAt) ?? .now
+    }
+}
+
+/// The dispatch states in which the pro and the requester can still talk.
+extension DispatchStatus {
+    var canTalk: Bool { self == .question || self == .interested || self == .selected }
 }
 
 /// A request as its author sees it, with the pros' answers (backend `RequestView`).
@@ -168,6 +200,7 @@ struct RequestResponse: Identifiable, Sendable, Equatable {
     var availability: String?
     var delay: String?
     var message: String?
+    var messages: [ConversationMessage] = []
 
     var displayName: String { name?.isEmpty == false ? name! : profession }
 }
@@ -184,8 +217,13 @@ struct InboxItem: Identifiable, Sendable, Hashable {
     var delay: String?
     var message: String?
     var createdAt: Date
+    var viewedAt: Date?
+    var respondedAt: Date?
+    var messages: [ConversationMessage] = []
 
-    static func == (a: Self, b: Self) -> Bool { a.id == b.id && a.status == b.status }
+    static func == (a: Self, b: Self) -> Bool {
+        a.id == b.id && a.status == b.status && a.messages.count == b.messages.count && a.request.status == b.request.status
+    }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
@@ -215,6 +253,10 @@ struct ProServiceItem: Identifiable, Sendable, Equatable {
     var priceMin: Int?
     var priceMax: Int?
     var isActive: Bool
+    var description: String?
+    var modes: [ServiceMode] = []
+    var zones: [String] = []
+    var delay: String?
 }
 
 /// Profile + services + whether requests are coming in (backend `ProProfileView`).
@@ -344,7 +386,7 @@ extension ServiceRequestItem: Decodable {
 
 extension RequestResponse: Decodable {
     private enum CodingKeys: String, CodingKey {
-        case dispatchId, status, pro, serviceName, price, availability, delay, message
+        case dispatchId, status, pro, serviceName, price, availability, delay, message, messages
     }
 
     private enum ProKeys: String, CodingKey {
@@ -371,12 +413,14 @@ extension RequestResponse: Decodable {
         availability = c.string(.availability)
         delay = c.string(.delay)
         message = c.string(.message)
+        messages = ((try? c.decodeIfPresent([Lossy<ConversationMessage>].self, forKey: .messages)) ?? []).compactMap(\.value)
     }
 }
 
 extension InboxItem: Decodable {
     private enum CodingKeys: String, CodingKey {
-        case dispatchId, status, matchedService, request, price, availability, delay, message, createdAt
+        case dispatchId, status, matchedService, request, price, availability, delay, message, createdAt,
+             viewedAt, respondedAt, messages
     }
 
     init(from decoder: Decoder) throws {
@@ -390,6 +434,9 @@ extension InboxItem: Decodable {
         delay = c.string(.delay)
         message = c.string(.message)
         createdAt = c.date(.createdAt) ?? .now
+        viewedAt = c.date(.viewedAt)
+        respondedAt = c.date(.respondedAt)
+        messages = ((try? c.decodeIfPresent([Lossy<ConversationMessage>].self, forKey: .messages)) ?? []).compactMap(\.value)
     }
 }
 
@@ -429,7 +476,8 @@ extension ProSpace: Decodable {
 
 extension ProServiceItem: Decodable {
     private enum CodingKeys: String, CodingKey {
-        case id, name, category, profession, synonyms, specialties, priceMin, priceMax, isActive
+        case id, name, category, profession, synonyms, specialties, priceMin, priceMax, isActive,
+             description, modes, zones, delay
     }
 
     init(from decoder: Decoder) throws {
@@ -443,6 +491,10 @@ extension ProServiceItem: Decodable {
         priceMin = c.int(.priceMin)
         priceMax = c.int(.priceMax)
         isActive = c.bool(.isActive) ?? true
+        description = c.string(.description)
+        modes = c.strings(.modes).compactMap(ServiceMode.init(rawValue:))
+        zones = c.strings(.zones)
+        delay = c.string(.delay)
     }
 }
 

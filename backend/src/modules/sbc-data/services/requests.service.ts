@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import {
   DispatchStatus,
+  MessageAuthor,
   NotificationType,
   Prisma,
   RequestStatus,
@@ -34,7 +35,14 @@ import {
   MatchCandidate,
   RequestMatchingService,
 } from '../matching/request-matching.service';
-import { RequestView, ResponseView, toPublicView } from '../sbc-data.views';
+import {
+  CLOSED_REQUEST,
+  CONVERSATION_DISPATCH,
+  RequestView,
+  ResponseView,
+  toMessages,
+  toPublicView,
+} from '../sbc-data.views';
 
 /** Answers the requester sees and can choose from (Data §11). */
 const VISIBLE_ANSWERS: DispatchStatus[] = [
@@ -331,6 +339,68 @@ export class RequestsService {
     return this.view(updated);
   }
 
+  /** The requester answers a pro's question, or writes to a pro who answered (Data §10). */
+  async sendMessage(
+    userId: string,
+    id: string,
+    dispatchId: string,
+    text: string,
+  ): Promise<RequestView> {
+    const request = await this.own(userId, id);
+    const dispatch = await this.prisma.requestDispatch.findUnique({
+      where: { id: dispatchId },
+      include: { pro: { select: { userId: true } } },
+    });
+    if (!dispatch || dispatch.requestId !== id) throw new NotFoundException('Réponse introuvable');
+    if (
+      !CONVERSATION_DISPATCH.includes(dispatch.status) ||
+      CLOSED_REQUEST.includes(request.status)
+    ) {
+      throw new ConflictException('Cette conversation est close');
+    }
+    await this.prisma.dispatchMessage.create({
+      data: { dispatchId, author: MessageAuthor.REQUESTER, text: text.trim() },
+    });
+    await this.notifications.create({
+      userId: dispatch.pro.userId,
+      type: NotificationType.REQUEST_MESSAGE,
+      title: `Réponse du client : ${request.service ?? 'demande'}`,
+      body: text.trim().slice(0, 140),
+      data: { requestId: id },
+    });
+    return this.view(request);
+  }
+
+  /**
+   * "Relancer cette demande" (Data §19): a new draft with the same need, to
+   * check and send again. The finished one stays in the history untouched.
+   * The date is dropped — "samedi" from last month means nothing now.
+   */
+  async reopen(userId: string, id: string): Promise<RequestView> {
+    const old = await this.own(userId, id);
+    if (!CLOSED_REQUEST.includes(old.status)) {
+      throw new ConflictException('Cette demande est encore en cours');
+    }
+    const draft = await this.prisma.serviceRequest.create({
+      data: {
+        userId,
+        rawText: old.rawText,
+        profession: old.profession,
+        service: old.service,
+        specialties: old.specialties,
+        city: old.city,
+        district: old.district,
+        mode: old.mode,
+        budget: old.budget,
+        constraints: old.constraints,
+        clarificationQuestion: old.clarificationQuestion,
+        clarificationOptions: old.clarificationOptions,
+        clarificationAnswer: old.clarificationAnswer,
+      },
+    });
+    return this.view(draft);
+  }
+
   async cancel(userId: string, id: string): Promise<RequestView> {
     const request = await this.own(userId, id);
     const closed: RequestStatus[] = [RequestStatus.COMPLETED, RequestStatus.CANCELLED];
@@ -438,6 +508,7 @@ export class RequestsService {
       where: { requestId: request.id },
       include: {
         service: { select: { name: true } },
+        messages: { orderBy: { createdAt: 'asc' } },
         pro: {
           include: {
             user: { select: { sbcUserId: true, name: true, avatarUrl: true, phoneNumber: true } },
@@ -474,6 +545,7 @@ export class RequestsService {
         delay: d.delay,
         message: d.message,
         respondedAt: d.respondedAt,
+        messages: toMessages(d.messages),
       };
     });
 
