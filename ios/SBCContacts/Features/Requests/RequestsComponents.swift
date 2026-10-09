@@ -86,7 +86,7 @@ struct PrivacyNote: View {
 /// Tone for a request's status tag.
 func tone(for status: RequestStatus) -> Color {
     switch status {
-    case .responded, .selected: SBCColors.primary
+    case .responded, .locked, .selected: SBCColors.primary
     case .completed: SBCColors.success
     case .sent, .matching, .draft: SBCColors.accentDark
     case .cancelled, .noMatch, .noResponse, .unknown: SBCColors.onSurfaceVariant

@@ -85,3 +85,105 @@ describe('RequestsService.remove', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
+
+/**
+ * The conversation and "Relancer": the first must close when the request is
+ * over (nobody should message a pro about a finished job), the second must
+ * never touch the finished request a pro keeps in their history.
+ */
+describe('RequestsService conversation and relaunch', () => {
+  function build(
+    request: Record<string, unknown>,
+    dispatch: Record<string, unknown> | null = null,
+  ) {
+    const prisma = {
+      serviceRequest: {
+        findUnique: jest.fn().mockResolvedValue(request),
+        create: jest.fn(({ data }: { data: Record<string, unknown> }) =>
+          Promise.resolve({ id: 'new', ...data }),
+        ),
+      },
+      requestDispatch: {
+        findUnique: jest.fn().mockResolvedValue(dispatch),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      dispatchMessage: { create: jest.fn().mockResolvedValue({}) },
+      memberScore: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const notifications = { create: jest.fn().mockResolvedValue({}) };
+    const service = new RequestsService(
+      prisma as never,
+      {} as never,
+      {} as never,
+      notifications as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    return { service, prisma, notifications };
+  }
+
+  const request = (status: RequestStatus, over: Record<string, unknown> = {}) => ({
+    id: 'r1',
+    userId: 'u1',
+    status,
+    hiddenAt: null,
+    rawText: 'Réparer mes locks samedi à Yaoundé',
+    service: 'Réparation de locks',
+    specialties: [],
+    constraints: [],
+    clarificationOptions: [],
+    desiredDate: 'samedi',
+    desiredTime: '14h',
+    city: 'Yaoundé',
+    ...over,
+  });
+  const dispatch = (status: DispatchStatus) => ({
+    id: 'd1',
+    requestId: 'r1',
+    status,
+    pro: { userId: 'pro' },
+  });
+
+  it('lets the requester answer a pro who asked a question, and tells the pro', async () => {
+    const { service, prisma, notifications } = build(
+      request(RequestStatus.SENT),
+      dispatch(DispatchStatus.QUESTION),
+    );
+    await service.sendMessage('u1', 'r1', 'd1', ' Oui, 30 cm ');
+    expect(prisma.dispatchMessage.create).toHaveBeenCalledWith({
+      data: { dispatchId: 'd1', author: 'REQUESTER', text: 'Oui, 30 cm' },
+    });
+    expect(notifications.create).toHaveBeenCalledWith(expect.objectContaining({ userId: 'pro' }));
+  });
+
+  it('refuses messages once the request is over', async () => {
+    const { service } = build(request(RequestStatus.COMPLETED), dispatch(DispatchStatus.SELECTED));
+    await expect(service.sendMessage('u1', 'r1', 'd1', 'Merci')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
+  it('refuses messages to a pro who bowed out', async () => {
+    const { service } = build(request(RequestStatus.SENT), dispatch(DispatchStatus.DECLINED));
+    await expect(service.sendMessage('u1', 'r1', 'd1', 'Pourquoi ?')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
+  it('relaunches a finished request as a new draft, without the old date', async () => {
+    const { service, prisma } = build(request(RequestStatus.COMPLETED));
+    await service.reopen('u1', 'r1');
+    const data = prisma.serviceRequest.create.mock.calls[0][0].data;
+    expect(data).toEqual(
+      expect.objectContaining({ rawText: 'Réparer mes locks samedi à Yaoundé', city: 'Yaoundé' }),
+    );
+    expect(data).not.toHaveProperty('desiredDate');
+    expect(data).not.toHaveProperty('status');
+  });
+
+  it('does not relaunch a request that is still running', async () => {
+    const { service } = build(request(RequestStatus.RESPONDED));
+    await expect(service.reopen('u1', 'r1')).rejects.toBeInstanceOf(ConflictException);
+  });
+});

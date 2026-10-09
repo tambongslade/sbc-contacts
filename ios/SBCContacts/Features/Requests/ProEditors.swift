@@ -262,3 +262,122 @@ struct AddServicesView: View {
         }
     }
 }
+
+/// The details of one service (Data §4): what is done exactly, specialties,
+/// price, how and where — each falling back to the profile when left empty.
+struct ServiceEditView: View {
+    let service: ProServiceItem
+
+    @Environment(\.services) private var services
+    @Environment(RequestsStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var name = ""
+    @State private var description = ""
+    @State private var specialties = ""
+    @State private var priceMin = ""
+    @State private var priceMax = ""
+    @State private var modes: Set<ServiceMode> = []
+    @State private var zones = ""
+    @State private var delay = ""
+    @State private var isActive = true
+    @State private var saving = false
+    @State private var error: String?
+
+    private static let delays = ["", "Immédiat", "Sous 24 h", "Quelques jours", "Sur devis"]
+
+    var body: some View {
+        Form {
+            Section("Service") {
+                TextField("Nom du service", text: $name)
+                TextField("Ce qui est réalisé exactement (facultatif)", text: $description, axis: .vertical)
+                    .lineLimit(2...5)
+                TextField("Spécialités, séparées par des virgules", text: $specialties)
+            }
+            Section {
+                TextField("À partir de (FCFA)", text: $priceMin).keyboardType(.numberPad)
+                TextField("Jusqu'à (FCFA)", text: $priceMax).keyboardType(.numberPad)
+            } header: {
+                Text("Prix")
+            } footer: {
+                Text("Vide = sur devis.")
+            }
+            Section {
+                ForEach(ServiceMode.allCases) { mode in
+                    Toggle(isOn: Binding(
+                        get: { modes.contains(mode) },
+                        set: { if $0 { modes.insert(mode) } else { modes.remove(mode) } }
+                    )) {
+                        Label(mode.label, systemImage: mode.systemImage)
+                    }
+                }
+                TextField("Zones, si différentes du profil", text: $zones)
+            } header: {
+                Text("Comment et où")
+            } footer: {
+                Text("Rien de coché et pas de zone = ceux de ton profil.")
+            }
+            Section("Délai") {
+                Picker("Délai", selection: $delay) {
+                    ForEach(Self.delays, id: \.self) { Text($0.isEmpty ? "Non précisé" : $0).tag($0) }
+                }
+            }
+            Section {
+                Toggle("Service actif", isOn: $isActive)
+            } footer: {
+                Text("En pause, ce service ne reçoit plus de demandes.")
+            }
+            if let error {
+                Text(error).foregroundStyle(SBCColors.error)
+            }
+        }
+        .font(.sbc(.bodyLarge))
+        .navigationTitle("Modifier le service")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Enregistrer") { Task { await save() } }
+                    .disabled(name.trimmingCharacters(in: .whitespaces).count < 2 || saving)
+            }
+        }
+        .onAppear {
+            name = service.name
+            description = service.description ?? ""
+            specialties = service.specialties.joined(separator: ", ")
+            priceMin = service.priceMin.map(String.init) ?? ""
+            priceMax = service.priceMax.map(String.init) ?? ""
+            modes = Set(service.modes)
+            zones = service.zones.joined(separator: ", ")
+            delay = Self.delays.contains(service.delay ?? "") ? (service.delay ?? "") : ""
+            isActive = service.isActive
+        }
+    }
+
+    private func save() async {
+        let min = Int(priceMin.filter(\.isNumber))
+        let max = Int(priceMax.filter(\.isNumber))
+        if let min, let max, min > max {
+            error = "Le prix minimum dépasse le maximum."
+            return
+        }
+        saving = true
+        defer { saving = false }
+        do {
+            let space = try await services.requests.updateService(service.id, .init(
+                name: name.trimmingCharacters(in: .whitespaces),
+                description: description.nilIfBlank,
+                specialties: specialties.split(separator: ",").compactMap { String($0).nilIfBlank },
+                priceMin: min,
+                priceMax: max,
+                modes: ServiceMode.allCases.filter(modes.contains),
+                zones: zones.split(separator: ",").compactMap { String($0).nilIfBlank },
+                delay: delay.nilIfBlank,
+                isActive: isActive
+            ))
+            store.setProSpace(space)
+            dismiss()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+}

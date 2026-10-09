@@ -11,6 +11,7 @@ struct InboxDetailView: View {
     @State var item: InboxItem
     @State private var proposing = false
     @State private var asking = false
+    @State private var writing = false
     @State private var busy = false
     @State private var error: String?
 
@@ -54,6 +55,27 @@ struct InboxDetailView: View {
 
                 PrivacyNote(text: "Les coordonnées du client s'affichent quand il choisit de te contacter.")
 
+                if !item.messages.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        RequestSectionLabel(text: "Conversation")
+                        RequestPanel(padding: 14) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                ConversationThread(messages: item.messages, me: .pro, otherName: "Le client")
+                                if item.status.canTalk && !request.status.isClosed {
+                                    Button {
+                                        writing = true
+                                    } label: {
+                                        Label("Écrire au client", systemImage: "arrowshape.turn.up.left")
+                                    }
+                                    .buttonStyle(OutlinedButtonStyle(minHeight: 42))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                ProTimeline(item: item)
+
                 if !item.status.isOpen {
                     AnswerSummary(item: item)
                 }
@@ -87,6 +109,18 @@ struct InboxDetailView: View {
         .sheet(isPresented: $proposing) {
             ProposalSheet(budget: request.budget) { body in
                 await respond(body)
+            }
+        }
+        .sheet(isPresented: $writing) {
+            MessageComposer(title: "Écrire au client", placeholder: "Ton message") { text in
+                do {
+                    item = try await services.requests.proSendMessage(requestId: request.id, text: text)
+                    store.upsert(item)
+                    return true
+                } catch {
+                    self.error = error.localizedDescription
+                    return false
+                }
             }
         }
         .sheet(isPresented: $asking) {
@@ -242,5 +276,83 @@ private struct QuestionSheet: View {
             }
         }
         .presentationDetents([.medium])
+    }
+}
+
+/// What happened to this request, from the pro's side (Data §18): received,
+/// seen, answered, and how it ended.
+private struct ProTimeline: View {
+    let item: InboxItem
+
+    private struct Step: Identifiable {
+        let id: String
+        let label: String
+        let date: Date?
+        let done: Bool
+        var tone: Color = SBCColors.primary
+    }
+
+    private var outcome: Step {
+        switch item.status {
+        case .selected where item.request.status == .completed:
+            Step(id: "end", label: "Prestation terminée", date: nil, done: true, tone: SBCColors.success)
+        case .selected:
+            Step(id: "end", label: "Tu as été retenu", date: nil, done: true, tone: SBCColors.success)
+        case .lost:
+            Step(id: "end", label: item.request.status == .cancelled ? "Demande annulée" : "Un autre professionnel a été retenu",
+                 date: nil, done: true, tone: SBCColors.onSurfaceVariant)
+        case .unavailable, .declined:
+            Step(id: "end", label: "Tu as décliné", date: nil, done: true, tone: SBCColors.onSurfaceVariant)
+        default:
+            Step(id: "end", label: "En attente du choix du client", date: nil, done: false)
+        }
+    }
+
+    private var steps: [Step] {
+        [
+            Step(id: "in", label: "Demande reçue", date: item.createdAt, done: true),
+            Step(id: "seen", label: "Vue", date: item.viewedAt, done: item.viewedAt != nil),
+            Step(id: "answer", label: item.status == .question ? "Question posée" : "Ta réponse", date: item.respondedAt, done: item.respondedAt != nil),
+            outcome,
+        ]
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            RequestSectionLabel(text: "Suivi")
+            RequestPanel(padding: 14) {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
+                        HStack(alignment: .top, spacing: 12) {
+                            VStack(spacing: 0) {
+                                Circle()
+                                    .fill(step.done ? step.tone : SBCColors.surface)
+                                    .overlay(Circle().stroke(step.done ? step.tone : SBCColors.outlineVariant, lineWidth: 2))
+                                    .frame(width: 12, height: 12)
+                                    .padding(.top, 3)
+                                if index < steps.count - 1 {
+                                    Rectangle()
+                                        .fill(steps[index + 1].done ? SBCColors.primary.opacity(0.4) : SBCColors.outlineVariant)
+                                        .frame(width: 2)
+                                        .frame(minHeight: 22)
+                                }
+                            }
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(step.label)
+                                    .font(.sbc(.bodyMedium, weight: step.done ? .bold : .medium))
+                                    .foregroundStyle(step.done ? SBCColors.onSurface : SBCColors.onSurfaceVariant)
+                                if let date = step.date {
+                                    Text(date.formatted(.dateTime.day().month(.abbreviated).hour().minute()))
+                                        .font(.sbc(.labelSmall))
+                                        .foregroundStyle(SBCColors.onSurfaceVariant)
+                                }
+                            }
+                            .padding(.bottom, 10)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            }
+        }
     }
 }

@@ -195,13 +195,25 @@ private struct ServicesBlock: View {
                 VStack(spacing: 0) {
                     ForEach(services) { service in
                         HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(service.name).font(.sbc(.bodyMedium, weight: .bold))
-                                Text([service.category, service.profession].filter { !$0.isEmpty }.joined(separator: " · "))
-                                    .font(.sbc(.bodySmall))
-                                    .foregroundStyle(SBCColors.onSurfaceVariant)
+                            NavigationLink(value: AppRoute.proServiceEdit(service)) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        HStack(spacing: 6) {
+                                            Text(service.name).font(.sbc(.bodyMedium, weight: .bold))
+                                            if !service.isActive { StatusTag(text: "En pause", tone: SBCColors.onSurfaceVariant) }
+                                        }
+                                        Text(serviceSummary(service))
+                                            .font(.sbc(.bodySmall))
+                                            .foregroundStyle(SBCColors.onSurfaceVariant)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(SBCColors.onSurfaceVariant)
+                                }
+                                .contentShape(Rectangle())
                             }
-                            Spacer()
+                            .buttonStyle(.plain)
                             Button(role: .destructive) {
                                 Task {
                                     if let space = try? await api.requests.deleteService(service.id) {
@@ -264,4 +276,12 @@ private struct ProfileBlock: View {
             }
         }
     }
+}
+
+/// "Coiffure · dès 5 000 FCFA · À domicile" — what a service row says at a glance.
+private func serviceSummary(_ s: ProServiceItem) -> String {
+    var parts = [s.category].filter { !$0.isEmpty }
+    if let min = s.priceMin { parts.append("dès \(fcfa(min))") }
+    if !s.modes.isEmpty { parts.append(s.modes.map(\.label).joined(separator: ", ")) }
+    return parts.joined(separator: " · ")
 }

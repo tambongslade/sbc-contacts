@@ -254,6 +254,20 @@ export class RequestsQueryDto extends PaginationQueryDto {
   status?: RequestStatus;
 }
 
+export class MessageDto {
+  @ApiProperty({ example: 'Oui, les locks font environ 30 cm.' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(1000)
+  text!: string;
+}
+
+export class RequesterMessageDto extends MessageDto {
+  @ApiProperty({ description: 'The pro (dispatch) this message is for' })
+  @IsUUID()
+  dispatchId!: string;
+}
+
 export class SelectProDto {
   @ApiProperty({ description: 'The dispatch (response) being chosen' })
   @IsUUID()

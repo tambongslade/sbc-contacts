@@ -17,6 +17,11 @@ enum AppRoute: Hashable {
     case proSpace
     case proProfileForm
     case proAddServices
+    case proServiceEdit(ProServiceItem)
+}
+
+extension ProServiceItem: Hashable {
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
 extension SyncCriteria: Hashable {
@@ -58,6 +63,8 @@ extension View {
                 ProProfileFormView()
             case .proAddServices:
                 AddServicesView()
+            case let .proServiceEdit(service):
+                ServiceEditView(service: service)
             }
         }
     }
