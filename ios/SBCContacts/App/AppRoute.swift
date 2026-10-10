@@ -18,6 +18,7 @@ enum AppRoute: Hashable {
     case proProfileForm
     case proAddServices
     case proServiceEdit(ProServiceItem)
+    case statusBoost
 }
 
 extension ProServiceItem: Hashable {
@@ -65,6 +66,8 @@ extension View {
                 AddServicesView()
             case let .proServiceEdit(service):
                 ServiceEditView(service: service)
+            case .statusBoost:
+                StatusBoostView()
             }
         }
     }
