@@ -15,6 +15,13 @@ class AppConfig {
     defaultValue: 'https://contacts.sniperbusinesscenterlive.com/api/v1',
   );
 
+  /// Debug builds only: a session to start with, so a screen can be checked in
+  /// a simulator against a local backend without going through SBC sign-in.
+  static const String devAccessToken = String.fromEnvironment('DEV_ACCESS_TOKEN');
+
+  /// Debug builds only: the screen to open once signed in, e.g. /sync/status-boost.
+  static const String devRoute = String.fromEnvironment('DEV_ROUTE');
+
   /// SBC "Log in with SBC" authorize URL + client params (frontend side).
   static const String ssoAuthorizeUrl = String.fromEnvironment(
     'SBC_SSO_AUTHORIZE_URL',

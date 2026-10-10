@@ -1,14 +1,25 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sbc_contacts/core/config/app_config.dart';
 import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
 import 'package:sbc_contacts/features/auth/presentation/login_screen.dart';
 import 'package:sbc_contacts/features/directory/presentation/profile_screen.dart';
+import 'package:sbc_contacts/features/favorites/presentation/favorites_screen.dart';
 import 'package:sbc_contacts/features/home/home_shell.dart';
+import 'package:sbc_contacts/features/requests/domain/request_models.dart';
+import 'package:sbc_contacts/features/requests/presentation/inbox_detail_screen.dart';
+import 'package:sbc_contacts/features/requests/presentation/pro_editors.dart';
+import 'package:sbc_contacts/features/requests/presentation/pro_onboarding.dart';
+import 'package:sbc_contacts/features/requests/presentation/pro_space_screen.dart';
+import 'package:sbc_contacts/features/requests/presentation/request_composer_screen.dart';
+import 'package:sbc_contacts/features/requests/presentation/request_detail_screen.dart';
 import 'package:sbc_contacts/features/sync/application/sync_controllers.dart';
 import 'package:sbc_contacts/features/sync/presentation/criteria_edit_screen.dart';
 import 'package:sbc_contacts/shared/widgets/sbc_logo.dart';
 import 'package:sbc_contacts/features/sync/presentation/saved_me_screen.dart';
+import 'package:sbc_contacts/features/status_boost/status_boost_screen.dart';
 import 'package:sbc_contacts/features/sync/presentation/synced_contacts_screen.dart';
 import 'package:sbc_contacts/features/sync/presentation/sync_review_screen.dart';
 import 'package:sbc_contacts/features/sync/presentation/sync_history_screen.dart';
@@ -71,7 +82,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       if (auth.isLoading) return loc == '/splash' ? null : '/splash';
       final loggedIn = auth.value != null;
       if (!loggedIn) return loc == '/login' ? null : '/login';
-      if (loc == '/login' || loc == '/splash') return '/';
+      if (loc == '/login' || loc == '/splash') {
+        return kDebugMode && AppConfig.devRoute.isNotEmpty ? AppConfig.devRoute : '/';
+      }
       return null;
     },
     routes: [
@@ -85,6 +98,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/sync/history', builder: (_, __) => const SyncHistoryScreen()),
       GoRoute(path: '/sync/contacts', builder: (_, __) => const SyncedContactsScreen()),
       GoRoute(path: '/sync/saved-me', builder: (_, __) => const SavedMeScreen()),
+      GoRoute(path: '/sync/status-boost', builder: (_, __) => const StatusBoostScreen()),
       GoRoute(
         path: '/sync/review/:id',
         builder: (_, s) => SyncReviewScreen(
@@ -93,6 +107,32 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(path: '/criteria/new', builder: (_, __) => const CriteriaEditScreen()),
+      GoRoute(path: '/favorites', builder: (_, __) => const FavoritesScreen()),
+      // Requests & pros.
+      GoRoute(path: '/requests/new', builder: (_, __) => const RequestComposerScreen()),
+      GoRoute(
+        path: '/requests/review',
+        builder: (_, s) => RequestReviewScreen(request: s.extra! as ServiceRequestItem),
+      ),
+      GoRoute(
+        path: '/requests/:id',
+        builder: (_, s) => RequestDetailScreen(requestId: s.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/inbox/:requestId',
+        builder: (_, s) => InboxDetailScreen(
+          requestId: s.pathParameters['requestId']!,
+          initial: s.extra as InboxItem?,
+        ),
+      ),
+      GoRoute(path: '/pro', builder: (_, __) => const ProSpaceScreen()),
+      GoRoute(path: '/pro/assistant', builder: (_, __) => const ProAssistantScreen()),
+      GoRoute(path: '/pro/profile', builder: (_, __) => const ProProfileFormScreen()),
+      GoRoute(path: '/pro/services/add', builder: (_, __) => const AddServicesScreen()),
+      GoRoute(
+        path: '/pro/services/edit',
+        builder: (_, s) => ServiceEditScreen(service: s.extra! as ProServiceItem),
+      ),
       GoRoute(
         path: '/criteria/:id',
         builder: (_, s) => _CriteriaEditRoute(id: s.pathParameters['id']!),

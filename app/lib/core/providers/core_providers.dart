@@ -6,6 +6,7 @@ import 'package:sbc_contacts/features/contacts/contact_service.dart';
 import 'package:sbc_contacts/features/directory/data/directory_repository.dart';
 import 'package:sbc_contacts/features/favorites/data/favorites_repository.dart';
 import 'package:sbc_contacts/features/notifications/data/notifications_repository.dart';
+import 'package:sbc_contacts/features/requests/data/requests_repository.dart';
 import 'package:sbc_contacts/features/reviews/data/reviews_repository.dart';
 import 'package:sbc_contacts/features/sync/data/sync_repository.dart';
 
@@ -36,5 +37,8 @@ final syncRepositoryProvider =
 final notificationsRepositoryProvider = Provider<NotificationsRepository>(
   (ref) => NotificationsRepository(ref.watch(apiClientProvider)),
 );
+
+final requestsRepositoryProvider =
+    Provider<RequestsRepository>((ref) => RequestsRepository(ref.watch(apiClientProvider)));
 
 final contactServiceProvider = Provider<ContactService>((ref) => ContactService());

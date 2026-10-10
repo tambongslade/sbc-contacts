@@ -76,6 +76,15 @@ class SyncScreen extends ConsumerWidget {
                 tint: SbcColors.secondary,
               ),
               const Gap(8),
+              // WhatsApp shows a status only between members who saved each
+              // other, so this is where members find one another to do it.
+              const _Shortcut(
+                icon: Icons.visibility_rounded,
+                label: 'Augmenter mes vues WhatsApp',
+                route: '/sync/status-boost',
+                tint: SbcColors.whatsapp,
+              ),
+              const Gap(8),
               // Moved out of the header: the header now carries the live state,
               // and the history is a destination like the two above it.
               const _Shortcut(

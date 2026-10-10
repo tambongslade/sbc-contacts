@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sbc_contacts/core/theme/app_theme.dart';
+import 'package:sbc_contacts/features/requests/application/requests_controllers.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
 import 'package:sbc_contacts/features/auth/domain/app_user.dart';
@@ -45,6 +46,11 @@ class AccountScreen extends ConsumerWidget {
                   const Gap(20),
                   _InfoBlock(user: user)
                       .animate(delay: 120.ms)
+                      .fadeIn(duration: 260.ms)
+                      .slideY(begin: 0.04, end: 0, curve: Curves.easeOut),
+                  const Gap(20),
+                  const _MySpaceBlock()
+                      .animate(delay: 150.ms)
                       .fadeIn(duration: 260.ms)
                       .slideY(begin: 0.04, end: 0, curve: Curves.easeOut),
                   const Gap(20),
@@ -431,6 +437,41 @@ class _InfoRow extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 /// Navigation into activity screens (cahier §21 "Qui m'a ajouté ?").
+/// Espace pro, and Favoris now that "Demandes" has its tab slot.
+class _MySpaceBlock extends ConsumerWidget {
+  const _MySpaceBlock();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isPro = ref.watch(proSpaceProvider).value?.isPro ?? false;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionLabel('Mon espace'),
+        const Gap(8),
+        _SurfaceCard(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Column(
+            children: [
+              _NavRow(
+                icon: Icons.work_rounded,
+                label: isPro ? 'Espace pro' : 'Devenir pro',
+                onTap: () => context.push(isPro ? '/pro' : '/pro/assistant'),
+              ),
+              const Divider(height: 1, indent: 68),
+              _NavRow(
+                icon: Icons.star_rounded,
+                label: 'Mes favoris',
+                onTap: () => context.push('/favorites'),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _ActivityBlock extends StatelessWidget {
   const _ActivityBlock();
 
