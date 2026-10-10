@@ -29,6 +29,10 @@ struct SyncView: View {
                     // Moved out of the toolbar: that slot now carries the live
                     // state, and the history is a destination like the two above.
                     ShortcutRow(route: .syncHistory, systemImage: "clock.arrow.circlepath", label: "Historique", tint: SBCColors.accent)
+                    Divider().padding(.leading, 62)
+                    // Saving each other is the whole point here: WhatsApp only
+                    // shows a status to mutual contacts.
+                    ShortcutRow(route: .statusBoost, systemImage: "eye.fill", label: "Augmenter mes vues WhatsApp", tint: SBCColors.whatsapp)
                 }
                 .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .padding(.horizontal, 16)

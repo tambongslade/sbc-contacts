@@ -48,6 +48,8 @@ enum DemoMode {
             path.append(AppRoute.criteriaNew)
         case "contacts":
             path.append(AppRoute.syncedContacts)
+        case "statusboost":
+            path.append(AppRoute.statusBoost)
         default:
             break
         }

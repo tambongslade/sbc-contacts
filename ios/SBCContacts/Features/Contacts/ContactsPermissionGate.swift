@@ -78,18 +78,23 @@ extension View {
 /// The recording step is not optional bookkeeping: that screen lists what the
 /// backend knows, so a contact saved here and never reported is one the member
 /// cannot find again in the app.
+///
+/// Returns whether the member is now in the phone. `announce: false` keeps a
+/// bulk save from showing one toast per contact.
 @MainActor
+@discardableResult
 func addMemberToPhone(
     _ member: Member,
     services: AppServices,
     toasts: ToastCenter,
     directory: DirectoryStore?,
-    sync: SyncStore?
-) async {
+    sync: SyncStore?,
+    announce: Bool = true
+) async -> Bool {
     let service = ContactService()
     guard await service.requestPermission() else {
         toasts.show("Permission contacts refusée")
-        return
+        return false
     }
 
     func record(deviceContactId: String?) async -> Bool {
@@ -111,8 +116,8 @@ func addMemberToPhone(
     // list — that screen reports on what is in the phone book, and it is.
     if let phone = member.phoneNumber, await service.existsByPhone(phone) {
         _ = await record(deviceContactId: nil)
-        toasts.show("Déjà dans ton répertoire")
-        return
+        if announce { toasts.show("Déjà dans ton répertoire") }
+        return true
     }
 
     let result = await service.addSBCContact(
@@ -121,13 +126,16 @@ func addMemberToPhone(
         profession: member.profession
     )
     guard result.success else {
-        toasts.show("Échec: \(result.error ?? "")")
-        return
+        if announce { toasts.show("Échec: \(result.error ?? "")") }
+        return false
     }
     let recorded = await record(deviceContactId: result.deviceContactId)
     // Say which half failed: the contact IS on the phone, and calling it a
     // failure outright would send the member to save it twice.
-    toasts.show(recorded
-        ? "Contact ajouté — visible dans « Mes contacts SBC »"
-        : "Contact ajouté au téléphone (pas encore synchronisé au serveur)")
+    if announce {
+        toasts.show(recorded
+            ? "Contact ajouté — visible dans « Mes contacts SBC »"
+            : "Contact ajouté au téléphone (pas encore synchronisé au serveur)")
+    }
+    return true
 }
