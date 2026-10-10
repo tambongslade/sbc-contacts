@@ -4,9 +4,12 @@ import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/auth/presentation/account_screen.dart';
 import 'package:sbc_contacts/features/contacts/contacts_permission_gate.dart';
 import 'package:sbc_contacts/features/directory/presentation/search_screen.dart';
-import 'package:sbc_contacts/features/favorites/presentation/favorites_screen.dart';
 import 'package:sbc_contacts/features/notifications/application/notifications_controller.dart';
 import 'package:sbc_contacts/features/notifications/presentation/notifications_screen.dart';
+import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
+import 'package:sbc_contacts/features/requests/application/requests_controllers.dart';
+import 'package:sbc_contacts/features/requests/presentation/pro_onboarding.dart';
+import 'package:sbc_contacts/features/requests/presentation/requests_screen.dart';
 import 'package:sbc_contacts/features/sync/presentation/sync_screen.dart';
 
 class HomeShell extends ConsumerStatefulWidget {
@@ -24,15 +27,34 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     super.initState();
     // Ask for contacts access once the shell is on screen, so the member sees
     // the app behind the explanation rather than a bare system dialog.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) ContactsPermissionGate.ensure(context, ref);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await ContactsPermissionGate.ensure(context, ref);
+      // After login, and once the contacts prompt is out of the way: invite a
+      // member who is not a pro, or tell a pro what is missing.
+      await _promptProIfDue();
     });
+  }
+
+  Future<void> _promptProIfDue() async {
+    final user = ref.read(authControllerProvider).value;
+    if (user == null) return;
+    try {
+      final space = await ref.read(proSpaceProvider.future);
+      final kind = ProInvite.kindFor(space);
+      if (kind == null || !await kind.isDue(user.id) || !mounted) return;
+      await kind.markShown(user.id);
+      if (mounted) await showProPrompt(context, kind);
+    } catch (_) {
+      // No prompt is better than a broken start; the Demandes tab still shows the way in.
+    }
   }
 
   static const _screens = [
     SearchScreen(),
     SyncScreen(),
-    FavoritesScreen(),
+    // "Demandes" took the Favoris slot; Favoris moved to the profile.
+    RequestsScreen(),
     NotificationsScreen(),
     AccountScreen(),
   ];
@@ -40,6 +62,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final unread = ref.watch(unreadCountProvider).value ?? 0;
+    final unopened = ref.watch(unopenedCountProvider);
     return Scaffold(
       // The bar floats over the content rather than sitting in a docked strip,
       // so the list visibly continues underneath it.
@@ -48,6 +71,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       bottomNavigationBar: _FloatingNavBar(
         index: _index,
         unread: unread,
+        unopened: unopened,
         onSelect: (i) => setState(() => _index = i),
       ),
     );
@@ -65,17 +89,19 @@ class _FloatingNavBar extends StatelessWidget {
   const _FloatingNavBar({
     required this.index,
     required this.unread,
+    required this.unopened,
     required this.onSelect,
   });
 
   final int index;
   final int unread;
+  final int unopened;
   final ValueChanged<int> onSelect;
 
   static const List<({IconData icon, String label})> _items = [
     (icon: Icons.search_rounded, label: 'Recherche'),
     (icon: Icons.sync_rounded, label: 'Synchro'),
-    (icon: Icons.star_rounded, label: 'Favoris'),
+    (icon: Icons.description_rounded, label: 'Demandes'),
     (icon: Icons.notifications_rounded, label: 'Alertes'),
     (icon: Icons.person_rounded, label: 'Profil'),
   ];
@@ -112,7 +138,7 @@ class _FloatingNavBar extends StatelessWidget {
                       // Alerts is the only destination with pending state, and
                       // it is shown as a dot rather than a number: the exact
                       // count is on the screen itself.
-                      dot: i == 3 && unread > 0,
+                      dot: (i == 3 && unread > 0) || (i == 2 && unopened > 0),
                       onTap: () => onSelect(i),
                     ),
                   ),
