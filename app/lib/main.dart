@@ -1,7 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:sbc_contacts/core/config/app_config.dart';
+import 'package:sbc_contacts/core/storage/token_storage.dart';
 import 'package:sbc_contacts/core/theme/app_theme.dart';
 import 'package:sbc_contacts/features/auth/application/sso_link_handler.dart';
 import 'package:sbc_contacts/router/app_router.dart';
@@ -10,6 +13,12 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // The UI is French; DateFormat throws on a 'fr' pattern without this.
   await initializeDateFormatting('fr');
+  if (kDebugMode && AppConfig.devAccessToken.isNotEmpty) {
+    await SecureTokenStorage().save(
+      access: AppConfig.devAccessToken,
+      refresh: AppConfig.devAccessToken,
+    );
+  }
   runApp(const ProviderScope(child: SbcContactsApp()));
 }
 
