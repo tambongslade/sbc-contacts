@@ -44,6 +44,11 @@ model User {
   passwordHash String?
 
   lastLoginAt DateTime?
+
+  /// "Je veux augmenter mon nombre de vues en statut WhatsApp": listed for
+  /// other members to save, so both sides see each other's statuses.
+  statusBoostOptIn Boolean   @default(false)
+  statusBoostSince DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime? // soft delete
@@ -62,6 +67,7 @@ model User {
   serviceRequests ServiceRequest[]
 
   @@index([deletedAt])
+  @@index([statusBoostOptIn])
   @@map("users")
 }
 
