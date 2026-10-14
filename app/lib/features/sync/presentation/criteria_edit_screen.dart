@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
+import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/directory/application/search_controller.dart';
 import 'package:sbc_contacts/features/directory/domain/filter_options.dart';
 import 'package:sbc_contacts/features/sync/application/sync_controllers.dart';
@@ -50,7 +51,13 @@ class _CriteriaEditScreenState extends ConsumerState<CriteriaEditScreen> {
     super.dispose();
   }
 
-  Map<String, dynamic> _payload() => {
+  /// Its members are the "Augmenter mes vues WhatsApp" list, not filters:
+  /// only the name can change.
+  bool get _boost => widget.existing?.statusBoost ?? false;
+
+  Map<String, dynamic> _payload() => _boost
+      ? {'label': _label.text.trim().isEmpty ? 'Vues WhatsApp' : _label.text.trim()}
+      : {
         'label': _label.text.trim().isEmpty ? 'Sans titre' : _label.text.trim(),
         'countries': _countries.toList(),
         // The backend mirrors SBC's `region` into Member.city, so the criteria's
@@ -125,183 +132,185 @@ class _CriteriaEditScreenState extends ConsumerState<CriteriaEditScreen> {
             ),
           ),
           const Gap(20),
-
-          _MultiSelect(
-            title: 'Pays',
-            selected: _countries,
-            options: FilterOptions.countries.keys.toList(),
-            labelFor: (code) => FilterOptions.countries[code] ?? code,
-            onChanged: (s) => setState(() {
-              _countries
-                ..clear()
-                ..addAll(s);
-              _preview = null;
-            }),
-          ),
-          const Gap(16),
-          // The live list for the chosen pays, not a static one: a région the
-          // base does not actually carry is a criterion that matches nobody.
-          // One country selected scopes it; several (or none) keep it global,
-          // since the endpoint narrows to a single country at a time.
-          _MultiSelect(
-            title: 'Régions',
-            selected: _regions,
-            options: ref
-                    .watch(regionOptionsProvider(
-                      _countries.length == 1 ? _countries.first : null,
-                    ))
-                    .value ??
-                FilterOptions.regionsFor(
-                  _countries.length == 1 ? _countries.first : null,
-                ),
-            onChanged: (s) => setState(() {
-              _regions
-                ..clear()
-                ..addAll(s);
-              _preview = null;
-            }),
-          ),
-          const Gap(16),
-          _MultiSelect(
-            title: 'Professions',
-            selected: _professions,
-            options: FilterOptions.professions,
-            onChanged: (s) => setState(() {
-              _professions
-                ..clear()
-                ..addAll(s);
-              _preview = null;
-            }),
-          ),
-          const Gap(16),
-          _MultiSelect(
-            title: "Centres d'intérêt",
-            selected: _interests,
-            options: FilterOptions.interests,
-            onChanged: (s) => setState(() {
-              _interests
-                ..clear()
-                ..addAll(s);
-              _preview = null;
-            }),
-          ),
-
-          const Gap(20),
-          Text('Sexe', style: theme.textTheme.labelLarge),
-          const Gap(6),
-          Wrap(
-            spacing: 8,
-            children: [
-              ChoiceChip(
-                label: const Text('Tous'),
-                selected: _sex == null,
-                onSelected: (_) => setState(() {
-                  _sex = null;
-                  _preview = null;
-                }),
-              ),
-              for (final e in FilterOptions.sexes.entries)
-                ChoiceChip(
-                  label: Text(e.value),
-                  selected: _sex == e.key,
-                  onSelected: (_) => setState(() {
-                    _sex = e.key;
-                    _preview = null;
-                  }),
-                ),
-            ],
-          ),
-
-          const Gap(20),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            value: _ageEnabled,
-            title: Text('Filtrer par âge', style: theme.textTheme.labelLarge),
-            subtitle: Text(
-              _ageEnabled
-                  ? '${_ageMin.round()} – ${_ageMax.round()} ans'
-                  : "Tous les âges — les membres dont l'âge est inconnu "
-                      'restent inclus',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+          if (_boost) const _StatusBoostNote(),
+          if (!_boost) ...[
+            _MultiSelect(
+              title: 'Pays',
+              selected: _countries,
+              options: FilterOptions.countries.keys.toList(),
+              labelFor: (code) => FilterOptions.countries[code] ?? code,
+              onChanged: (s) => setState(() {
+                _countries
+                  ..clear()
+                  ..addAll(s);
+                _preview = null;
+              }),
             ),
-            onChanged: (v) => setState(() {
-              _ageEnabled = v;
-              _preview = null;
-            }),
-          ),
-          if (_ageEnabled)
-            RangeSlider(
-              min: 16,
-              max: 80,
-              divisions: 64,
-              values: RangeValues(_ageMin, _ageMax),
-              labels: RangeLabels('${_ageMin.round()}', '${_ageMax.round()}'),
-              onChanged: (v) => setState(() {
-                _ageMin = v.start;
-                _ageMax = v.end;
+            const Gap(16),
+            // The live list for the chosen pays, not a static one: a région the
+            // base does not actually carry is a criterion that matches nobody.
+            // One country selected scopes it; several (or none) keep it global,
+            // since the endpoint narrows to a single country at a time.
+            _MultiSelect(
+              title: 'Régions',
+              selected: _regions,
+              options: ref
+                      .watch(regionOptionsProvider(
+                        _countries.length == 1 ? _countries.first : null,
+                      ))
+                      .value ??
+                  FilterOptions.regionsFor(
+                    _countries.length == 1 ? _countries.first : null,
+                  ),
+              onChanged: (s) => setState(() {
+                _regions
+                  ..clear()
+                  ..addAll(s);
+                _preview = null;
+              }),
+            ),
+            const Gap(16),
+            _MultiSelect(
+              title: 'Professions',
+              selected: _professions,
+              options: FilterOptions.professions,
+              onChanged: (s) => setState(() {
+                _professions
+                  ..clear()
+                  ..addAll(s);
+                _preview = null;
+              }),
+            ),
+            const Gap(16),
+            _MultiSelect(
+              title: "Centres d'intérêt",
+              selected: _interests,
+              options: FilterOptions.interests,
+              onChanged: (s) => setState(() {
+                _interests
+                  ..clear()
+                  ..addAll(s);
                 _preview = null;
               }),
             ),
 
-          const Gap(20),
-          // §10: show how many members the criteria matches before saving it.
-          //
-          // The caveat is shown before the number, not under it as an
-          // afterthought: a criteria counts only members already mirrored from
-          // previous searches, so it is always well below what the same filter
-          // returns in the annuaire. Reading "2 membres" next to "863" in the
-          // directory looks like a broken filter unless this says why.
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-              child: Row(
-                children: [
-                  const Icon(Icons.group),
-                  const Gap(14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _preview == null
-                              ? 'Combien de membres correspondent ?'
-                              : '$_preview membre(s) correspondent',
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                        const Gap(3),
-                        Text(
-                          'Compté parmi les membres déjà consultés dans '
-                          "l'annuaire, pas sur toute la base SBC.",
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
-                              ),
-                        ),
-                      ],
-                    ),
+            const Gap(20),
+            Text('Sexe', style: theme.textTheme.labelLarge),
+            const Gap(6),
+            Wrap(
+              spacing: 8,
+              children: [
+                ChoiceChip(
+                  label: const Text('Tous'),
+                  selected: _sex == null,
+                  onSelected: (_) => setState(() {
+                    _sex = null;
+                    _preview = null;
+                  }),
+                ),
+                for (final e in FilterOptions.sexes.entries)
+                  ChoiceChip(
+                    label: Text(e.value),
+                    selected: _sex == e.key,
+                    onSelected: (_) => setState(() {
+                      _sex = e.key;
+                      _preview = null;
+                    }),
                   ),
-                  const Gap(8),
-                  if (_previewing)
-                    const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  else
-                    TextButton(
-                      onPressed: _refreshPreview,
-                      child: const Text('Calculer'),
+              ],
+            ),
+
+            const Gap(20),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _ageEnabled,
+              title: Text('Filtrer par âge', style: theme.textTheme.labelLarge),
+              subtitle: Text(
+                _ageEnabled
+                    ? '${_ageMin.round()} – ${_ageMax.round()} ans'
+                    : "Tous les âges — les membres dont l'âge est inconnu "
+                        'restent inclus',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              onChanged: (v) => setState(() {
+                _ageEnabled = v;
+                _preview = null;
+              }),
+            ),
+            if (_ageEnabled)
+              RangeSlider(
+                min: 16,
+                max: 80,
+                divisions: 64,
+                values: RangeValues(_ageMin, _ageMax),
+                labels: RangeLabels('${_ageMin.round()}', '${_ageMax.round()}'),
+                onChanged: (v) => setState(() {
+                  _ageMin = v.start;
+                  _ageMax = v.end;
+                  _preview = null;
+                }),
+              ),
+
+            const Gap(20),
+            // §10: show how many members the criteria matches before saving it.
+            //
+            // The caveat is shown before the number, not under it as an
+            // afterthought: a criteria counts only members already mirrored from
+            // previous searches, so it is always well below what the same filter
+            // returns in the annuaire. Reading "2 membres" next to "863" in the
+            // directory looks like a broken filter unless this says why.
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                child: Row(
+                  children: [
+                    const Icon(Icons.group),
+                    const Gap(14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _preview == null
+                                ? 'Combien de membres correspondent ?'
+                                : '$_preview membre(s) correspondent',
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          const Gap(3),
+                          Text(
+                            'Compté parmi les membres déjà consultés dans '
+                            "l'annuaire, pas sur toute la base SBC.",
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                          ),
+                        ],
+                      ),
                     ),
-                ],
+                    const Gap(8),
+                    if (_previewing)
+                      const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else
+                      TextButton(
+                        onPressed: _refreshPreview,
+                        child: const Text('Calculer'),
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
       bottomNavigationBar: SafeArea(
@@ -501,6 +510,37 @@ class _MultiSelectSheetState extends State<_MultiSelectSheet> {
               onPressed: () => Navigator.of(context).pop(_picked),
               style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(46)),
               child: Text('Valider (${_picked.length})'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Stands in for the filters on a "Vues WhatsApp" criteria.
+class _StatusBoostNote extends StatelessWidget {
+  const _StatusBoostNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.visibility_rounded, color: SbcColors.whatsapp),
+            const Gap(14),
+            Expanded(
+              child: Text(
+                'Ce critère enregistre les membres de « Augmenter mes vues '
+                'WhatsApp ». Il suit la liste : tu es prévenu quand quelqu’un la '
+                'rejoint, et il se désactive si tu la quittes.',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
             ),
           ],
         ),
