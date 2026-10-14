@@ -41,6 +41,7 @@ export class MemberMatchService {
 
     if (c.interests?.length) where.interests = { hasSome: c.interests };
     if (c.sex) where.sex = c.sex;
+    if (c.sbcIds) where.sbcId = { in: c.sbcIds };
     if (c.ageMin != null || c.ageMax != null) {
       where.age = {
         ...(c.ageMin != null ? { gte: c.ageMin } : {}),
@@ -117,6 +118,7 @@ export class MemberMatchService {
    * a DB round-trip per criteria. Mirrors buildWhere() exactly.
    */
   matchesMember(member: Member, c: MatchCriteria): boolean {
+    if (c.sbcIds && !c.sbcIds.includes(member.sbcId)) return false;
     if (c.countries?.length) {
       const byCountry = MemberMatchService.eq(
         member.country,

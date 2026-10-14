@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, SyncStatus } from '@prisma/client';
+import { Member, Prisma, SyncStatus } from '@prisma/client';
 import { PaginatedResult, paginate } from '../../common/dto/pagination.dto';
 import { toIsoCountry } from '../../common/utils/country';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
@@ -37,12 +37,16 @@ export class StatusBoostService {
   constructor(private readonly prisma: PrismaService) {}
 
   async me(userId: string) {
-    const [user, participants] = await this.prisma.$transaction([
+    const [user, participants, criteria] = await this.prisma.$transaction([
       this.prisma.user.findUniqueOrThrow({
         where: { id: userId },
         select: { statusBoostOptIn: true, statusBoostSince: true, phoneNumber: true },
       }),
       this.prisma.user.count({ where: { statusBoostOptIn: true, deletedAt: null } }),
+      this.prisma.syncCriteria.findFirst({
+        where: { userId, statusBoost: true },
+        select: { id: true, isActive: true },
+      }),
     ]);
     return {
       optIn: user.statusBoostOptIn,
@@ -50,6 +54,8 @@ export class StatusBoostService {
       participants,
       // Without a number on the SBC account nobody can save you.
       hasPhone: Boolean(user.phoneNumber?.trim()),
+      // The member's "save everyone in the list" criteria, once created.
+      criteria,
     };
   }
 
@@ -58,8 +64,63 @@ export class StatusBoostService {
       where: { id: userId },
       data: { statusBoostOptIn: optIn, statusBoostSince: optIn ? new Date() : null },
     });
-    if (optIn) await this.mirror([user]);
+    if (optIn) {
+      await this.mirror([user]);
+    } else {
+      // Someone who left no longer expects to be saved by the list, and must
+      // not go on saving the people still in it.
+      await this.prisma.syncCriteria.updateMany({
+        where: { userId, statusBoost: true, isActive: true },
+        data: { isActive: false },
+      });
+    }
     return this.me(userId);
+  }
+
+  async isOptedIn(userId: string): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { statusBoostOptIn: true },
+    });
+    return Boolean(user?.statusBoostOptIn);
+  }
+
+  /**
+   * Member mirror rows for everyone else in the list: what a "Augmenter mes
+   * vues WhatsApp" criteria matches. `since` keeps only those who joined after
+   * it, which is what "new" means for this list.
+   */
+  async participants(
+    userId: string,
+    opts: { since?: Date; take?: number } = {},
+  ): Promise<Member[]> {
+    const users = await this.prisma.user.findMany({
+      where: {
+        ...this.othersWhere(userId),
+        ...(opts.since ? { statusBoostSince: { gt: opts.since } } : {}),
+      },
+      orderBy: [{ statusBoostSince: 'desc' }, { id: 'asc' }],
+      take: opts.take,
+    });
+    if (!users.length) return [];
+    // Joining mirrors the member already; only someone who joined before that
+    // existed can be missing, so upsert just those.
+    const mirrored = await this.prisma.member.findMany({
+      where: { sbcId: { in: users.map((u) => u.sbcUserId) } },
+    });
+    const known = new Set(mirrored.map((m) => m.sbcId));
+    const missing = users.filter((u) => !known.has(u.sbcUserId));
+    return [...mirrored, ...(missing.length ? await this.mirror(missing) : [])];
+  }
+
+  /** Everyone in the list the caller could save: not themselves, and with a number. */
+  private othersWhere(userId: string): Prisma.UserWhereInput {
+    return {
+      statusBoostOptIn: true,
+      deletedAt: null,
+      id: { not: userId },
+      phoneNumber: { not: null },
+    };
   }
 
   async list(userId: string, q: StatusBoostQueryDto): Promise<StatusBoostPage> {
@@ -69,10 +130,7 @@ export class StatusBoostService {
     });
     const term = q.search?.trim();
     const where: Prisma.UserWhereInput = {
-      statusBoostOptIn: true,
-      deletedAt: null,
-      id: { not: userId },
-      phoneNumber: { not: null },
+      ...this.othersWhere(userId),
       ...(q.subscription ? { subscriptionTypes: { has: q.subscription } } : {}),
       ...(term
         ? {

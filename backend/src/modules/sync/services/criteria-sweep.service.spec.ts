@@ -1,3 +1,4 @@
+import { CriteriaMatchResolver } from './criteria-match.resolver';
 import { CriteriaSweepService } from './criteria-sweep.service';
 
 /**
@@ -23,14 +24,19 @@ describe('CriteriaSweepService', () => {
     };
     const hydration = { hydrateFull: jest.fn().mockResolvedValue(0) };
     const notifications = { notifyNewMatch: jest.fn().mockResolvedValue(true) };
+    const statusBoost = {
+      participants: jest.fn().mockResolvedValue([member('p1'), member('p2')]),
+    };
 
     const service = new CriteriaSweepService(
       prisma as never,
       matcher as never,
       hydration as never,
       notifications as never,
+      new CriteriaMatchResolver(statusBoost as never),
+      statusBoost as never,
     );
-    return { service, prisma, matcher, hydration, notifications, update };
+    return { service, prisma, matcher, hydration, notifications, update, statusBoost };
   }
 
   const active = (over: Record<string, unknown> = {}) => ({
@@ -128,5 +134,22 @@ describe('CriteriaSweepService', () => {
         data: expect.objectContaining({ lastMatchCount: 42 }),
       }),
     );
+  });
+
+  it('for the WhatsApp views list, alerts on members who joined it since the last pass', async () => {
+    const { service, statusBoost, matcher, notifications } = build([
+      active({ countries: [], statusBoost: true }),
+    ]);
+
+    await service.sweep();
+
+    expect(statusBoost.participants).toHaveBeenCalledWith('u1', {
+      since: new Date('2026-09-01'),
+      take: expect.any(Number),
+    });
+    // Mirror age means nothing here: someone joins the list long after SBC
+    // knew them.
+    expect(matcher.findNewSince).not.toHaveBeenCalled();
+    expect(notifications.notifyNewMatch).toHaveBeenCalledTimes(2);
   });
 });

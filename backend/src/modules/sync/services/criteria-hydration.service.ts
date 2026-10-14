@@ -114,6 +114,8 @@ export class CriteriaHydrationService {
    * lands, is the exact figure.
    */
   async previewTotal(userId: string, criteria: MatchCriteria): Promise<number | null> {
+    // A fixed list of members we already hold: SBC has nothing to add.
+    if (criteria.sbcIds) return null;
     const key = `sync:total:v1:${this.hash(criteria)}`;
     const cached = await this.cache.get<number>(key);
     if (cached !== null) {
@@ -166,7 +168,7 @@ export class CriteriaHydrationService {
    * or paging the matches list never piles up walks of the same country.
    */
   async enqueueDeepWalk(userId: string, criteria: MatchCriteria): Promise<void> {
-    if (!CriteriaHydrationService.deepWalkEnabled()) return;
+    if (!CriteriaHydrationService.deepWalkEnabled() || criteria.sbcIds) return;
     const hash = this.hash(criteria);
     const guard = `sync:deepwalk:v1:${hash}`;
     // Set-if-absent: the first caller within the window wins the walk.
@@ -197,6 +199,7 @@ export class CriteriaHydrationService {
    * only when every query failed.
    */
   async hydrateFull(job: HydrationJob): Promise<number> {
+    if (job.criteria.sbcIds) return 0;
     if (!CriteriaHydrationService.deepWalkEnabled()) {
       this.logger.warn('Deep hydration disabled (SYNC_DEEP_WALK_ENABLED unset); skipping walk');
       return 0;

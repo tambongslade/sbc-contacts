@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Member, SyncCriteria } from '@prisma/client';
+import { Member } from '@prisma/client';
 import { Logger } from '@nestjs/common';
 import { PaginatedResult, PaginationQueryDto, paginate } from '../../../common/dto/pagination.dto';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
@@ -12,9 +12,9 @@ import { AuditService } from '../../audit/audit.service';
 import { MemberMatchService } from '../../members/member-match.service';
 import { MembersService } from '../../members/members.service';
 import { NotificationsService } from '../../notifications/notifications.service';
-import { MatchCriteria } from '../../members/member.view';
 import { ReportSyncDto, ReportedStatus, StartSyncDto, SyncContactsQueryDto } from '../dto/sync.dto';
 import { CriteriaHydrationService } from './criteria-hydration.service';
+import { CriteriaMatchResolver } from './criteria-match.resolver';
 
 /** One person who saved you (cahier §21). */
 export interface SavedMeEntry {
@@ -72,6 +72,7 @@ export class SyncService {
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
     private readonly hydration: CriteriaHydrationService,
+    private readonly resolver: CriteriaMatchResolver,
   ) {}
 
   async start(userId: string, dto: StartSyncDto, ip?: string): Promise<StartSyncResult> {
@@ -482,7 +483,7 @@ export class SyncService {
         where: { id: dto.criteriaId, userId },
       });
       if (!criteria) throw new NotFoundException('Criteria not found');
-      const where = this.toMatch(criteria);
+      const where = await this.resolver.resolve(criteria);
       // Same background fill the preview and the matches list kick off. A caller
       // that names only the criteria never went through either, so without this
       // the run would expand the criteria against whatever the mirror happened
@@ -493,17 +494,5 @@ export class SyncService {
       return { members, criteriaId: criteria.id };
     }
     throw new BadRequestException('Provide either criteriaId or memberSbcIds');
-  }
-
-  private toMatch(c: SyncCriteria): MatchCriteria {
-    return {
-      countries: c.countries,
-      cities: c.cities,
-      professions: c.professions,
-      interests: c.interests,
-      sex: c.sex,
-      ageMin: c.ageMin,
-      ageMax: c.ageMax,
-    };
   }
 }

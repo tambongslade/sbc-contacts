@@ -2,9 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { SyncCriteria } from '@prisma/client';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { MemberMatchService } from '../../members/member-match.service';
-import { toMatchCriteria } from '../../members/member.view';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { StatusBoostService } from '../../status-boost/status-boost.service';
 import { CriteriaHydrationService } from './criteria-hydration.service';
+import { CriteriaMatchResolver } from './criteria-match.resolver';
 
 /**
  * Periodic re-check of every active criteria (cahier §11).
@@ -45,6 +46,8 @@ export class CriteriaSweepService {
     private readonly matcher: MemberMatchService,
     private readonly hydration: CriteriaHydrationService,
     private readonly notifications: NotificationsService,
+    private readonly resolver: CriteriaMatchResolver,
+    private readonly statusBoost: StatusBoostService,
   ) {}
 
   /** One pass over the active criteria that went longest without a check. */
@@ -73,7 +76,7 @@ export class CriteriaSweepService {
   }
 
   private async sweepOne(criteria: SyncCriteria): Promise<number> {
-    const matchCriteria = toMatchCriteria(criteria);
+    const matchCriteria = await this.resolver.resolve(criteria);
 
     // Pull whatever SBC has for this criteria into the mirror first; without it
     // the sweep can only ever see members somebody happened to search for. Run
@@ -86,11 +89,18 @@ export class CriteriaSweepService {
 
     let notified = 0;
     if (sinceBaseline) {
-      const fresh = await this.matcher.findNewSince(
-        matchCriteria,
-        sinceBaseline,
-        CriteriaSweepService.MAX_NOTIFICATIONS_PER_SWEEP,
-      );
+      // For "Augmenter mes vues WhatsApp", new means joined the list since —
+      // they may have been in the mirror for months.
+      const fresh = criteria.statusBoost
+        ? await this.statusBoost.participants(criteria.userId, {
+            since: sinceBaseline,
+            take: CriteriaSweepService.MAX_NOTIFICATIONS_PER_SWEEP,
+          })
+        : await this.matcher.findNewSince(
+            matchCriteria,
+            sinceBaseline,
+            CriteriaSweepService.MAX_NOTIFICATIONS_PER_SWEEP,
+          );
       for (const member of fresh) {
         // Deduped per (user, member) inside notifyNewMatch, so a member matching
         // several of this user's criteria still yields one alert.

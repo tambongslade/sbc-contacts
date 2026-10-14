@@ -31,6 +31,12 @@ export interface MatchCriteria {
   sex?: string | null;
   ageMin?: number | null;
   ageMax?: number | null;
+  /**
+   * Only these members. Set for a "Augmenter mes vues WhatsApp" criteria, whose
+   * members are a list we hold rather than a filter SBC can search; empty
+   * matches nobody.
+   */
+  sbcIds?: string[] | null;
 }
 
 /** Map a persisted SyncCriteria row to the matcher's criteria shape. */
@@ -42,6 +48,7 @@ export function toMatchCriteria(c: {
   sex: string | null;
   ageMin: number | null;
   ageMax: number | null;
+  statusBoost?: boolean;
 }): MatchCriteria {
   return {
     countries: c.countries,
@@ -51,5 +58,8 @@ export function toMatchCriteria(c: {
     sex: c.sex,
     ageMin: c.ageMin,
     ageMax: c.ageMax,
+    // Its filters are empty, so on their own they would match every member.
+    // Until the participants are resolved (CriteriaMatchResolver), match none.
+    ...(c.statusBoost ? { sbcIds: [] } : {}),
   };
 }
