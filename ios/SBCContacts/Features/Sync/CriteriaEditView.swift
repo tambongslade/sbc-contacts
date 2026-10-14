@@ -58,8 +58,18 @@ struct CriteriaEditView: View {
         options.filter(set.contains) + set.subtracting(options).sorted()
     }
 
+    /// Its members are the "Augmenter mes vues WhatsApp" list, not filters:
+    /// only the name can change.
+    private var boost: Bool { existing?.statusBoost ?? false }
+
     private var payload: CriteriaPayload {
-        CriteriaPayload(
+        if boost {
+            return CriteriaPayload(
+                label: label.trimmed.isEmpty ? "Vues WhatsApp" : label.trimmed,
+                countries: [], cities: [], professions: [], interests: []
+            )
+        }
+        return CriteriaPayload(
             label: label.trimmed.isEmpty ? "Sans titre" : label.trimmed,
             countries: ordered(countries, FilterOptions.countries.map(\.code)),
             // The backend mirrors SBC's `region` into Member.city.
@@ -80,72 +90,76 @@ struct CriteriaEditView: View {
                         .font(.sbc(.bodyLarge))
                 }
 
-                VStack(spacing: 16) {
-                    MultiSelect(title: "Pays", selected: $countries, options: FilterOptions.countries.map(\.code),
-                                labelFor: FilterOptions.countryLabel)
-                    // Scoped to the chosen pays: a région from another country
-                    // combined with it would match nobody.
-                    MultiSelect(
-                        title: "Régions",
-                        selected: $regions,
-                        options: regionsStore.catalog.regions(for: countries),
-                        hint: regionHint
-                    )
-                    MultiSelect(title: "Professions", selected: $professions, options: FilterOptions.professions)
-                    MultiSelect(title: "Centres d'intérêt", selected: $interests, options: FilterOptions.interests)
-                }
-                .padding(.top, 20)
+                if boost {
+                    StatusBoostNote().padding(.top, 20)
+                } else {
+                    VStack(spacing: 16) {
+                        MultiSelect(title: "Pays", selected: $countries, options: FilterOptions.countries.map(\.code),
+                                    labelFor: FilterOptions.countryLabel)
+                        // Scoped to the chosen pays: a région from another country
+                        // combined with it would match nobody.
+                        MultiSelect(
+                            title: "Régions",
+                            selected: $regions,
+                            options: regionsStore.catalog.regions(for: countries),
+                            hint: regionHint
+                        )
+                        MultiSelect(title: "Professions", selected: $professions, options: FilterOptions.professions)
+                        MultiSelect(title: "Centres d'intérêt", selected: $interests, options: FilterOptions.interests)
+                    }
+                    .padding(.top, 20)
 
-                Text("Sexe").font(.sbc(.labelLarge)).padding(.top, 20)
-                FlowLayout(spacing: 8) {
-                    SelectableChip(label: "Tous", selected: sex == nil) { sex = nil }
-                    ForEach(FilterOptions.sexes, id: \.code) { option in
-                        SelectableChip(label: option.label, selected: sex == option.code) { sex = option.code }
+                    Text("Sexe").font(.sbc(.labelLarge)).padding(.top, 20)
+                    FlowLayout(spacing: 8) {
+                        SelectableChip(label: "Tous", selected: sex == nil) { sex = nil }
+                        ForEach(FilterOptions.sexes, id: \.code) { option in
+                            SelectableChip(label: option.label, selected: sex == option.code) { sex = option.code }
+                        }
                     }
-                }
-                .padding(.top, 6)
+                    .padding(.top, 6)
 
-                Toggle(isOn: $ageEnabled.animation(.snappy)) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Filtrer par âge").font(.sbc(.labelLarge))
-                        Text(ageEnabled
-                            ? "\(Int(ageMin)) – \(Int(ageMax)) ans"
-                            : "Tous les âges — les membres dont l'âge est inconnu restent inclus")
-                            .font(.sbc(.bodySmall))
-                            .foregroundStyle(SBCColors.onSurfaceVariant)
+                    Toggle(isOn: $ageEnabled.animation(.snappy)) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Filtrer par âge").font(.sbc(.labelLarge))
+                            Text(ageEnabled
+                                ? "\(Int(ageMin)) – \(Int(ageMax)) ans"
+                                : "Tous les âges — les membres dont l'âge est inconnu restent inclus")
+                                .font(.sbc(.bodySmall))
+                                .foregroundStyle(SBCColors.onSurfaceVariant)
+                        }
                     }
-                }
-                .tint(SBCColors.secondary)
-                .padding(.top, 20)
-                if ageEnabled {
-                    RangeSlider(lower: $ageMin, upper: $ageMax, bounds: 16...80)
-                }
+                    .tint(SBCColors.secondary)
+                    .padding(.top, 20)
+                    if ageEnabled {
+                        RangeSlider(lower: $ageMin, upper: $ageMax, bounds: 16...80)
+                    }
 
-                // §10: show how many members the criteria matches before saving.
-                HStack(spacing: 16) {
-                    Image(systemName: "person.2.fill").foregroundStyle(SBCColors.onSurfaceVariant)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(preview.map { "\($0) membre(s) correspondent" } ?? "Combien de membres correspondent ?")
-                            .font(.sbc(.titleSmall, weight: .bold))
-                        // Shown up front, not as an afterthought: the count only
-                        // covers members already mirrored, so it always reads
-                        // well below the same filter in the annuaire.
-                        Text("Compté parmi les membres déjà consultés dans l'annuaire, pas sur toute la base SBC.")
-                            .font(.sbc(.bodySmall))
-                            .foregroundStyle(SBCColors.onSurfaceVariant)
-                            .fixedSize(horizontal: false, vertical: true)
+                    // §10: show how many members the criteria matches before saving.
+                    HStack(spacing: 16) {
+                        Image(systemName: "person.2.fill").foregroundStyle(SBCColors.onSurfaceVariant)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(preview.map { "\($0) membre(s) correspondent" } ?? "Combien de membres correspondent ?")
+                                .font(.sbc(.titleSmall, weight: .bold))
+                            // Shown up front, not as an afterthought: the count only
+                            // covers members already mirrored, so it always reads
+                            // well below the same filter in the annuaire.
+                            Text("Compté parmi les membres déjà consultés dans l'annuaire, pas sur toute la base SBC.")
+                                .font(.sbc(.bodySmall))
+                                .foregroundStyle(SBCColors.onSurfaceVariant)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                        if previewing {
+                            ProgressView()
+                        } else {
+                            Button("Calculer") { Task { await refreshPreview() } }
+                                .buttonStyle(.text)
+                        }
                     }
-                    Spacer()
-                    if previewing {
-                        ProgressView()
-                    } else {
-                        Button("Calculer") { Task { await refreshPreview() } }
-                            .buttonStyle(.text)
-                    }
+                    .padding(16)
+                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(SBCColors.surface))
+                    .padding(.top, 20)
                 }
-                .padding(16)
-                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(SBCColors.surface))
-                .padding(.top, 20)
             }
             .foregroundStyle(SBCColors.onSurface)
             .padding(16)
@@ -320,5 +334,21 @@ private struct MultiSelectSheet: View {
                 .background(.bar)
             }
         }
+    }
+}
+
+/// Stands in for the filters on a "Vues WhatsApp" criteria.
+private struct StatusBoostNote: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: "eye.fill").foregroundStyle(SBCColors.whatsapp)
+            Text("Ce critère enregistre les membres de « Augmenter mes vues WhatsApp ». Il suit la liste : tu es prévenu quand quelqu'un la rejoint, et il se désactive si tu la quittes.")
+                .font(.sbc(.bodySmall))
+                .foregroundStyle(SBCColors.onSurfaceVariant)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(SBCColors.surface))
     }
 }

@@ -57,14 +57,19 @@ struct StatusBoostMe: Decodable, Sendable {
     var optIn: Bool
     var participants: Int
     var hasPhone: Bool
+    /// The member's "save the whole list" criteria: nil when never created,
+    /// false when switched off (leaving the list does that).
+    var criteriaActive: Bool?
 
-    private enum CodingKeys: String, CodingKey { case optIn, participants, hasPhone }
+    private enum CodingKeys: String, CodingKey { case optIn, participants, hasPhone, criteria }
+    private struct CriteriaRef: Decodable { let isActive: Bool }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         optIn = c.bool(.optIn) ?? false
         participants = c.int(.participants) ?? 0
         hasPhone = c.bool(.hasPhone) ?? true
+        criteriaActive = (try? c.decodeIfPresent(CriteriaRef.self, forKey: .criteria))?.isActive
     }
 }
 
@@ -109,13 +114,18 @@ struct StatusBoostView: View {
     @State private var saving: Set<String> = []
     @State private var bulk: (done: Int, of: Int)?
     @State private var error: String?
+    @State private var creatingCriteria = false
 
     private var unsaved: [StatusBoostEntry] { entries.filter { !$0.savedByMe } }
 
     var body: some View {
         List {
             Section {
-                OptInCard(me: me) { optIn in Task { await setOptIn(optIn) } }
+                OptInCard(me: me, busy: creatingCriteria) { optIn in
+                    Task { await setOptIn(optIn) }
+                } onCreateCriteria: {
+                    Task { await createCriteria() }
+                }
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                     .listRowBackground(Color.clear)
             }
@@ -224,9 +234,29 @@ struct StatusBoostView: View {
     private func setOptIn(_ optIn: Bool) async {
         do {
             me = try await services.api.setStatusBoost(optIn: optIn)
+            // Leaving switches the "save the list" criteria off.
+            Task { await sync.loadCriteria() }
             toasts.show(optIn
                 ? "Tu es dans la liste : les membres peuvent maintenant t'enregistrer."
                 : "Tu n'apparais plus dans la liste.")
+        } catch {
+            toasts.show(error.localizedDescription)
+        }
+    }
+
+    /// Adds "Vues WhatsApp" to "Mes critères": syncing it saves everyone in the
+    /// list, and the member hears about whoever joins next. Asking again turns
+    /// an existing one back on.
+    private func createCriteria() async {
+        creatingCriteria = true
+        defer { creatingCriteria = false }
+        do {
+            try await sync.create(CriteriaPayload(
+                label: "Vues WhatsApp", countries: [], cities: [], professions: [], interests: [],
+                statusBoost: true
+            ))
+            me = try await services.api.statusBoostMe()
+            toasts.show("Critère « Vues WhatsApp » ajouté dans Synchro.")
         } catch {
             toasts.show(error.localizedDescription)
         }
@@ -258,7 +288,9 @@ struct StatusBoostView: View {
 /// "Je participe" — the opt-in, with what it means in one line.
 private struct OptInCard: View {
     let me: StatusBoostMe?
+    let busy: Bool
     let onChange: (Bool) -> Void
+    let onCreateCriteria: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -289,6 +321,24 @@ private struct OptInCard: View {
                     Text("Ajoute un numéro à ton compte SBC pour que les membres puissent t'enregistrer.")
                         .font(.sbc(.bodySmall))
                         .foregroundStyle(SBCColors.error)
+                }
+                // Only for someone in the list: the deal is mutual.
+                if me.optIn {
+                    if me.criteriaActive == true {
+                        Label("Critère « Vues WhatsApp » actif dans Synchro", systemImage: "checkmark.circle.fill")
+                            .font(.sbc(.bodySmall))
+                            .foregroundStyle(SBCColors.onSurfaceVariant)
+                    } else {
+                        Button(action: onCreateCriteria) {
+                            Label(me.criteriaActive == false ? "Réactiver mon critère" : "Créer un critère avec cette liste",
+                                  systemImage: "slider.horizontal.3")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.capsule)
+                        .tint(SBCColors.whatsapp)
+                        .disabled(busy)
+                    }
                 }
             }
         }

@@ -13,6 +13,9 @@ struct SyncCriteria: Identifiable, Sendable, Equatable {
     var ageMax: Int?
     var isActive = true
     var lastMatchCount = 0
+    /// Targets the members of "Augmenter mes vues WhatsApp" rather than
+    /// filters, which stay empty.
+    var statusBoost = false
 
     var payload: CriteriaPayload {
         CriteriaPayload(
@@ -25,6 +28,7 @@ struct SyncCriteria: Identifiable, Sendable, Equatable {
 extension SyncCriteria: Decodable {
     private enum CodingKeys: String, CodingKey {
         case id, label, countries, cities, professions, interests, sex, ageMin, ageMax, isActive, lastMatchCount
+        case statusBoost
     }
 
     init(from decoder: Decoder) throws {
@@ -40,6 +44,7 @@ extension SyncCriteria: Decodable {
         ageMax = c.int(.ageMax)
         isActive = c.bool(.isActive) ?? true
         lastMatchCount = c.int(.lastMatchCount) ?? 0
+        statusBoost = c.bool(.statusBoost) ?? false
     }
 }
 
@@ -102,9 +107,11 @@ struct CriteriaPayload: Encodable, Sendable, Equatable {
     var ageMin: Int?
     var ageMax: Int?
     var isActive: Bool?
+    /// Create only: target "Augmenter mes vues WhatsApp" instead of filters.
+    var statusBoost: Bool?
 
     private enum CodingKeys: String, CodingKey {
-        case label, countries, cities, professions, interests, sex, ageMin, ageMax, isActive
+        case label, countries, cities, professions, interests, sex, ageMin, ageMax, isActive, statusBoost
     }
 
     /// `ageMin` / `ageMax` are sent as explicit nulls: on an update, leaving the
@@ -120,6 +127,7 @@ struct CriteriaPayload: Encodable, Sendable, Equatable {
         try c.encode(ageMin, forKey: .ageMin)
         try c.encode(ageMax, forKey: .ageMax)
         try c.encodeIfPresent(isActive, forKey: .isActive)
+        try c.encodeIfPresent(statusBoost, forKey: .statusBoost)
     }
 }
 
