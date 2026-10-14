@@ -25,7 +25,7 @@ export class CriteriaService {
   ) {}
 
   async create(userId: string, dto: CreateCriteriaDto, ip?: string): Promise<SyncCriteria> {
-    if (dto.statusBoost) return this.createStatusBoost(userId, dto.label, ip);
+    if (dto.statusBoost) return this.withCount(await this.createStatusBoost(userId, dto.label, ip));
     const created = await this.prisma.syncCriteria.create({
       data: {
         userId,
@@ -94,6 +94,18 @@ export class CriteriaService {
       ip,
     });
     return created;
+  }
+
+  /**
+   * A list criteria's size is known up front, so its card need not read 0 until
+   * the next sweep.
+   */
+  private async withCount(c: SyncCriteria): Promise<SyncCriteria> {
+    const { sbcIds } = await this.resolver.resolve(c);
+    return this.prisma.syncCriteria.update({
+      where: { id: c.id },
+      data: { lastMatchCount: sbcIds?.length ?? 0 },
+    });
   }
 
   private async assertInStatusBoost(userId: string): Promise<void> {

@@ -325,9 +325,13 @@ private struct OptInCard: View {
                 // Only for someone in the list: the deal is mutual.
                 if me.optIn {
                     if me.criteriaActive == true {
-                        Label("Critère « Vues WhatsApp » actif dans Synchro", systemImage: "checkmark.circle.fill")
-                            .font(.sbc(.bodySmall))
-                            .foregroundStyle(SBCColors.onSurfaceVariant)
+                        Label {
+                            Text("Critère « Vues WhatsApp » actif dans Synchro")
+                                .foregroundStyle(SBCColors.onSurfaceVariant)
+                        } icon: {
+                            Image(systemName: "checkmark.circle.fill").foregroundStyle(SBCColors.whatsapp)
+                        }
+                        .font(.sbc(.bodySmall))
                     } else {
                         Button(action: onCreateCriteria) {
                             Label(me.criteriaActive == false ? "Réactiver mon critère" : "Créer un critère avec cette liste",
