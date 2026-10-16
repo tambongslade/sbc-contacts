@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -75,9 +75,20 @@ export class CreateCriteriaDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    default: false,
+    description:
+      'Target the members of "Augmenter mes vues WhatsApp" instead of filters. ' +
+      'Only for a member in the list, one per member; the filters are ignored.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  statusBoost?: boolean;
 }
 
-export class UpdateCriteriaDto extends PartialType(CreateCriteriaDto) {}
+/** What a criteria targets is fixed at creation. */
+export class UpdateCriteriaDto extends PartialType(OmitType(CreateCriteriaDto, ['statusBoost'])) {}
 
 /** Ad-hoc criteria for the live match-count preview on the create screen. */
-export class PreviewCriteriaDto extends PartialType(CreateCriteriaDto) {}
+export class PreviewCriteriaDto extends PartialType(OmitType(CreateCriteriaDto, ['statusBoost'])) {}

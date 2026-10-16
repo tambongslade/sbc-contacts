@@ -82,19 +82,28 @@ class StatusBoostMe {
     required this.optIn,
     required this.participants,
     required this.hasPhone,
+    this.criteriaActive,
   });
 
-  factory StatusBoostMe.fromJson(Map<String, dynamic> json) => StatusBoostMe(
-        optIn: json['optIn'] == true,
-        participants: (json['participants'] as num?)?.toInt() ?? 0,
-        hasPhone: json['hasPhone'] != false,
-      );
+  factory StatusBoostMe.fromJson(Map<String, dynamic> json) {
+    final criteria = json['criteria'] as Map<String, dynamic>?;
+    return StatusBoostMe(
+      optIn: json['optIn'] == true,
+      participants: (json['participants'] as num?)?.toInt() ?? 0,
+      hasPhone: json['hasPhone'] != false,
+      criteriaActive: criteria == null ? null : criteria['isActive'] == true,
+    );
+  }
 
   final bool optIn;
   final int participants;
 
   /// Without a number on the SBC account, nobody can save this member back.
   final bool hasPhone;
+
+  /// The member's "save the whole list" criteria: null when never created,
+  /// false when switched off (leaving the list does that).
+  final bool? criteriaActive;
 }
 
 class StatusBoostRepository {

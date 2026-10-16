@@ -581,8 +581,14 @@ class _CriteriaTile extends ConsumerWidget {
       ...criteria.professions,
       ...criteria.interests,
     ];
-    final desc = bits.isEmpty ? 'Tous les membres' : bits.take(4).join(' · ');
-    final more = bits.length > 4 ? ' +${bits.length - 4}' : '';
+    final boost = criteria.statusBoost;
+    final desc = boost
+        ? 'Membres de « Augmenter mes vues WhatsApp »'
+        : bits.isEmpty
+            ? 'Tous les membres'
+            : bits.take(4).join(' · ');
+    final more = !boost && bits.length > 4 ? ' +${bits.length - 4}' : '';
+    final tint = boost ? SbcColors.whatsapp : SbcColors.primary;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
@@ -605,6 +611,11 @@ class _CriteriaTile extends ConsumerWidget {
             children: [
               Row(
                 children: [
+                  if (boost) ...[
+                    const Icon(Icons.visibility_rounded,
+                        size: 18, color: SbcColors.whatsapp),
+                    const Gap(6),
+                  ],
                   Expanded(
                     child: Text(
                       criteria.label,
@@ -618,19 +629,18 @@ class _CriteriaTile extends ConsumerWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: SbcColors.primary.withValues(alpha: 0.10),
+                      color: tint.withValues(alpha: 0.10),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.group_rounded,
-                            size: 13, color: SbcColors.primary),
+                        Icon(Icons.group_rounded, size: 13, color: tint),
                         const Gap(5),
                         Text(
                           '${criteria.lastMatchCount}',
                           style: theme.textTheme.labelMedium?.copyWith(
-                            color: SbcColors.primary,
+                            color: tint,
                             fontWeight: FontWeight.w800,
                           ),
                         ),

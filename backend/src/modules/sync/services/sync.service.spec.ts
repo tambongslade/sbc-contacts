@@ -1,3 +1,4 @@
+import { CriteriaMatchResolver } from './criteria-match.resolver';
 import { SyncService } from './sync.service';
 
 /**
@@ -41,6 +42,7 @@ describe('SyncService — abandoned runs', () => {
       { record: jest.fn() } as never,
       {} as never,
       { hydrate: jest.fn() } as never,
+      new CriteriaMatchResolver({} as never),
     );
     return { service, prisma, findMany, deleteMany, updateMany };
   }
@@ -119,6 +121,7 @@ describe('SyncService — a run started from a criteria alone', () => {
       { record: jest.fn() } as never,
       {} as never,
       { enqueueDeepWalk } as never,
+      new CriteriaMatchResolver({} as never),
     );
     return { service, enqueueDeepWalk, find };
   }

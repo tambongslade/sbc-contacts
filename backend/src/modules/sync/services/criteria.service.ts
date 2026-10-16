@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { SyncCriteria } from '@prisma/client';
 import { PaginatedResult, PaginationQueryDto, paginate } from '../../../common/dto/pagination.dto';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
@@ -6,8 +6,10 @@ import { AuditService } from '../../audit/audit.service';
 import { MemberMatchService } from '../../members/member-match.service';
 import { MembersService } from '../../members/members.service';
 import { MatchCriteria, MemberView } from '../../members/member.view';
+import { StatusBoostService } from '../../status-boost/status-boost.service';
 import { CreateCriteriaDto, PreviewCriteriaDto, UpdateCriteriaDto } from '../dto/criteria.dto';
 import { CriteriaHydrationService } from './criteria-hydration.service';
+import { CriteriaMatchResolver } from './criteria-match.resolver';
 
 /** Saved sync criteria (cahier §10): CRUD + live match-count preview + matches. */
 @Injectable()
@@ -18,9 +20,12 @@ export class CriteriaService {
     private readonly members: MembersService,
     private readonly audit: AuditService,
     private readonly hydration: CriteriaHydrationService,
+    private readonly resolver: CriteriaMatchResolver,
+    private readonly statusBoost: StatusBoostService,
   ) {}
 
   async create(userId: string, dto: CreateCriteriaDto, ip?: string): Promise<SyncCriteria> {
+    if (dto.statusBoost) return this.withCount(await this.createStatusBoost(userId, dto.label, ip));
     const created = await this.prisma.syncCriteria.create({
       data: {
         userId,
@@ -51,6 +56,66 @@ export class CriteriaService {
     return created;
   }
 
+  /**
+   * "Enregistrer tous les membres de la liste" from "Augmenter mes vues
+   * WhatsApp". Only for a member in the list — the deal is mutual — and one per
+   * member: asking again turns the existing one back on rather than adding a
+   * second that saves the same people.
+   */
+  private async createStatusBoost(
+    userId: string,
+    label: string,
+    ip?: string,
+  ): Promise<SyncCriteria> {
+    await this.assertInStatusBoost(userId);
+    const existing = await this.prisma.syncCriteria.findFirst({
+      where: { userId, statusBoost: true },
+    });
+    if (existing) {
+      return existing.isActive
+        ? existing
+        : this.update(userId, existing.id, { isActive: true }, ip);
+    }
+    const created = await this.prisma.syncCriteria.create({
+      data: {
+        userId,
+        label,
+        statusBoost: true,
+        // Same baseline as any criteria: those already in the list are the
+        // ones the member is saving now, not news.
+        lastCheckedAt: new Date(),
+      },
+    });
+    await this.audit.record({
+      actorId: userId,
+      action: 'criteria.create',
+      resource: `SyncCriteria:${created.id}`,
+      after: created,
+      ip,
+    });
+    return created;
+  }
+
+  /**
+   * A list criteria's size is known up front, so its card need not read 0 until
+   * the next sweep.
+   */
+  private async withCount(c: SyncCriteria): Promise<SyncCriteria> {
+    const { sbcIds } = await this.resolver.resolve(c);
+    return this.prisma.syncCriteria.update({
+      where: { id: c.id },
+      data: { lastMatchCount: sbcIds?.length ?? 0 },
+    });
+  }
+
+  private async assertInStatusBoost(userId: string): Promise<void> {
+    if (!(await this.statusBoost.isOptedIn(userId))) {
+      throw new ForbiddenException(
+        'Rejoins "Augmenter mes vues WhatsApp" pour enregistrer ses membres',
+      );
+    }
+  }
+
   list(userId: string): Promise<SyncCriteria[]> {
     return this.prisma.syncCriteria.findMany({
       where: { userId },
@@ -71,6 +136,11 @@ export class CriteriaService {
     ip?: string,
   ): Promise<SyncCriteria> {
     const before = await this.get(userId, id);
+    if (before.statusBoost) {
+      // Its members are the list, not filters: only the name and the switch.
+      if (dto.isActive) await this.assertInStatusBoost(userId);
+      dto = { label: dto.label, isActive: dto.isActive };
+    }
     const updated = await this.prisma.syncCriteria.update({
       where: { id },
       data: {
@@ -111,7 +181,7 @@ export class CriteriaService {
   /** Match count for a saved criteria; also refreshes its cached count. */
   async preview(userId: string, id: string): Promise<{ criteriaId: string; matchCount: number }> {
     const criteria = await this.get(userId, id);
-    const where = this.toMatch(criteria);
+    const where = await this.resolver.resolve(criteria);
     const matchCount = await this.matchCount(userId, where);
     await this.prisma.syncCriteria.update({
       where: { id },
@@ -143,7 +213,7 @@ export class CriteriaService {
     pagination: PaginationQueryDto,
   ): Promise<PaginatedResult<MemberView>> {
     const criteria = await this.get(userId, id);
-    const where = this.toMatch(criteria);
+    const where = await this.resolver.resolve(criteria);
     // Keep filling the mirror in the background so paging reaches the whole
     // country; the page itself is served from whatever is mirrored so far, so it
     // is always full rows the member can save — never an empty page ahead of the
@@ -155,18 +225,6 @@ export class CriteriaService {
     ]);
     const annotated = await this.members.annotate(userId, rows);
     return paginate(annotated, total, pagination.page, pagination.limit);
-  }
-
-  private toMatch(c: SyncCriteria): MatchCriteria {
-    return {
-      countries: c.countries,
-      cities: c.cities,
-      professions: c.professions,
-      interests: c.interests,
-      sex: c.sex,
-      ageMin: c.ageMin,
-      ageMax: c.ageMax,
-    };
   }
 
   private dtoToMatch(dto: PreviewCriteriaDto): MatchCriteria {

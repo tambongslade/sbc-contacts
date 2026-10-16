@@ -176,6 +176,10 @@ model SyncCriteria {
   ageMin      Int?
   ageMax      Int?
 
+  /// Targets the members of "Augmenter mes vues WhatsApp" instead of the
+  /// filters above, which stay empty.
+  statusBoost Boolean @default(false)
+
   isActive        Boolean   @default(true)
   lastCheckedAt   DateTime?
   lastResultHash  String? // fingerprint of the last match set, for cheap diffing

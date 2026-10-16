@@ -137,7 +137,34 @@ class _StatusBoostScreenState extends ConsumerState<StatusBoostScreen> {
     setState(() => _toggling = true);
     try {
       final me = await _repo.setOptIn(optIn: optIn);
+      // Leaving switches the "save the list" criteria off.
+      ref.invalidate(criteriaControllerProvider);
       if (mounted) setState(() => _me = me);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Échec : $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _toggling = false);
+    }
+  }
+
+  /// Adds "Vues WhatsApp" to "Mes critères": syncing it saves everyone in the
+  /// list, and the member hears about whoever joins next. Asking again turns
+  /// an existing one back on.
+  Future<void> _createCriteria() async {
+    setState(() => _toggling = true);
+    try {
+      await ref
+          .read(criteriaControllerProvider.notifier)
+          .create({'label': 'Vues WhatsApp', 'statusBoost': true});
+      final me = await _repo.me();
+      if (!mounted) return;
+      setState(() => _me = me);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Critère « Vues WhatsApp » ajouté dans Synchro'),
+      ));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -273,6 +300,7 @@ class _StatusBoostScreenState extends ConsumerState<StatusBoostScreen> {
               me: _me,
               busy: _toggling,
               onChanged: (v) => _toggleOptIn(optIn: v),
+              onCreateCriteria: _createCriteria,
             ),
             if (_types.isNotEmpty) ...[
               const _Label('Filtrer par abonnement'),
@@ -401,11 +429,17 @@ class _StatusBoostScreenState extends ConsumerState<StatusBoostScreen> {
 }
 
 class _OptInCard extends StatelessWidget {
-  const _OptInCard({required this.me, required this.busy, required this.onChanged});
+  const _OptInCard({
+    required this.me,
+    required this.busy,
+    required this.onChanged,
+    required this.onCreateCriteria,
+  });
 
   final StatusBoostMe? me;
   final bool busy;
   final ValueChanged<bool> onChanged;
+  final VoidCallback onCreateCriteria;
 
   @override
   Widget build(BuildContext context) {
@@ -484,6 +518,42 @@ class _OptInCard extends StatelessWidget {
                 style: theme.textTheme.bodySmall?.copyWith(color: SbcColors.warning),
               ),
             ),
+          // Only for someone in the list: the deal is mutual.
+          if (me != null && me.optIn) ...[
+            const Gap(10),
+            if (me.criteriaActive == true)
+              Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, size: 18, color: SbcColors.whatsapp),
+                  const Gap(8),
+                  Expanded(
+                    child: Text(
+                      'Critère « Vues WhatsApp » actif dans Synchro',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                  ),
+                ],
+              )
+            else
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: busy ? null : onCreateCriteria,
+                  icon: const Icon(Icons.tune_rounded, size: 18),
+                  label: Text(
+                    me.criteriaActive == false
+                        ? 'Réactiver mon critère'
+                        : 'Créer un critère avec cette liste',
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: SbcColors.whatsapp,
+                    side: const BorderSide(color: SbcColors.whatsapp),
+                    shape: const StadiumBorder(),
+                  ),
+                ),
+              ),
+          ],
         ],
       ),
     );

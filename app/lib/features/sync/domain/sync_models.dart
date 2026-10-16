@@ -12,6 +12,7 @@ class SyncCriteria {
     this.ageMax,
     this.isActive = true,
     this.lastMatchCount = 0,
+    this.statusBoost = false,
   });
 
   factory SyncCriteria.fromJson(Map<String, dynamic> json) {
@@ -28,6 +29,7 @@ class SyncCriteria {
       ageMax: (json['ageMax'] as num?)?.toInt(),
       isActive: json['isActive'] as bool? ?? true,
       lastMatchCount: (json['lastMatchCount'] as num?)?.toInt() ?? 0,
+      statusBoost: json['statusBoost'] == true,
     );
   }
 
@@ -42,6 +44,10 @@ class SyncCriteria {
   final int? ageMax;
   final bool isActive;
   final int lastMatchCount;
+
+  /// Targets the members of "Augmenter mes vues WhatsApp" rather than filters,
+  /// which stay empty.
+  final bool statusBoost;
 
   Map<String, dynamic> toPayload() => {
         'label': label,

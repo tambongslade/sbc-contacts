@@ -24,7 +24,12 @@ describe('StatusBoostService', () => {
           avatarUrl: null,
         }),
       },
+      syncCriteria: {
+        findFirst: jest.fn().mockReturnValue(null),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
       member: {
+        findMany: jest.fn().mockResolvedValue([]),
         upsert: jest.fn(
           ({ where }: { where: { sbcId: string }; update?: unknown; create?: unknown }) =>
             Promise.resolve({ id: `m-${where.sbcId}`, sbcId: where.sbcId }),
@@ -84,5 +89,37 @@ describe('StatusBoostService', () => {
         create: expect.objectContaining({ country: 'CM' }),
       }),
     );
+  });
+
+  it('stops the member saving the list when they leave it', async () => {
+    const { svc, prisma } = build([]);
+    prisma.$transaction.mockResolvedValueOnce([
+      { statusBoostOptIn: false, statusBoostSince: null, phoneNumber: '237600' },
+      0,
+      { id: 'c1', isActive: false },
+    ]);
+    await svc.setOptIn('me', false);
+    expect(prisma.syncCriteria.updateMany).toHaveBeenCalledWith({
+      where: { userId: 'me', statusBoost: true, isActive: true },
+      data: { isActive: false },
+    });
+  });
+
+  it('resolves the participants to mirror rows, creating only the missing ones', async () => {
+    const { svc, prisma } = build([]);
+    prisma.user.findMany.mockResolvedValueOnce([user('a', []), user('b', [])]);
+    prisma.member.findMany.mockResolvedValueOnce([{ id: 'm-a-sbc', sbcId: 'a-sbc' }]);
+
+    const members = await svc.participants('me', { since: new Date('2026-10-01') });
+
+    expect(prisma.user.findMany.mock.calls[0][0].where).toEqual(
+      expect.objectContaining({
+        id: { not: 'me' },
+        statusBoostSince: { gt: new Date('2026-10-01') },
+      }),
+    );
+    expect(prisma.member.upsert).toHaveBeenCalledTimes(1);
+    expect(prisma.member.upsert.mock.calls[0][0].where).toEqual({ sbcId: 'b-sbc' });
+    expect(members.map((m) => m.sbcId).sort()).toEqual(['a-sbc', 'b-sbc']);
   });
 });

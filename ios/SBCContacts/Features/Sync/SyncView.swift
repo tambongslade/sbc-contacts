@@ -284,21 +284,28 @@ private struct CriteriaCard: View {
 
     var body: some View {
         let bits = criteria.countries.map(FilterOptions.countryLabel) + criteria.cities + criteria.professions + criteria.interests
-        let desc = bits.isEmpty ? "Tous les membres" : bits.prefix(4).joined(separator: " · ")
-        let more = bits.count > 4 ? " +\(bits.count - 4)" : ""
+        let boost = criteria.statusBoost
+        let desc = boost
+            ? "Membres de « Augmenter mes vues WhatsApp »"
+            : bits.isEmpty ? "Tous les membres" : bits.prefix(4).joined(separator: " · ")
+        let more = !boost && bits.count > 4 ? " +\(bits.count - 4)" : ""
+        let tint = boost ? SBCColors.whatsapp : SBCColors.primary
 
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
+                if boost {
+                    Image(systemName: "eye.fill").foregroundStyle(SBCColors.whatsapp)
+                }
                 Text(criteria.label)
                     .font(.montserrat(.headline))
                     .lineLimit(1)
                 Spacer()
                 Label("\(criteria.lastMatchCount)", systemImage: "person.2.fill")
                     .font(.montserrat(.caption, .bold))
-                    .foregroundStyle(SBCColors.primary)
+                    .foregroundStyle(tint)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 4)
-                    .background(SBCColors.primary.opacity(0.1), in: Capsule())
+                    .background(tint.opacity(0.1), in: Capsule())
                     .accessibilityLabel("\(criteria.lastMatchCount) correspondances")
             }
             Text(desc + more)
