@@ -83,6 +83,7 @@ class StatusBoostMe {
     required this.participants,
     required this.hasPhone,
     this.criteriaActive,
+    this.filterAccess = 'country',
   });
 
   factory StatusBoostMe.fromJson(Map<String, dynamic> json) {
@@ -92,6 +93,7 @@ class StatusBoostMe {
       participants: (json['participants'] as num?)?.toInt() ?? 0,
       hasPhone: json['hasPhone'] != false,
       criteriaActive: criteria == null ? null : criteria['isActive'] == true,
+      filterAccess: json['filterAccess'] as String? ?? 'country',
     );
   }
 
@@ -104,6 +106,12 @@ class StatusBoostMe {
   /// The member's "save the whole list" criteria: null when never created,
   /// false when switched off (leaving the list does that).
   final bool? criteriaActive;
+
+  /// Which filters the SBC subscription opens on the list: 'all' for Ciblé,
+  /// 'country' otherwise.
+  final String filterAccess;
+
+  bool get countryOnly => filterAccess != 'all';
 }
 
 class StatusBoostRepository {
@@ -113,12 +121,14 @@ class StatusBoostRepository {
   Future<StatusBoostPage> list({
     String? subscription,
     String? search,
+    Map<String, dynamic> filters = const {},
     int page = 1,
     int limit = 30,
   }) async {
     final data = await _api.get('/status-boost', query: {
       'page': page,
       'limit': limit,
+      ...filters,
       if (subscription != null) 'subscription': subscription,
       if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
     }) as Map<String, dynamic>;

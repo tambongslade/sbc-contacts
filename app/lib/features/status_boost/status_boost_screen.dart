@@ -7,12 +7,18 @@ import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/status_boost/status_boost.dart';
 import 'package:sbc_contacts/features/sync/application/sync_controllers.dart';
+import 'package:sbc_contacts/features/sync/presentation/criteria_filters_form.dart';
 import 'package:sbc_contacts/shared/widgets/empty_state.dart';
 import 'package:sbc_contacts/shared/widgets/member_avatar.dart';
 import 'package:sbc_contacts/shared/widgets/skeletons.dart';
 
 final statusBoostRepositoryProvider = Provider<StatusBoostRepository>(
   (ref) => StatusBoostRepository(ref.watch(apiClientProvider)),
+);
+
+/// The caller's place in the list, and which filters their subscription opens.
+final statusBoostMeProvider = FutureProvider<StatusBoostMe>(
+  (ref) => ref.watch(statusBoostRepositoryProvider).me(),
 );
 
 /// "Je veux augmenter mon nombre de vues en statut WhatsApp".
@@ -46,6 +52,9 @@ class _StatusBoostScreenState extends ConsumerState<StatusBoostScreen> {
   String? _subscription;
   String _search = '';
 
+  /// The criteria filters applied to the list, as the subscription allows.
+  CriteriaFilters _filters = CriteriaFilters();
+
   /// Saved during this visit — the list is not refetched for each save, which
   /// would scroll the member back to the top.
   final Set<String> _saved = {};
@@ -76,7 +85,11 @@ class _StatusBoostScreenState extends ConsumerState<StatusBoostScreen> {
     });
     try {
       final results = await Future.wait([
-        _repo.list(subscription: _subscription, search: _search),
+        _repo.list(
+          subscription: _subscription,
+          search: _search,
+          filters: _filters.toQuery(),
+        ),
         if (withMe || _me == null) _repo.me(),
       ]);
       if (!mounted) return;
@@ -104,6 +117,7 @@ class _StatusBoostScreenState extends ConsumerState<StatusBoostScreen> {
       final page = await _repo.list(
         subscription: _subscription,
         search: _search,
+        filters: _filters.toQuery(),
         page: _page + 1,
       );
       if (!mounted) return;
@@ -127,6 +141,65 @@ class _StatusBoostScreenState extends ConsumerState<StatusBoostScreen> {
     });
   }
 
+  /// The criteria filters, in a sheet: everything for Ciblé, the country
+  /// otherwise.
+  Future<void> _openFilters() async {
+    final draft = _filters.copy();
+    final applied = await showModalBottomSheet<CriteriaFilters>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheet) => SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.85,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'Filtrer la liste',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                    child: CriteriaFiltersForm(
+                      filters: draft,
+                      countryOnly: _me?.countryOnly ?? true,
+                      onChanged: () => setSheet(() {}),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(context).pop(draft),
+                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                    child: const Text('Appliquer'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (applied == null) return;
+    setState(() => _filters = (_me?.countryOnly ?? true) ? applied.countryOnly() : applied);
+    unawaited(_reload());
+  }
+
+  void _clearFilters() {
+    setState(() => _filters = CriteriaFilters());
+    unawaited(_reload());
+  }
+
   void _onFilter(String? type) {
     if (type == _subscription) return;
     setState(() => _subscription = type);
@@ -138,7 +211,7 @@ class _StatusBoostScreenState extends ConsumerState<StatusBoostScreen> {
     try {
       final me = await _repo.setOptIn(optIn: optIn);
       // Leaving switches the "save the list" criteria off.
-      ref.invalidate(criteriaControllerProvider);
+      _refreshCriteria();
       if (mounted) setState(() => _me = me);
     } catch (e) {
       if (mounted) {
@@ -150,20 +223,37 @@ class _StatusBoostScreenState extends ConsumerState<StatusBoostScreen> {
     }
   }
 
-  /// Adds "Vues WhatsApp" to "Mes critères": syncing it saves everyone in the
-  /// list, and the member hears about whoever joins next. Asking again turns
-  /// an existing one back on.
+  void _refreshCriteria() {
+    ref
+      ..invalidate(criteriaControllerProvider)
+      // The Synchro tiles count criteria too.
+      ..invalidate(syncSummaryProvider)
+      ..invalidate(statusBoostMeProvider);
+  }
+
+  /// Adds "Vues WhatsApp" to "Mes critères", with the filters applied here:
+  /// syncing it saves those members of the list, and the member hears about
+  /// whoever joins next. Asking again updates the existing one and turns it
+  /// back on.
   Future<void> _createCriteria() async {
+    final existed = _me?.criteriaActive != null;
     setState(() => _toggling = true);
     try {
-      await ref
-          .read(criteriaControllerProvider.notifier)
-          .create({'label': 'Vues WhatsApp', 'statusBoost': true});
+      await ref.read(criteriaControllerProvider.notifier).create({
+        'label': 'Vues WhatsApp',
+        'statusBoost': true,
+        ..._filters.toJson(),
+      });
+      _refreshCriteria();
       final me = await _repo.me();
       if (!mounted) return;
       setState(() => _me = me);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Critère « Vues WhatsApp » ajouté dans Synchro'),
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+          existed
+              ? 'Critère « Vues WhatsApp » mis à jour dans Synchro'
+              : 'Critère « Vues WhatsApp » ajouté dans Synchro',
+        ),
       ));
     } catch (e) {
       if (mounted) {
@@ -299,8 +389,15 @@ class _StatusBoostScreenState extends ConsumerState<StatusBoostScreen> {
             _OptInCard(
               me: _me,
               busy: _toggling,
+              filtered: !_filters.isEmpty,
               onChanged: (v) => _toggleOptIn(optIn: v),
               onCreateCriteria: _createCriteria,
+            ),
+            _FilterBar(
+              filters: _filters,
+              countryOnly: _me?.countryOnly ?? true,
+              onOpen: _openFilters,
+              onClear: _clearFilters,
             ),
             if (_types.isNotEmpty) ...[
               const _Label('Filtrer par abonnement'),
@@ -351,10 +448,10 @@ class _StatusBoostScreenState extends ConsumerState<StatusBoostScreen> {
       return [
         EmptyState(
           icon: Icons.visibility_outlined,
-          title: _search.isNotEmpty || _subscription != null
+          title: _search.isNotEmpty || _subscription != null || !_filters.isEmpty
               ? 'Aucun membre trouvé'
               : 'Personne pour le moment',
-          message: _search.isNotEmpty || _subscription != null
+          message: _search.isNotEmpty || _subscription != null || !_filters.isEmpty
               ? 'Essaie un autre filtre.'
               : 'Active « Je participe » pour être le premier de la liste.',
         ),
@@ -432,12 +529,16 @@ class _OptInCard extends StatelessWidget {
   const _OptInCard({
     required this.me,
     required this.busy,
+    required this.filtered,
     required this.onChanged,
     required this.onCreateCriteria,
   });
 
   final StatusBoostMe? me;
   final bool busy;
+
+  /// Filters are applied to the list: the criteria takes them.
+  final bool filtered;
   final ValueChanged<bool> onChanged;
   final VoidCallback onCreateCriteria;
 
@@ -521,7 +622,7 @@ class _OptInCard extends StatelessWidget {
           // Only for someone in the list: the deal is mutual.
           if (me != null && me.optIn) ...[
             const Gap(10),
-            if (me.criteriaActive == true)
+            if (me.criteriaActive == true) ...[
               Row(
                 children: [
                   const Icon(Icons.check_circle_rounded, size: 18, color: SbcColors.whatsapp),
@@ -534,8 +635,18 @@ class _OptInCard extends StatelessWidget {
                     ),
                   ),
                 ],
-              )
-            else
+              ),
+              if (filtered)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: busy ? null : onCreateCriteria,
+                    icon: const Icon(Icons.tune_rounded, size: 18),
+                    label: const Text('Appliquer ces filtres à mon critère'),
+                    style: TextButton.styleFrom(foregroundColor: SbcColors.whatsapp),
+                  ),
+                ),
+            ] else
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -544,7 +655,9 @@ class _OptInCard extends StatelessWidget {
                   label: Text(
                     me.criteriaActive == false
                         ? 'Réactiver mon critère'
-                        : 'Créer un critère avec cette liste',
+                        : filtered
+                            ? 'Créer un critère avec ces filtres'
+                            : 'Créer un critère avec cette liste',
                   ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: SbcColors.whatsapp,
@@ -553,6 +666,67 @@ class _OptInCard extends StatelessWidget {
                   ),
                 ),
               ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// "Filtres" and what is applied, under the opt-in card.
+class _FilterBar extends StatelessWidget {
+  const _FilterBar({
+    required this.filters,
+    required this.countryOnly,
+    required this.onOpen,
+    required this.onClear,
+  });
+
+  final CriteriaFilters filters;
+  final bool countryOnly;
+  final VoidCallback onOpen;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final labels = filters.labels;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: onOpen,
+                icon: const Icon(Icons.filter_list_rounded, size: 18),
+                label: Text(labels.isEmpty ? 'Filtres' : 'Filtres (${labels.length})'),
+                style: OutlinedButton.styleFrom(shape: const StadiumBorder()),
+              ),
+              const Gap(8),
+              if (labels.isNotEmpty)
+                TextButton(onPressed: onClear, child: const Text('Effacer'))
+              else
+                Expanded(
+                  child: Text(
+                    countryOnly
+                        ? 'Par pays avec ton abonnement'
+                        : 'Pays, profession, intérêts, âge…',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+          ),
+          if (labels.isNotEmpty) ...[
+            const Gap(6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [for (final l in labels) _Tag(l, color: SbcColors.whatsapp)],
+            ),
           ],
         ],
       ),
