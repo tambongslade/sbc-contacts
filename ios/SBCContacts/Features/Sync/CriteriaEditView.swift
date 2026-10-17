@@ -17,7 +17,9 @@ struct CriteriaEditView: View {
     @State private var label: String
     @State private var filters: CriteriaFilters
     /// Ciblé filters the list by everything; anyone else by country only.
-    @State private var countryOnly = true
+    /// Unknown (nil) locks nothing — and clears nothing on save: the server
+    /// refuses what the subscription does not allow anyway.
+    @State private var countryOnly: Bool?
 
     @State private var preview: Int?
     @State private var previewing = false
@@ -34,7 +36,7 @@ struct CriteriaEditView: View {
     /// filters the member's subscription allows.
     private var boost: Bool { existing?.statusBoost ?? false }
 
-    private var limited: Bool { boost && countryOnly }
+    private var limited: Bool { boost && countryOnly == true }
 
     private var payload: CriteriaPayload {
         // Sent as such, a filter the subscription does not allow would be refused.

@@ -49,8 +49,10 @@ class _CriteriaEditScreenState extends ConsumerState<CriteriaEditScreen> {
   bool get _boost => widget.existing?.statusBoost ?? false;
 
   /// Ciblé filters by everything; anyone else, on the list, by country only.
+  /// Until the subscription is known nothing is locked — or cleared on save:
+  /// the server refuses what the subscription does not allow anyway.
   bool get _countryOnly =>
-      _boost && ref.watch(statusBoostMeProvider).value?.filterAccess != 'all';
+      _boost && (ref.watch(statusBoostMeProvider).value?.countryOnly ?? false);
 
   Map<String, dynamic> _payload() {
     final label = _label.text.trim();
