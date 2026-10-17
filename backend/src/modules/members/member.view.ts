@@ -58,8 +58,9 @@ export function toMatchCriteria(c: {
     sex: c.sex,
     ageMin: c.ageMin,
     ageMax: c.ageMax,
-    // Its filters are empty, so on their own they would match every member.
-    // Until the participants are resolved (CriteriaMatchResolver), match none.
+    // Its filters only narrow the list; on their own they could match every
+    // member. Until the participants are resolved (CriteriaMatchResolver),
+    // match none.
     ...(c.statusBoost ? { sbcIds: [] } : {}),
   };
 }

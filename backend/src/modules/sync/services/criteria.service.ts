@@ -25,7 +25,7 @@ export class CriteriaService {
   ) {}
 
   async create(userId: string, dto: CreateCriteriaDto, ip?: string): Promise<SyncCriteria> {
-    if (dto.statusBoost) return this.withCount(await this.createStatusBoost(userId, dto.label, ip));
+    if (dto.statusBoost) return this.withCount(await this.createStatusBoost(userId, dto, ip));
     const created = await this.prisma.syncCriteria.create({
       data: {
         userId,
@@ -57,30 +57,54 @@ export class CriteriaService {
   }
 
   /**
-   * "Enregistrer tous les membres de la liste" from "Augmenter mes vues
-   * WhatsApp". Only for a member in the list — the deal is mutual — and one per
-   * member: asking again turns the existing one back on rather than adding a
-   * second that saves the same people.
+   * "Créer un critère avec cette liste" from "Augmenter mes vues WhatsApp": the
+   * members of the list, narrowed by the filters the member's subscription
+   * allows. Only for a member in the list — the deal is mutual — and one per
+   * member: asking again updates the existing one (filters, back on) rather
+   * than adding a second that saves the same people.
    */
   private async createStatusBoost(
     userId: string,
-    label: string,
+    dto: CreateCriteriaDto,
     ip?: string,
   ): Promise<SyncCriteria> {
     await this.assertInStatusBoost(userId);
+    await this.statusBoost.assertFiltersAllowed(userId, dto);
     const existing = await this.prisma.syncCriteria.findFirst({
       where: { userId, statusBoost: true },
     });
+    const filters = {
+      countries: dto.countries ?? [],
+      cities: dto.cities ?? [],
+      professions: dto.professions ?? [],
+      interests: dto.interests ?? [],
+      sex: dto.sex ?? null,
+      ageMin: dto.ageMin ?? null,
+      ageMax: dto.ageMax ?? null,
+    };
     if (existing) {
-      return existing.isActive
-        ? existing
-        : this.update(userId, existing.id, { isActive: true }, ip);
+      // Straight to the row: the filters chosen on the list replace the old
+      // ones, cleared ones included, which update()'s "absent = unchanged" can't.
+      const updated = await this.prisma.syncCriteria.update({
+        where: { id: existing.id },
+        data: { ...filters, isActive: true },
+      });
+      await this.audit.record({
+        actorId: userId,
+        action: 'criteria.update',
+        resource: `SyncCriteria:${existing.id}`,
+        before: existing,
+        after: updated,
+        ip,
+      });
+      return updated;
     }
     const created = await this.prisma.syncCriteria.create({
       data: {
         userId,
-        label,
+        label: dto.label,
         statusBoost: true,
+        ...filters,
         // Same baseline as any criteria: those already in the list are the
         // ones the member is saving now, not news.
         lastCheckedAt: new Date(),
@@ -101,10 +125,9 @@ export class CriteriaService {
    * the next sweep.
    */
   private async withCount(c: SyncCriteria): Promise<SyncCriteria> {
-    const { sbcIds } = await this.resolver.resolve(c);
     return this.prisma.syncCriteria.update({
       where: { id: c.id },
-      data: { lastMatchCount: sbcIds?.length ?? 0 },
+      data: { lastMatchCount: await this.match.count(await this.resolver.resolve(c)) },
     });
   }
 
@@ -137,9 +160,9 @@ export class CriteriaService {
   ): Promise<SyncCriteria> {
     const before = await this.get(userId, id);
     if (before.statusBoost) {
-      // Its members are the list, not filters: only the name and the switch.
+      // Its members are the list, narrowed only as the subscription allows.
       if (dto.isActive) await this.assertInStatusBoost(userId);
-      dto = { label: dto.label, isActive: dto.isActive };
+      await this.statusBoost.assertFiltersAllowed(userId, dto);
     }
     const updated = await this.prisma.syncCriteria.update({
       where: { id },
@@ -163,7 +186,7 @@ export class CriteriaService {
       after: updated,
       ip,
     });
-    return updated;
+    return updated.statusBoost ? this.withCount(updated) : updated;
   }
 
   async remove(userId: string, id: string, ip?: string): Promise<void> {
@@ -192,7 +215,13 @@ export class CriteriaService {
 
   /** Match count for unsaved criteria (live count on the create screen, §10). */
   async previewAdhoc(userId: string, dto: PreviewCriteriaDto): Promise<{ matchCount: number }> {
-    return { matchCount: await this.matchCount(userId, this.dtoToMatch(dto)) };
+    const where = this.dtoToMatch(dto);
+    if (dto.statusBoost) {
+      // The list, narrowed by the filters being edited.
+      const members = await this.statusBoost.participants(userId);
+      where.sbcIds = members.map((m) => m.sbcId);
+    }
+    return { matchCount: await this.matchCount(userId, where) };
   }
 
   /**

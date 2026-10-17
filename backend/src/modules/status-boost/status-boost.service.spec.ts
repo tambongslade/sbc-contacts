@@ -1,3 +1,4 @@
+import { MemberMatchService } from '../members/member-match.service';
 import { StatusBoostService } from './status-boost.service';
 
 /**
@@ -14,6 +15,7 @@ describe('StatusBoostService', () => {
           statusBoostOptIn: true,
           phoneNumber: '237600',
         }),
+        findUnique: jest.fn().mockResolvedValue({ subscriptionTypes: ['CLASSIQUE'] }),
         findMany: jest.fn().mockReturnValue('rows'),
         count: jest.fn().mockReturnValue('count'),
         update: jest.fn().mockResolvedValue({
@@ -30,6 +32,7 @@ describe('StatusBoostService', () => {
       },
       member: {
         findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn(),
         upsert: jest.fn(
           ({ where }: { where: { sbcId: string }; update?: unknown; create?: unknown }) =>
             Promise.resolve({ id: `m-${where.sbcId}`, sbcId: where.sbcId }),
@@ -39,7 +42,8 @@ describe('StatusBoostService', () => {
       addedEvent: { findMany: jest.fn().mockResolvedValue([]) },
       $transaction: jest.fn().mockResolvedValue([users, users.length, users]),
     };
-    return { svc: new StatusBoostService(prisma as never), prisma };
+    const match = new MemberMatchService(prisma as never);
+    return { svc: new StatusBoostService(prisma as never, match), prisma };
   }
 
   const user = (id: string, types: string[]) => ({
@@ -79,7 +83,12 @@ describe('StatusBoostService', () => {
   it('puts a member who joins in the mirror straight away', async () => {
     const { svc, prisma } = build([]);
     prisma.$transaction.mockResolvedValueOnce([
-      { statusBoostOptIn: true, statusBoostSince: new Date(), phoneNumber: '237600' },
+      {
+        statusBoostOptIn: true,
+        statusBoostSince: new Date(),
+        phoneNumber: '237600',
+        subscriptionTypes: [],
+      },
       1,
     ]);
     await svc.setOptIn('me', true);
@@ -94,7 +103,12 @@ describe('StatusBoostService', () => {
   it('stops the member saving the list when they leave it', async () => {
     const { svc, prisma } = build([]);
     prisma.$transaction.mockResolvedValueOnce([
-      { statusBoostOptIn: false, statusBoostSince: null, phoneNumber: '237600' },
+      {
+        statusBoostOptIn: false,
+        statusBoostSince: null,
+        phoneNumber: '237600',
+        subscriptionTypes: [],
+      },
       0,
       { id: 'c1', isActive: false },
     ]);
@@ -121,5 +135,52 @@ describe('StatusBoostService', () => {
     expect(prisma.member.upsert).toHaveBeenCalledTimes(1);
     expect(prisma.member.upsert.mock.calls[0][0].where).toEqual({ sbcId: 'b-sbc' });
     expect(members.map((m) => m.sbcId).sort()).toEqual(['a-sbc', 'b-sbc']);
+  });
+
+  describe('filters, by subscription', () => {
+    it('lets Classique filter the list by country, among the participants only', async () => {
+      const { svc, prisma } = build([]);
+      prisma.user.findMany.mockResolvedValueOnce([user('a', []), user('b', [])]);
+      prisma.member.findMany
+        .mockResolvedValueOnce([
+          { id: 'm-a', sbcId: 'a-sbc' },
+          { id: 'm-b', sbcId: 'b-sbc' },
+        ])
+        .mockResolvedValueOnce([{ sbcId: 'a-sbc' }]);
+
+      await svc.list('me', { page: 1, limit: 30, skip: 0, countries: ['CM'] } as never);
+
+      const filterQuery = prisma.member.findMany.mock.calls[1][0];
+      expect(filterQuery.where.sbcId).toEqual({ in: ['a-sbc', 'b-sbc'] });
+      expect(filterQuery.where.AND).toBeDefined();
+      expect(prisma.user.findMany.mock.calls[1][0].where.sbcUserId).toEqual({ in: ['a-sbc'] });
+    });
+
+    it('refuses the other filters to anyone without Ciblé', async () => {
+      const { svc } = build([]);
+      await expect(
+        svc.list('me', { page: 1, limit: 30, skip: 0, interests: ['Football'] } as never),
+      ).rejects.toThrow("l'abonnement Ciblé");
+      await expect(svc.assertFiltersAllowed('me', { countries: ['CM'] })).resolves.toBeUndefined();
+    });
+
+    it('gives Ciblé every filter', async () => {
+      const { svc, prisma } = build([]);
+      prisma.user.findUnique.mockResolvedValue({ subscriptionTypes: ['CIBLE'] });
+      await expect(
+        svc.assertFiltersAllowed('me', { interests: ['Football'], sex: 'F', ageMin: 20 }),
+      ).resolves.toBeUndefined();
+      expect(await svc.filterAccess('me')).toBe('all');
+    });
+
+    it('tells the app which filters are open', async () => {
+      const { svc, prisma } = build([]);
+      prisma.$transaction.mockResolvedValueOnce([
+        { statusBoostOptIn: true, statusBoostSince: null, phoneNumber: '1', subscriptionTypes: [] },
+        3,
+        null,
+      ]);
+      expect((await svc.me('me')).filterAccess).toBe('country');
+    });
   });
 });

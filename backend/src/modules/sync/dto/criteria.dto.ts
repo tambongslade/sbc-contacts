@@ -79,8 +79,9 @@ export class CreateCriteriaDto {
   @ApiPropertyOptional({
     default: false,
     description:
-      'Target the members of "Augmenter mes vues WhatsApp" instead of filters. ' +
-      'Only for a member in the list, one per member; the filters are ignored.',
+      'Target the members of "Augmenter mes vues WhatsApp", narrowed by the ' +
+      'filters (Ciblé: all of them; otherwise the country only). Only for a ' +
+      'member in the list, one per member.',
   })
   @IsOptional()
   @IsBoolean()
@@ -91,4 +92,4 @@ export class CreateCriteriaDto {
 export class UpdateCriteriaDto extends PartialType(OmitType(CreateCriteriaDto, ['statusBoost'])) {}
 
 /** Ad-hoc criteria for the live match-count preview on the create screen. */
-export class PreviewCriteriaDto extends PartialType(OmitType(CreateCriteriaDto, ['statusBoost'])) {}
+export class PreviewCriteriaDto extends PartialType(CreateCriteriaDto) {}
