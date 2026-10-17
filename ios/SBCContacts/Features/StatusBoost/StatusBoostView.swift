@@ -60,8 +60,13 @@ struct StatusBoostMe: Decodable, Sendable {
     /// The member's "save the whole list" criteria: nil when never created,
     /// false when switched off (leaving the list does that).
     var criteriaActive: Bool?
+    /// Which filters the SBC subscription opens on the list: "all" for Ciblé,
+    /// "country" otherwise.
+    var filterAccess: String
 
-    private enum CodingKeys: String, CodingKey { case optIn, participants, hasPhone, criteria }
+    var countryOnly: Bool { filterAccess != "all" }
+
+    private enum CodingKeys: String, CodingKey { case optIn, participants, hasPhone, criteria, filterAccess }
     private struct CriteriaRef: Decodable { let isActive: Bool }
 
     init(from decoder: Decoder) throws {
@@ -70,14 +75,16 @@ struct StatusBoostMe: Decodable, Sendable {
         participants = c.int(.participants) ?? 0
         hasPhone = c.bool(.hasPhone) ?? true
         criteriaActive = (try? c.decodeIfPresent(CriteriaRef.self, forKey: .criteria))?.isActive
+        filterAccess = (try? c.decodeIfPresent(String.self, forKey: .filterAccess)) ?? "country"
     }
 }
 
 extension APIClient {
     private struct OptInBody: Encodable, Sendable { let optIn: Bool }
 
-    func statusBoost(subscription: String?, search: String?, page: Int) async throws -> StatusBoostPage {
+    func statusBoost(subscription: String?, search: String?, filters: CriteriaFilters, page: Int) async throws -> StatusBoostPage {
         var query: [URLQueryItem] = [.init(name: "page", value: String(page)), .init(name: "limit", value: "30")]
+        query += filters.queryItems
         if let subscription { query.append(.init(name: "subscription", value: subscription)) }
         if let search, !search.isEmpty { query.append(.init(name: "search", value: search)) }
         return try await get("/status-boost", query: query)
@@ -101,6 +108,7 @@ struct StatusBoostView: View {
     @Environment(ToastCenter.self) private var toasts
     @Environment(DirectoryStore.self) private var directory
     @Environment(SyncStore.self) private var sync
+    @Environment(RegionsStore.self) private var regionsStore
 
     @State private var me: StatusBoostMe?
     @State private var entries: [StatusBoostEntry] = []
@@ -115,19 +123,37 @@ struct StatusBoostView: View {
     @State private var bulk: (done: Int, of: Int)?
     @State private var error: String?
     @State private var creatingCriteria = false
+    /// The criteria filters applied to the list, as the subscription allows.
+    @State private var filters = CriteriaFilters()
+    @State private var draft = CriteriaFilters()
+    @State private var editingFilters = false
+
+    private var countryOnly: Bool { me?.countryOnly ?? true }
 
     private var unsaved: [StatusBoostEntry] { entries.filter { !$0.savedByMe } }
 
     var body: some View {
         List {
             Section {
-                OptInCard(me: me, busy: creatingCriteria) { optIn in
+                OptInCard(me: me, busy: creatingCriteria, filtered: !filters.isEmpty) { optIn in
                     Task { await setOptIn(optIn) }
                 } onCreateCriteria: {
                     Task { await createCriteria() }
                 }
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                     .listRowBackground(Color.clear)
+            }
+
+            Section {
+                FilterBar(labels: filters.labels, countryOnly: countryOnly) {
+                    draft = filters
+                    editingFilters = true
+                } onClear: {
+                    filters = CriteriaFilters()
+                    Task { await reload() }
+                }
+                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                .listRowBackground(Color.clear)
             }
 
             if !types.isEmpty {
@@ -152,7 +178,7 @@ struct StatusBoostView: View {
                 if loading && entries.isEmpty {
                     ProgressView().frame(maxWidth: .infinity).padding()
                 } else if entries.isEmpty {
-                    Text(search.isEmpty && subscription == nil
+                    Text(search.isEmpty && subscription == nil && filters.isEmpty
                         ? "Personne d'autre n'a encore rejoint la liste. Rejoins-la et partage l'app : chaque membre qui s'inscrit est un contact de plus."
                         : "Aucun membre ne correspond.")
                         .font(.sbc(.bodyMedium))
@@ -194,6 +220,34 @@ struct StatusBoostView: View {
         }
         .navigationTitle("Vues WhatsApp")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $editingFilters) {
+            NavigationStack {
+                ScrollView {
+                    CriteriaFiltersForm(filters: $draft, countryOnly: countryOnly)
+                        .foregroundStyle(SBCColors.onSurface)
+                        .padding(16)
+                }
+                .background(SBCColors.background)
+                .navigationTitle("Filtrer la liste")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Annuler") { editingFilters = false }
+                    }
+                }
+                .safeAreaInset(edge: .bottom) {
+                    Button("Appliquer") {
+                        filters = countryOnly ? draft.countryOnly : draft
+                        editingFilters = false
+                        Task { await reload() }
+                    }
+                    .buttonStyle(FilledButtonStyle(minHeight: 48))
+                    .padding(12)
+                    .background(.bar)
+                }
+            }
+            .presentationDragIndicator(.visible)
+        }
         .task {
             me = try? await services.api.statusBoostMe()
             await reload()
@@ -209,7 +263,7 @@ struct StatusBoostView: View {
         loading = true
         defer { loading = false }
         do {
-            let result = try await services.api.statusBoost(subscription: subscription, search: search, page: 1)
+            let result = try await services.api.statusBoost(subscription: subscription, search: search, filters: filters, page: 1)
             entries = result.items
             types = result.subscriptionTypes
             total = result.total
@@ -224,7 +278,7 @@ struct StatusBoostView: View {
         guard !loading else { return }
         loading = true
         defer { loading = false }
-        if let next = try? await services.api.statusBoost(subscription: subscription, search: search, page: page + 1) {
+        if let next = try? await services.api.statusBoost(subscription: subscription, search: search, filters: filters, page: page + 1) {
             entries += next.items.filter { n in !entries.contains { $0.id == n.id } }
             hasMore = next.hasMore
             page += 1
@@ -244,19 +298,22 @@ struct StatusBoostView: View {
         }
     }
 
-    /// Adds "Vues WhatsApp" to "Mes critères": syncing it saves everyone in the
-    /// list, and the member hears about whoever joins next. Asking again turns
-    /// an existing one back on.
+    /// Adds "Vues WhatsApp" to "Mes critères", with the filters applied here:
+    /// syncing it saves those members of the list, and the member hears about
+    /// whoever joins next. Asking again updates the existing one and turns it
+    /// back on.
     private func createCriteria() async {
+        let existed = me?.criteriaActive != nil
         creatingCriteria = true
         defer { creatingCriteria = false }
         do {
-            try await sync.create(CriteriaPayload(
-                label: "Vues WhatsApp", countries: [], cities: [], professions: [], interests: [],
-                statusBoost: true
+            try await sync.create(filters.payload(
+                label: "Vues WhatsApp", regionOrder: regionsStore.catalog.all, statusBoost: true
             ))
             me = try await services.api.statusBoostMe()
-            toasts.show("Critère « Vues WhatsApp » ajouté dans Synchro.")
+            toasts.show(existed
+                ? "Critère « Vues WhatsApp » mis à jour dans Synchro."
+                : "Critère « Vues WhatsApp » ajouté dans Synchro.")
         } catch {
             toasts.show(error.localizedDescription)
         }
@@ -289,6 +346,8 @@ struct StatusBoostView: View {
 private struct OptInCard: View {
     let me: StatusBoostMe?
     let busy: Bool
+    /// Filters are applied to the list: the criteria takes them.
+    let filtered: Bool
     let onChange: (Bool) -> Void
     let onCreateCriteria: () -> Void
 
@@ -332,9 +391,19 @@ private struct OptInCard: View {
                             Image(systemName: "checkmark.circle.fill").foregroundStyle(SBCColors.whatsapp)
                         }
                         .font(.sbc(.bodySmall))
+                        if filtered {
+                            Button(action: onCreateCriteria) {
+                                Label("Appliquer ces filtres à mon critère", systemImage: "slider.horizontal.3")
+                            }
+                            .buttonStyle(.borderless)
+                            .font(.sbc(.labelLarge, weight: .bold))
+                            .tint(SBCColors.whatsapp)
+                            .disabled(busy)
+                        }
                     } else {
                         Button(action: onCreateCriteria) {
-                            Label(me.criteriaActive == false ? "Réactiver mon critère" : "Créer un critère avec cette liste",
+                            Label(me.criteriaActive == false ? "Réactiver mon critère"
+                                  : filtered ? "Créer un critère avec ces filtres" : "Créer un critère avec cette liste",
                                   systemImage: "slider.horizontal.3")
                                 .frame(maxWidth: .infinity)
                         }
@@ -349,6 +418,48 @@ private struct OptInCard: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(SBCColors.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+/// "Filtres" and what is applied, under the opt-in card.
+private struct FilterBar: View {
+    let labels: [String]
+    let countryOnly: Bool
+    let onOpen: () -> Void
+    let onClear: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Button(action: onOpen) {
+                    Label(labels.isEmpty ? "Filtres" : "Filtres (\(labels.count))", systemImage: "line.3.horizontal.decrease")
+                }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+                if labels.isEmpty {
+                    Text(countryOnly ? "Par pays avec ton abonnement" : "Pays, profession, intérêts, âge…")
+                        .font(.sbc(.bodySmall))
+                        .foregroundStyle(SBCColors.onSurfaceVariant)
+                        .lineLimit(1)
+                } else {
+                    Button("Effacer", action: onClear).buttonStyle(.borderless)
+                }
+                Spacer(minLength: 0)
+            }
+            if !labels.isEmpty {
+                FlowLayout(spacing: 6, runSpacing: 6) {
+                    ForEach(labels, id: \.self) { label in
+                        Text(label)
+                            .font(.sbc(.labelSmall, weight: .bold))
+                            .foregroundStyle(SBCColors.whatsapp)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(SBCColors.whatsapp.opacity(0.12)))
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 

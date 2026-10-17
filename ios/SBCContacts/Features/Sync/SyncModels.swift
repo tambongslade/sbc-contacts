@@ -107,15 +107,16 @@ struct CriteriaPayload: Encodable, Sendable, Equatable {
     var ageMin: Int?
     var ageMax: Int?
     var isActive: Bool?
-    /// Create only: target "Augmenter mes vues WhatsApp" instead of filters.
+    /// Create and preview only: the members of "Augmenter mes vues WhatsApp",
+    /// narrowed by the filters.
     var statusBoost: Bool?
 
     private enum CodingKeys: String, CodingKey {
         case label, countries, cities, professions, interests, sex, ageMin, ageMax, isActive, statusBoost
     }
 
-    /// `ageMin` / `ageMax` are sent as explicit nulls: on an update, leaving the
-    /// keys out would keep whatever range the criteria already had.
+    /// `sex`, `ageMin` and `ageMax` are sent as explicit nulls: on an update,
+    /// leaving the keys out would keep whatever the criteria already had.
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(label, forKey: .label)
@@ -123,7 +124,7 @@ struct CriteriaPayload: Encodable, Sendable, Equatable {
         try c.encode(cities, forKey: .cities)
         try c.encode(professions, forKey: .professions)
         try c.encode(interests, forKey: .interests)
-        try c.encodeIfPresent(sex, forKey: .sex)
+        try c.encode(sex, forKey: .sex)
         try c.encode(ageMin, forKey: .ageMin)
         try c.encode(ageMax, forKey: .ageMax)
         try c.encodeIfPresent(isActive, forKey: .isActive)
