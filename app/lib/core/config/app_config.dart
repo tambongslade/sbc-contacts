@@ -28,6 +28,13 @@ class AppConfig {
     defaultValue: 'https://sniperbuisnesscenter.com/sso/authorize',
   );
 
+  /// SBC's own sign-up page. App accounts are SBC accounts, so creating one
+  /// happens there; `affiliationCode` pre-fills the sponsor step.
+  static const String sbcSignupUrl = String.fromEnvironment(
+    'SBC_SIGNUP_URL',
+    defaultValue: 'https://sniperbuisnesscenter.com/signup',
+  );
+
   // Dedicated SBC Contacts SSO client (seeded on SBC's side).
   static const String ssoClientId = String.fromEnvironment(
     'SBC_SSO_CLIENT_ID',

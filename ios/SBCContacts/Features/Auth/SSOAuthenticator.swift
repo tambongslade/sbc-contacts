@@ -54,6 +54,17 @@ final class SSOAuthenticator: NSObject, ASWebAuthenticationPresentationContextPr
         return .code(code)
     }
 
+    /// Opens SBC's sign-up page in the same in-app session as sign-in, so once
+    /// the account exists, "Se connecter avec SBC" goes straight to consent.
+    /// Sign-up never redirects to the app: it returns when the member closes it.
+    func signUp(sponsorCode: String?) async {
+        var components = URLComponents(url: AppConfig.sbcSignupURL, resolvingAgainstBaseURL: false)!
+        if let sponsorCode, !sponsorCode.isEmpty {
+            components.queryItems = [.init(name: "affiliationCode", value: sponsorCode)]
+        }
+        _ = try? await start(url: components.url!)
+    }
+
     private func start(url: URL) async throws -> URL {
         defer { session = nil }
         return try await withCheckedThrowingContinuation { continuation in
