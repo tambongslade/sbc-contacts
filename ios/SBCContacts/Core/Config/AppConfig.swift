@@ -21,6 +21,10 @@ enum AppConfig {
     /// SBC "Log in with SBC" authorize URL + client params (frontend side).
     static let ssoAuthorizeURL = URL(string: "https://sniperbuisnesscenter.com/sso/authorize")!
 
+    /// SBC's own sign-up page, for whoever wants an SBC account rather than an
+    /// SBC Network one.
+    static let sbcSignupURL = URL(string: "https://sniperbuisnesscenter.com/signup")!
+
     /// Dedicated SBC Network SSO client (seeded on SBC's side).
     static let ssoClientId = "sbc-contacts"
 

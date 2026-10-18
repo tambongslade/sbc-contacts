@@ -8,6 +8,8 @@ import 'package:sbc_contacts/core/config/app_config.dart';
 import 'package:sbc_contacts/core/network/api_exception.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
+import 'package:sbc_contacts/features/auth/application/sbc_signup.dart';
+import 'package:sbc_contacts/features/auth/presentation/network_account_screen.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:sbc_contacts/shared/widgets/sbc_logo.dart';
 
@@ -107,6 +109,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  Future<void> _sbcSignup() async {
+    setState(() => _busy = true);
+    await openSbcSignup();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Compte SBC créé ? Touche « Se connecter avec SBC » pour entrer.'),
+    ));
+  }
+
+  void _openNetworkAccount({required bool create}) {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => NetworkAccountScreen(create: create),
+    ));
+  }
+
   void _fail(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
@@ -170,6 +188,48 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                 ],
                 const Gap(12),
+                if (!auth.isLoading && !_busy) ...[
+                  const Gap(20),
+                  Row(
+                    children: [
+                      const Expanded(child: Divider()),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          'ou avec SBC Network',
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                        ),
+                      ),
+                      const Expanded(child: Divider()),
+                    ],
+                  ),
+                  const Gap(16),
+                  OutlinedButton.icon(
+                    onPressed: () => _openNetworkAccount(create: true),
+                    icon: const Icon(Icons.person_add_alt_1),
+                    label: const Text('Créer un compte SBC Network'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                    ),
+                  ),
+                  const Gap(4),
+                  TextButton(
+                    onPressed: () => _openNetworkAccount(create: false),
+                    child: const Text("J'ai un compte SBC Network"),
+                  ),
+                  const Gap(12),
+                  Text(
+                    'Tu veux plutôt un compte SBC ?',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                  TextButton(
+                    onPressed: _sbcSignup,
+                    child: const Text('Créer mon compte sur SBC'),
+                  ),
+                ],
+                const Gap(4),
                 TextButton(
                   onPressed: () => setState(() => _showCode = !_showCode),
                   child: const Text("J'ai un code d'autorisation"),

@@ -54,6 +54,19 @@ final class SSOAuthenticator: NSObject, ASWebAuthenticationPresentationContextPr
         return .code(code)
     }
 
+    /// Opens SBC's sign-up page in the same in-app session as sign-in, so once
+    /// the account exists, "Se connecter avec SBC" goes straight to consent.
+    /// Sign-up never redirects to the app: it returns when the member closes it.
+    func signUpOnSBC() async {
+        _ = try? await start(url: AppConfig.sbcSignupURL)
+    }
+
+    /// For whoever wants an SBC account rather than an SBC Network one.
+    static func openSBCSignup() async {
+        let authenticator = SSOAuthenticator()
+        await authenticator.signUpOnSBC()
+    }
+
     private func start(url: URL) async throws -> URL {
         defer { session = nil }
         return try await withCheckedThrowingContinuation { continuation in

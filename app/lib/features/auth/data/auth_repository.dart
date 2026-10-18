@@ -21,6 +21,53 @@ class AuthRepository {
         if (deviceId != null) 'deviceId': deviceId,
       },
     ) as Map<String, dynamic>;
+    return _startSession(data);
+  }
+
+  /// Create an SBC Network account — it lives in SBC Network only — and sign
+  /// it in.
+  Future<AppUser> register({
+    required String name,
+    required String country,
+    required String phoneNumber,
+    required String password,
+    required String sex,
+    required DateTime birthDate,
+    required String region,
+    required String profession,
+    required List<String> interests,
+  }) async {
+    final data = await _api.post(
+      '/auth/register',
+      body: {
+        'name': name,
+        'country': country,
+        'phoneNumber': phoneNumber,
+        'password': password,
+        'sex': sex,
+        'birthDate': birthDate.toIso8601String().substring(0, 10),
+        'region': region,
+        'profession': profession,
+        'interests': interests,
+      },
+    ) as Map<String, dynamic>;
+    return _startSession(data);
+  }
+
+  /// Sign in to an SBC Network account with its WhatsApp number.
+  Future<AppUser> loginWithPhone({
+    required String country,
+    required String phoneNumber,
+    required String password,
+  }) async {
+    final data = await _api.post(
+      '/auth/login-phone',
+      body: {'country': country, 'phoneNumber': phoneNumber, 'password': password},
+    ) as Map<String, dynamic>;
+    return _startSession(data);
+  }
+
+  Future<AppUser> _startSession(Map<String, dynamic> data) async {
     final tokens = data['tokens'] as Map<String, dynamic>;
     await _storage.save(
       access: tokens['accessToken'] as String,

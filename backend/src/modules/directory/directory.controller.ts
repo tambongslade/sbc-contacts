@@ -1,10 +1,8 @@
 import { Controller, Get, Param, Query, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
-import {
-  AuthenticatedUser,
-  CurrentUser,
-} from '../../common/decorators/current-user.decorator';
+import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { Raw } from '../../common/decorators/raw-response.decorator';
 import { PaginatedResult } from '../../common/dto/pagination.dto';
 import { RegionEntry } from '../../common/utils/regions';
@@ -27,6 +25,9 @@ export class DirectoryController {
     return this.directory.search(user.userId, query);
   }
 
+  // Public: the SBC Network sign-up form, before any session, offers the same
+  // régions the filters match on. Names and counts only, no member data.
+  @Public()
   @Get('regions')
   @ApiOperation({
     summary: 'Régions per country, from members already mirrored',

@@ -27,8 +27,15 @@ enum Role {
 
 model User {
   id        String   @id @default(uuid()) @db.Uuid
-  sbcUserId String   @unique // SBC's user id (source of truth for identity)
+  sbcUserId String   @unique // SBC's user id (source of truth for identity); `net_…` for an SBC Network account
   role      Role     @default(USER)
+  /// SBC: signs in through SBC. NETWORK: an account of SBC Network's own,
+  /// created in the app (WhatsApp number + password), with no SBC account
+  /// behind it — so no SBC directory, only what SBC Network holds itself.
+  origin    AccountOrigin @default(SBC)
+  /// SBC Network accounts only: kept so the member's age stays current
+  /// (SBC members' age comes from SBC).
+  birthDate DateTime? @db.Date
 
   // Cached profile snapshot from /api/sso/userinfo (refreshed on login).
   name              String?
@@ -68,6 +75,7 @@ model User {
 
   @@index([deletedAt])
   @@index([statusBoostOptIn])
+  @@index([origin, phoneNumber])
   @@map("users")
 }
 
@@ -121,6 +129,12 @@ enum MemberSource {
   SEARCH_CACHE // hydrated opportunistically from a proxied search
   WEBHOOK // pushed by SBC (future)
   BULK_IMPORT // batch import (future)
+  NETWORK // an SBC Network account's own profile, not SBC data
+}
+
+enum AccountOrigin {
+  SBC
+  NETWORK
 }
 
 /// Denormalised, best-effort copy of SBC member fields the directory shows.

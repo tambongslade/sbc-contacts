@@ -1,9 +1,18 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { User } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { MemberSource, User } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { SbcClientService } from '../../sbc-client/sbc-client.service';
 import { SbcUser } from '../../sbc-client/interfaces/sbc.interface';
+import { toInternationalPhone } from '../../../common/utils/phone';
+import { PhoneLoginDto, RegisterDto } from '../dto/network-account.dto';
 import { IssuedTokens, SessionMeta, TokenService } from './token.service';
 import { SbcTokenService } from './sbc-token.service';
 
@@ -18,6 +27,8 @@ export interface PublicUser {
   subscriptionTypes: string[];
   isActivated: boolean;
   role: User['role'];
+  /** SBC: signed in through SBC. NETWORK: an SBC Network account of its own. */
+  origin: User['origin'];
 }
 
 export interface AuthResult {
@@ -29,12 +40,23 @@ export interface AuthResult {
  * A valid bcrypt hash compared against when no matching user is found, so a
  * wrong email costs the same time as a wrong password — no user enumeration.
  */
+/** Whole years from `birthDate` to today. */
+function ageOn(birthDate: Date, today = new Date()): number {
+  const years = today.getUTCFullYear() - birthDate.getUTCFullYear();
+  const beforeBirthday =
+    today.getUTCMonth() < birthDate.getUTCMonth() ||
+    (today.getUTCMonth() === birthDate.getUTCMonth() &&
+      today.getUTCDate() < birthDate.getUTCDate());
+  return beforeBirthday ? years - 1 : years;
+}
+
 const DUMMY_HASH = bcrypt.hashSync('unused-placeholder-for-constant-time', 10);
 
 /**
  * Orchestrates the SSO login lifecycle: exchange code → upsert local user from
  * the SBC profile snapshot → persist encrypted SBC tokens → issue our own
- * session. Auth is fully delegated to SBC (cahier §4) — no local passwords.
+ * session. SBC members sign in through SBC (cahier §4); SBC Network accounts,
+ * which have no SBC account, sign in with their WhatsApp number and password.
  */
 @Injectable()
 export class AuthService {
@@ -47,11 +69,7 @@ export class AuthService {
     private readonly tokens: TokenService,
   ) {}
 
-  async ssoCallback(
-    code: string,
-    meta: SessionMeta,
-    redirectUri?: string,
-  ): Promise<AuthResult> {
+  async ssoCallback(code: string, meta: SessionMeta, redirectUri?: string): Promise<AuthResult> {
     const exchange = await this.sbc.exchangeCode(code, redirectUri);
     const user = await this.upsertFromSbc(exchange.user);
     await this.sbcTokens.storeFromExchange(user.id, exchange);
@@ -70,11 +88,7 @@ export class AuthService {
    * and a bcrypt compare always runs, so a bad email and a bad password are
    * indistinguishable (no enumeration, no timing signal).
    */
-  async loginWithPassword(
-    email: string,
-    password: string,
-    meta: SessionMeta,
-  ): Promise<AuthResult> {
+  async loginWithPassword(email: string, password: string, meta: SessionMeta): Promise<AuthResult> {
     const normalized = email.trim().toLowerCase();
     const user = await this.prisma.user.findFirst({
       where: {
@@ -99,6 +113,104 @@ export class AuthService {
     return { user: this.toPublic(user), tokens };
   }
 
+  /**
+   * Create an SBC Network account: it lives in SBC Network only, with no SBC
+   * account behind it. Its profile is mirrored as a member at once, so it can
+   * join "Augmenter mes vues WhatsApp" and be saved like anyone else.
+   */
+  async register(dto: RegisterDto, meta: SessionMeta): Promise<AuthResult> {
+    const phoneNumber = this.phone(dto.phoneNumber, dto.country);
+    const birthDate = new Date(`${dto.birthDate.slice(0, 10)}T00:00:00Z`);
+    const age = ageOn(birthDate);
+    if (age < 13 || age > 110) throw new BadRequestException('Date de naissance invalide');
+    const interests = [...new Set(dto.interests.map((i) => i.trim()).filter(Boolean))];
+    const taken = await this.prisma.user.findFirst({
+      where: { origin: 'NETWORK', phoneNumber, deletedAt: null },
+      select: { id: true },
+    });
+    if (taken) {
+      throw new ConflictException(
+        'Un compte SBC Network existe déjà avec ce numéro : connecte-toi',
+      );
+    }
+
+    const sbcUserId = `net_${randomUUID()}`;
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const user = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          sbcUserId,
+          origin: 'NETWORK',
+          name: dto.name,
+          phoneNumber,
+          country: dto.country,
+          birthDate,
+          passwordHash,
+          isActivated: true,
+          lastLoginAt: new Date(),
+        },
+      });
+      await tx.member.create({
+        data: {
+          sbcId: sbcUserId,
+          name: dto.name,
+          phoneNumber,
+          country: dto.country,
+          city: dto.region,
+          profession: dto.profession,
+          sex: dto.sex,
+          age,
+          interests,
+          source: MemberSource.NETWORK,
+        },
+      });
+      return created;
+    });
+
+    const tokens = await this.tokens.issueForUser(
+      { id: user.id, sbcUserId: user.sbcUserId, role: user.role },
+      meta,
+    );
+    this.logger.log(`SBC Network account created (${user.id})`);
+    return { user: this.toPublic(user), tokens };
+  }
+
+  /**
+   * Sign in to an SBC Network account with its WhatsApp number. Same rules as
+   * the password login: a generic error and a bcrypt compare every time.
+   */
+  async loginWithPhone(dto: PhoneLoginDto, meta: SessionMeta): Promise<AuthResult> {
+    const phoneNumber = toInternationalPhone(dto.phoneNumber, dto.country);
+    const user = phoneNumber
+      ? await this.prisma.user.findFirst({
+          where: { origin: 'NETWORK', phoneNumber, passwordHash: { not: null }, deletedAt: null },
+        })
+      : null;
+    const ok = await bcrypt.compare(dto.password, user?.passwordHash ?? DUMMY_HASH);
+    if (!user || !ok) {
+      throw new UnauthorizedException('Numéro ou mot de passe incorrect');
+    }
+    await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    // Keeps the age criteria match on current; SBC does this for its members.
+    if (user.birthDate) {
+      await this.prisma.member.updateMany({
+        where: { sbcId: user.sbcUserId },
+        data: { age: ageOn(user.birthDate) },
+      });
+    }
+    const tokens = await this.tokens.issueForUser(
+      { id: user.id, sbcUserId: user.sbcUserId, role: user.role },
+      meta,
+    );
+    return { user: this.toPublic(user), tokens };
+  }
+
+  private phone(raw: string, country: string): string {
+    const phone = toInternationalPhone(raw, country);
+    if (!phone) throw new BadRequestException('Numéro WhatsApp invalide');
+    return phone;
+  }
+
   refresh(refreshToken: string, meta: SessionMeta): Promise<IssuedTokens> {
     return this.tokens.rotate(refreshToken, meta);
   }
@@ -117,6 +229,9 @@ export class AuthService {
    * Subscription state changes, so callers that need current entitlement use this.
    */
   async refreshProfile(userId: string): Promise<PublicUser> {
+    // An SBC Network account has no SBC profile to pull: its own is current.
+    const local = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (local.origin === 'NETWORK') return this.toPublic(local);
     const accessToken = await this.sbcTokens.getValidAccessToken(userId);
     const sbcUser = await this.sbc.getUserInfo(accessToken);
     const user = await this.upsertFromSbc(sbcUser);
@@ -153,6 +268,7 @@ export class AuthService {
       subscriptionTypes: user.subscriptionTypes,
       isActivated: user.isActivated,
       role: user.role,
+      origin: user.origin,
     };
   }
 }

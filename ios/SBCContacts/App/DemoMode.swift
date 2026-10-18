@@ -18,6 +18,15 @@ enum DemoMode {
         return (url, args[t + 1])
     }
 
+    /// `-api <url>` alone: the real app, signed out, against a local backend —
+    /// to drive sign-in and sign-up flows. The session stays in memory, apart
+    /// from any real one in the keychain.
+    static var localAPI: URL? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let a = args.firstIndex(of: "-api"), args.indices.contains(a + 1) else { return nil }
+        return URL(string: args[a + 1])
+    }
+
     /// Which tab to open on launch — `-tab synchro`. Lets a screen be checked
     /// in the simulator without driving the UI, which needs accessibility
     /// permissions a build machine does not have.

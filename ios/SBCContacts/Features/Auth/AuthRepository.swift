@@ -10,6 +10,26 @@ struct AuthRepository: Sendable {
         let deviceId: String?
     }
 
+    /// What a sign-up sends: the account, and the profile matching runs on.
+    struct RegisterBody: Encodable, Sendable {
+        var name: String
+        var country: String
+        var phoneNumber: String
+        var password: String
+        var sex: String
+        /// yyyy-MM-dd
+        var birthDate: String
+        var region: String
+        var profession: String
+        var interests: [String]
+    }
+
+    private struct PhoneLoginBody: Encodable, Sendable {
+        let country: String
+        let phoneNumber: String
+        let password: String
+    }
+
     private struct LogoutBody: Encodable, Sendable {
         let refreshToken: String
     }
@@ -21,6 +41,23 @@ struct AuthRepository: Sendable {
             // SBC requires the exchange to repeat the redirect_uri used on
             // /sso/authorize; the backend cannot know which flow we took.
             body: CallbackBody(code: code, redirectUri: AppConfig.ssoRedirectURI, deviceId: deviceId)
+        )
+        await storage.save(access: session.tokens.accessToken, refresh: session.tokens.refreshToken)
+        return session.user
+    }
+
+    /// Create an SBC Network account — it lives in SBC Network only — and sign it in.
+    func register(_ body: RegisterBody) async throws -> AppUser {
+        let session: SSOSession = try await api.post("/auth/register", body: body)
+        await storage.save(access: session.tokens.accessToken, refresh: session.tokens.refreshToken)
+        return session.user
+    }
+
+    /// Sign in to an SBC Network account with its WhatsApp number.
+    func loginWithPhone(country: String, phoneNumber: String, password: String) async throws -> AppUser {
+        let session: SSOSession = try await api.post(
+            "/auth/login-phone",
+            body: PhoneLoginBody(country: country, phoneNumber: phoneNumber, password: password)
         )
         await storage.save(access: session.tokens.accessToken, refresh: session.tokens.refreshToken)
         return session.user

@@ -12,6 +12,8 @@ struct SBCContactsApp: App {
             AppServices(storage: InMemoryTokenStorage(access: "demo", refresh: "demo"), session: DemoMode.session())
         } else if let local = DemoMode.localSession {
             AppServices(storage: InMemoryTokenStorage(access: local.token), baseURL: local.baseURL)
+        } else if let api = DemoMode.localAPI {
+            AppServices(storage: InMemoryTokenStorage(), baseURL: api)
         } else {
             AppServices()
         }

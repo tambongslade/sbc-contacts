@@ -26,6 +26,47 @@ class AuthController extends AsyncNotifier<AppUser?> {
     );
   }
 
+  /// Create an SBC Network account and sign it in. Throws on failure (the
+  /// form shows why) and leaves the current state alone.
+  Future<void> register({
+    required String name,
+    required String country,
+    required String phoneNumber,
+    required String password,
+    required String sex,
+    required DateTime birthDate,
+    required String region,
+    required String profession,
+    required List<String> interests,
+  }) async {
+    final user = await ref.read(authRepositoryProvider).register(
+          name: name,
+          country: country,
+          phoneNumber: phoneNumber,
+          password: password,
+          sex: sex,
+          birthDate: birthDate,
+          region: region,
+          profession: profession,
+          interests: interests,
+        );
+    state = AsyncValue.data(user);
+  }
+
+  /// Sign in to an SBC Network account. Throws on failure, like [register].
+  Future<void> loginWithPhone({
+    required String country,
+    required String phoneNumber,
+    required String password,
+  }) async {
+    final user = await ref.read(authRepositoryProvider).loginWithPhone(
+          country: country,
+          phoneNumber: phoneNumber,
+          password: password,
+        );
+    state = AsyncValue.data(user);
+  }
+
   Future<void> logout() async {
     await ref.read(authRepositoryProvider).logout();
     state = const AsyncValue.data(null);

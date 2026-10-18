@@ -9,6 +9,7 @@ import 'package:sbc_contacts/core/theme/app_theme.dart';
 import 'package:sbc_contacts/features/requests/application/requests_controllers.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
+import 'package:sbc_contacts/features/auth/application/sbc_signup.dart';
 import 'package:sbc_contacts/features/auth/domain/app_user.dart';
 import 'package:sbc_contacts/shared/widgets/member_avatar.dart';
 import 'package:skeletonizer/skeletonizer.dart';
@@ -193,6 +194,13 @@ class _SubscriptionBadges extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (user.isNetworkAccount) {
+      return const _StatusPill(
+        label: 'SBC Network',
+        icon: Icons.hub_outlined,
+        tone: SbcColors.primary,
+      );
+    }
     if (!user.hasActiveSubscription) {
       return const _StatusPill(
         label: 'Sans abonnement',
@@ -293,13 +301,21 @@ class _SubscriptionBlock extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          active ? 'Abonnement actif' : 'Aucun abonnement actif',
+                          user.isNetworkAccount
+                              ? 'Compte SBC Network'
+                              : active
+                                  ? 'Abonnement actif'
+                                  : 'Aucun abonnement actif',
                           style: theme.textTheme.titleSmall
                               ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         const Gap(4),
                         Text(
-                          active
+                          user.isNetworkAccount
+                              ? 'Ton compte reste sur SBC Network : il te donne « Augmenter '
+                                  "mes vues WhatsApp ». L'annuaire des membres SBC demande "
+                                  'un compte SBC.'
+                              : active
                               ? "Ton offre ${user.subscriptionTypes.join(' · ')} te donne "
                                   "accès à l'annuaire des membres SBC."
                               : "L'annuaire des membres est réservé aux abonnés SBC. "
@@ -318,10 +334,17 @@ class _SubscriptionBlock extends ConsumerWidget {
                 const Gap(16),
                 FilledButton.icon(
                   onPressed: () => unawaited(
-                    ref.read(authControllerProvider.notifier).refreshProfile(),
+                    user.isNetworkAccount
+                        ? openSbcSignup()
+                        : ref.read(authControllerProvider.notifier).refreshProfile(),
                   ),
-                  icon: const Icon(Icons.refresh_rounded, size: 20),
-                  label: const Text('Actualiser mon statut'),
+                  icon: Icon(
+                    user.isNetworkAccount ? Icons.open_in_new_rounded : Icons.refresh_rounded,
+                    size: 20,
+                  ),
+                  label: Text(
+                    user.isNetworkAccount ? 'Créer mon compte sur SBC' : 'Actualiser mon statut',
+                  ),
                   // Brand blue (not the card's orange tint) so the label keeps
                   // an accessible contrast ratio on the filled surface.
                   style: FilledButton.styleFrom(
@@ -544,9 +567,10 @@ class _LogoutButton extends ConsumerWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Se déconnecter ?'),
-        content: const Text(
-          'Tu devras te reconnecter avec ton compte SBC pour retrouver '
-          "l'annuaire.",
+        content: Text(
+          ref.read(authControllerProvider).value?.isNetworkAccount ?? false
+              ? 'Tu pourras te reconnecter avec ton numéro WhatsApp et ton mot de passe.'
+              : "Tu devras te reconnecter avec ton compte SBC pour retrouver l'annuaire.",
         ),
         actions: [
           TextButton(

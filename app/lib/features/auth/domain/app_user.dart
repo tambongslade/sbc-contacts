@@ -1,4 +1,5 @@
-/// The authenticated user (backend `PublicUser`). Identity comes from SBC.
+/// The authenticated user (backend `PublicUser`). Identity comes from SBC,
+/// except for an SBC Network account, which has no SBC account behind it.
 class AppUser {
   const AppUser({
     required this.id,
@@ -11,6 +12,7 @@ class AppUser {
     this.subscriptionTypes = const [],
     this.isActivated = false,
     this.role = 'USER',
+    this.origin = 'SBC',
   });
 
   factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
@@ -26,6 +28,7 @@ class AppUser {
             .toList(),
         isActivated: json['isActivated'] as bool? ?? false,
         role: (json['role'] ?? 'USER').toString(),
+        origin: (json['origin'] ?? 'SBC').toString(),
       );
 
   final String id;
@@ -39,6 +42,12 @@ class AppUser {
   final bool isActivated;
   final String role;
 
+  /// SBC, or NETWORK for an account created in the app.
+  final String origin;
+
+  /// Lives in SBC Network only: no SBC directory, no SBC subscription.
+  bool get isNetworkAccount => origin == 'NETWORK';
+
   bool get hasActiveSubscription => subscriptionTypes.isNotEmpty;
-  String get displayName => (name == null || name!.isEmpty) ? 'Membre SBC' : name!;
+  String get displayName => (name == null || name!.isEmpty) ? (isNetworkAccount ? 'Membre SBC Network' : 'Membre SBC') : name!;
 }
