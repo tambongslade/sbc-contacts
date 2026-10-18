@@ -10,11 +10,18 @@ struct AuthRepository: Sendable {
         let deviceId: String?
     }
 
-    private struct RegisterBody: Encodable, Sendable {
-        let name: String
-        let country: String
-        let phoneNumber: String
-        let password: String
+    /// What a sign-up sends: the account, and the profile matching runs on.
+    struct RegisterBody: Encodable, Sendable {
+        var name: String
+        var country: String
+        var phoneNumber: String
+        var password: String
+        var sex: String
+        /// yyyy-MM-dd
+        var birthDate: String
+        var region: String
+        var profession: String
+        var interests: [String]
     }
 
     private struct PhoneLoginBody: Encodable, Sendable {
@@ -40,11 +47,8 @@ struct AuthRepository: Sendable {
     }
 
     /// Create an SBC Network account — it lives in SBC Network only — and sign it in.
-    func register(name: String, country: String, phoneNumber: String, password: String) async throws -> AppUser {
-        let session: SSOSession = try await api.post(
-            "/auth/register",
-            body: RegisterBody(name: name, country: country, phoneNumber: phoneNumber, password: password)
-        )
+    func register(_ body: RegisterBody) async throws -> AppUser {
+        let session: SSOSession = try await api.post("/auth/register", body: body)
         await storage.save(access: session.tokens.accessToken, refresh: session.tokens.refreshToken)
         return session.user
     }
