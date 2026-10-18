@@ -30,6 +30,9 @@ class SearchState {
 
   bool get subscriptionRequired => errorCode == 'SUBSCRIPTION_REQUIRED';
 
+  /// An SBC Network account: the directory is SBC's, it has no SBC account.
+  bool get sbcAccountRequired => errorCode == 'SBC_ACCOUNT_REQUIRED';
+
   SearchState copyWith({
     SearchFilters? filters,
     List<Member>? members,

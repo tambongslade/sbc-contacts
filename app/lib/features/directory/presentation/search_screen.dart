@@ -8,6 +8,7 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sbc_contacts/core/theme/app_theme.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
+import 'package:sbc_contacts/features/auth/application/sbc_signup.dart';
 import 'package:sbc_contacts/features/directory/application/search_controller.dart';
 import 'package:sbc_contacts/features/directory/data/directory_repository.dart';
 import 'package:sbc_contacts/features/directory/domain/filter_options.dart';
@@ -157,6 +158,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     if (state.subscriptionRequired) {
       return _SubscriptionGate(onRetry: () => unawaited(_notifier.search()));
+    }
+
+    if (state.sbcAccountRequired) {
+      return _SubscriptionGate(networkAccount: true, onRetry: () => unawaited(openSbcSignup()));
     }
 
     if (state.error != null) {
@@ -821,9 +826,13 @@ class _ErrorView extends StatelessWidget {
 /// The paywall. This is the one moment on the screen worth a brand treatment:
 /// it has to explain what is behind the lock, not just refuse.
 class _SubscriptionGate extends StatelessWidget {
-  const _SubscriptionGate({required this.onRetry});
+  const _SubscriptionGate({required this.onRetry, this.networkAccount = false});
 
+  /// Retry, or for [networkAccount] open SBC's sign-up.
   final VoidCallback onRetry;
+
+  /// An SBC Network account: it needs an SBC account, not a subscription.
+  final bool networkAccount;
 
   @override
   Widget build(BuildContext context) {
@@ -868,7 +877,7 @@ class _SubscriptionGate extends StatelessWidget {
                   ),
                   const Gap(16),
                   Text(
-                    'Réservé aux abonnés SBC',
+                    networkAccount ? 'Réservé aux membres SBC' : 'Réservé aux abonnés SBC',
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w800,
                       height: 1.2,
@@ -876,8 +885,11 @@ class _SubscriptionGate extends StatelessWidget {
                   ),
                   const Gap(8),
                   Text(
-                    'L’annuaire des membres est réservé aux abonnés SBC. '
-                    'Active ton abonnement, puis actualise cette page.',
+                    networkAccount
+                        ? 'Ton compte SBC Network te donne « Augmenter mes vues WhatsApp ». '
+                            'L’annuaire des membres SBC demande un compte SBC.'
+                        : 'L’annuaire des membres est réservé aux abonnés SBC. '
+                            'Active ton abonnement, puis actualise cette page.',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                       height: 1.45,
@@ -904,14 +916,20 @@ class _SubscriptionGate extends StatelessWidget {
                     width: double.infinity,
                     child: FilledButton.icon(
                       onPressed: onRetry,
-                      icon: const Icon(Icons.refresh_rounded, size: 20),
-                      label: const Text('J’ai activé mon abonnement'),
+                      icon: Icon(
+                        networkAccount ? Icons.open_in_new_rounded : Icons.refresh_rounded,
+                        size: 20,
+                      ),
+                      label: Text(
+                        networkAccount ? 'Créer mon compte sur SBC' : 'J’ai activé mon abonnement',
+                      ),
                       style: FilledButton.styleFrom(
                         minimumSize: const Size.fromHeight(48),
                       ),
                     ),
                   ),
                   const Gap(10),
+                  if (!networkAccount)
                   Row(
                     children: [
                       Icon(

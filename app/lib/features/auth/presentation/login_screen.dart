@@ -8,6 +8,8 @@ import 'package:sbc_contacts/core/config/app_config.dart';
 import 'package:sbc_contacts/core/network/api_exception.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
+import 'package:sbc_contacts/features/auth/application/sbc_signup.dart';
+import 'package:sbc_contacts/features/auth/presentation/network_account_screen.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:sbc_contacts/shared/widgets/sbc_logo.dart';
 
@@ -34,15 +36,12 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _codeCtrl = TextEditingController();
-  final _sponsorCtrl = TextEditingController();
   bool _showCode = false;
-  bool _showSignup = false;
   bool _busy = false;
 
   @override
   void dispose() {
     _codeCtrl.dispose();
-    _sponsorCtrl.dispose();
     super.dispose();
   }
 
@@ -110,39 +109,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  /// Create an SBC account without leaving the app.
-  ///
-  /// App accounts are SBC accounts, so this opens SBC's own sign-up page (OTP,
-  /// sponsor, subscription stay theirs) in the same in-app tab as sign-in. That
-  /// tab shares the browser session, so once the account exists "Se connecter
-  /// avec SBC" goes straight to the consent step.
-  Future<void> _startSignup() async {
-    final sponsor = _sponsorCtrl.text.trim();
-    final uri = Uri.parse(AppConfig.sbcSignupUrl).replace(
-      queryParameters: sponsor.isEmpty ? null : {'affiliationCode': sponsor},
-    );
-
+  Future<void> _sbcSignup() async {
     setState(() => _busy = true);
-    try {
-      // Sign-up never redirects to the app: the member closes the tab when done.
-      await FlutterWebAuth2.authenticate(
-        url: uri.toString(),
-        callbackUrlScheme: AppConfig.ssoCallbackScheme,
-        options: const FlutterWebAuth2Options(timeout: 1800),
-      );
-    } catch (_) {
-      // Closed by the member — the expected way out.
-    } finally {
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _showSignup = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Compte créé ? Touche « Se connecter avec SBC » pour entrer.'),
-        ));
-      }
-    }
+    await openSbcSignup();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Compte SBC créé ? Touche « Se connecter avec SBC » pour entrer.'),
+    ));
+  }
+
+  void _openNetworkAccount({required bool create}) {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => NetworkAccountScreen(create: create),
+    ));
   }
 
   void _fail(String message) {
@@ -208,35 +188,45 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                 ],
                 const Gap(12),
-                if (!auth.isLoading && !_busy)
+                if (!auth.isLoading && !_busy) ...[
+                  const Gap(20),
+                  Row(
+                    children: [
+                      const Expanded(child: Divider()),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          'ou avec SBC Network',
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                        ),
+                      ),
+                      const Expanded(child: Divider()),
+                    ],
+                  ),
+                  const Gap(16),
                   OutlinedButton.icon(
-                    onPressed: () => setState(() => _showSignup = !_showSignup),
+                    onPressed: () => _openNetworkAccount(create: true),
                     icon: const Icon(Icons.person_add_alt_1),
-                    label: const Text('Créer un compte'),
+                    label: const Text('Créer un compte SBC Network'),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size.fromHeight(52),
                     ),
                   ),
-                if (_showSignup && !_busy) ...[
-                  const Gap(12),
-                  TextField(
-                    controller: _sponsorCtrl,
-                    textCapitalization: TextCapitalization.characters,
-                    autocorrect: false,
-                    decoration: const InputDecoration(
-                      labelText: 'Code parrain (facultatif)',
-                      hintText: 'Ex. AB12CD',
-                      helperText: "Le code de la personne qui t'a invité. Tu peux le laisser vide.",
-                      helperMaxLines: 2,
-                    ),
+                  const Gap(4),
+                  TextButton(
+                    onPressed: () => _openNetworkAccount(create: false),
+                    child: const Text("J'ai un compte SBC Network"),
                   ),
-                  const Gap(10),
-                  FilledButton(
-                    onPressed: _startSignup,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                    ),
-                    child: const Text("Continuer l'inscription sur SBC"),
+                  const Gap(12),
+                  Text(
+                    'Tu veux plutôt un compte SBC ?',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                  TextButton(
+                    onPressed: _sbcSignup,
+                    child: const Text('Créer mon compte sur SBC'),
                   ),
                 ],
                 const Gap(4),
