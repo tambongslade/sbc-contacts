@@ -1,21 +1,11 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Post,
-  Req,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
-import {
-  AuthenticatedUser,
-  CurrentUser,
-} from '../../../common/decorators/current-user.decorator';
+import { AuthenticatedUser, CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Public } from '../../../common/decorators/public.decorator';
 import { LoginDto } from '../dto/login.dto';
+import { PhoneLoginDto, RegisterDto } from '../dto/network-account.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { SsoCallbackDto } from '../dto/sso-callback.dto';
 import { IssuedTokens, SessionMeta } from '../services/token.service';
@@ -44,6 +34,26 @@ export class AuthController {
   @ApiOperation({ summary: 'Email + password login (admin back-office)' })
   login(@Body() dto: LoginDto, @Req() req: Request): Promise<AuthResult> {
     return this.auth.loginWithPassword(dto.email, dto.password, this.meta(req, dto.deviceId));
+  }
+
+  @Public()
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  // Creates accounts: tight limit against sign-up spam.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Create an SBC Network account (no SBC account behind it)' })
+  register(@Body() dto: RegisterDto, @Req() req: Request): Promise<AuthResult> {
+    return this.auth.register(dto, this.meta(req, dto.deviceId));
+  }
+
+  @Public()
+  @Post('login-phone')
+  @HttpCode(HttpStatus.OK)
+  // Brute-force target, like the email login.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Sign in to an SBC Network account: WhatsApp number + password' })
+  loginWithPhone(@Body() dto: PhoneLoginDto, @Req() req: Request): Promise<AuthResult> {
+    return this.auth.loginWithPhone(dto, this.meta(req, dto.deviceId));
   }
 
   @Public()

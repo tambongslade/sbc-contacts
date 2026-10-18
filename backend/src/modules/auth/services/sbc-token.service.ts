@@ -1,8 +1,11 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { EncryptionService } from '../../../common/crypto/encryption.service';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { SbcClientService } from '../../sbc-client/sbc-client.service';
 import { SbcRefreshResponse, SbcTokenResponse } from '../../sbc-client/interfaces/sbc.interface';
+
+/** What an SBC Network account gets from anything that needs SBC itself. */
+export const SBC_ACCOUNT_REQUIRED = 'SBC_ACCOUNT_REQUIRED';
 
 /**
  * Custodian of each user's SBC tokens. Stores them ENCRYPTED at rest and hands
@@ -29,11 +32,26 @@ export class SbcTokenService {
 
   /**
    * Return a currently-valid SBC access token for the user, refreshing first if
-   * it is expired or about to expire. Throws 401 if no token or refresh fails.
+   * it is expired or about to expire. Throws 401 if no token or refresh fails,
+   * and 403 `SBC_ACCOUNT_REQUIRED` for an SBC Network account, which has none.
    */
   async getValidAccessToken(userId: string): Promise<string> {
     const record = await this.prisma.sbcToken.findUnique({ where: { userId } });
-    if (!record) throw new UnauthorizedException('No SBC session; please log in again');
+    if (!record) {
+      // An SBC Network account never had an SBC session, and signing it out
+      // would not give it one: say what it is missing instead.
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { origin: true },
+      });
+      if (user?.origin === 'NETWORK') {
+        throw new ForbiddenException({
+          code: SBC_ACCOUNT_REQUIRED,
+          message: "Réservé aux membres SBC : l'annuaire SBC demande un compte SBC",
+        });
+      }
+      throw new UnauthorizedException('No SBC session; please log in again');
+    }
 
     const stillValid =
       record.accessExpiresAt.getTime() - SbcTokenService.REFRESH_SKEW_MS > Date.now();
