@@ -33,6 +33,9 @@ model User {
   /// created in the app (WhatsApp number + password), with no SBC account
   /// behind it — so no SBC directory, only what SBC Network holds itself.
   origin    AccountOrigin @default(SBC)
+  /// SBC Network accounts only: kept so the member's age stays current
+  /// (SBC members' age comes from SBC).
+  birthDate DateTime? @db.Date
 
   // Cached profile snapshot from /api/sso/userinfo (refreshed on login).
   name              String?

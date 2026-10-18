@@ -16,6 +16,7 @@ describe('AuthService — SBC Network accounts', () => {
     };
     const prisma = {
       user: { findFirst: jest.fn().mockResolvedValue(null), update: jest.fn() },
+      member: { updateMany: jest.fn() },
       $transaction: jest.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)),
     };
     const tokens = { issueForUser: jest.fn().mockResolvedValue({ accessToken: 'a' }) };
@@ -23,7 +24,17 @@ describe('AuthService — SBC Network accounts', () => {
     return { service, prisma, tx, tokens };
   }
 
-  const dto = { name: 'Jean', country: 'CM', phoneNumber: '670 00 00 00', password: 'secret123' };
+  const dto = {
+    name: 'Jean',
+    country: 'CM',
+    phoneNumber: '670 00 00 00',
+    password: 'secret123',
+    sex: 'male',
+    birthDate: '1990-01-15',
+    region: 'Littoral',
+    profession: 'Macon',
+    interests: ['Football', 'Football', 'Musique'],
+  };
 
   it('creates the account in SBC Network, with its member profile, and signs it in', async () => {
     const { service, tx, tokens } = build();
@@ -36,12 +47,30 @@ describe('AuthService — SBC Network accounts', () => {
     );
     expect(data.sbcUserId).toMatch(/^net_/);
     expect(await bcrypt.compare('secret123', data.passwordHash)).toBe(true);
+    // Everything criteria and filters match on, like SBC's own members.
     expect(tx.member.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ sbcId: data.sbcUserId, source: 'NETWORK' }),
+      data: expect.objectContaining({
+        sbcId: data.sbcUserId,
+        source: 'NETWORK',
+        country: 'CM',
+        city: 'Littoral',
+        profession: 'Macon',
+        sex: 'male',
+        age: expect.any(Number),
+        interests: ['Football', 'Musique'],
+      }),
     });
+    expect(tx.member.create.mock.calls[0][0].data.age).toBeGreaterThanOrEqual(36);
     expect(tokens.issueForUser).toHaveBeenCalled();
     expect(result.user.origin).toBe('NETWORK');
     expect(result.user).not.toHaveProperty('passwordHash');
+  });
+
+  it('refuses a birth date that cannot be right', async () => {
+    const { service } = build();
+    await expect(service.register({ ...dto, birthDate: '2024-01-01' }, meta)).rejects.toThrow(
+      'Date de naissance invalide',
+    );
   });
 
   it('refuses a second account on the same number', async () => {
@@ -60,6 +89,7 @@ describe('AuthService — SBC Network accounts', () => {
       role: 'USER',
       origin: 'NETWORK',
       passwordHash,
+      birthDate: new Date('1990-01-15T00:00:00Z'),
     });
 
     const result = await service.loginWithPhone(
@@ -71,6 +101,11 @@ describe('AuthService — SBC Network accounts', () => {
       expect.objectContaining({ origin: 'NETWORK', phoneNumber: '237670000000' }),
     );
     expect(result.user.id).toBe('u1');
+    // The age criteria match on is brought up to date at each sign-in.
+    expect(prisma.member.updateMany).toHaveBeenCalledWith({
+      where: { sbcId: 'net_1' },
+      data: { age: expect.any(Number) },
+    });
   });
 
   it('gives one generic error for a wrong password or an unknown number', async () => {

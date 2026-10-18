@@ -40,6 +40,16 @@ export interface AuthResult {
  * A valid bcrypt hash compared against when no matching user is found, so a
  * wrong email costs the same time as a wrong password — no user enumeration.
  */
+/** Whole years from `birthDate` to today. */
+function ageOn(birthDate: Date, today = new Date()): number {
+  const years = today.getUTCFullYear() - birthDate.getUTCFullYear();
+  const beforeBirthday =
+    today.getUTCMonth() < birthDate.getUTCMonth() ||
+    (today.getUTCMonth() === birthDate.getUTCMonth() &&
+      today.getUTCDate() < birthDate.getUTCDate());
+  return beforeBirthday ? years - 1 : years;
+}
+
 const DUMMY_HASH = bcrypt.hashSync('unused-placeholder-for-constant-time', 10);
 
 /**
@@ -110,6 +120,10 @@ export class AuthService {
    */
   async register(dto: RegisterDto, meta: SessionMeta): Promise<AuthResult> {
     const phoneNumber = this.phone(dto.phoneNumber, dto.country);
+    const birthDate = new Date(`${dto.birthDate.slice(0, 10)}T00:00:00Z`);
+    const age = ageOn(birthDate);
+    if (age < 13 || age > 110) throw new BadRequestException('Date de naissance invalide');
+    const interests = [...new Set(dto.interests.map((i) => i.trim()).filter(Boolean))];
     const taken = await this.prisma.user.findFirst({
       where: { origin: 'NETWORK', phoneNumber, deletedAt: null },
       select: { id: true },
@@ -130,6 +144,7 @@ export class AuthService {
           name: dto.name,
           phoneNumber,
           country: dto.country,
+          birthDate,
           passwordHash,
           isActivated: true,
           lastLoginAt: new Date(),
@@ -141,6 +156,11 @@ export class AuthService {
           name: dto.name,
           phoneNumber,
           country: dto.country,
+          city: dto.region,
+          profession: dto.profession,
+          sex: dto.sex,
+          age,
+          interests,
           source: MemberSource.NETWORK,
         },
       });
@@ -171,6 +191,13 @@ export class AuthService {
       throw new UnauthorizedException('Numéro ou mot de passe incorrect');
     }
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    // Keeps the age criteria match on current; SBC does this for its members.
+    if (user.birthDate) {
+      await this.prisma.member.updateMany({
+        where: { sbcId: user.sbcUserId },
+        data: { age: ageOn(user.birthDate) },
+      });
+    }
     const tokens = await this.tokens.issueForUser(
       { id: user.id, sbcUserId: user.sbcUserId, role: user.role },
       meta,
