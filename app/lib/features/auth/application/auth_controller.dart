@@ -33,12 +33,22 @@ class AuthController extends AsyncNotifier<AppUser?> {
     required String country,
     required String phoneNumber,
     required String password,
+    required String sex,
+    required DateTime birthDate,
+    required String region,
+    required String profession,
+    required List<String> interests,
   }) async {
     final user = await ref.read(authRepositoryProvider).register(
           name: name,
           country: country,
           phoneNumber: phoneNumber,
           password: password,
+          sex: sex,
+          birthDate: birthDate,
+          region: region,
+          profession: profession,
+          interests: interests,
         );
     state = AsyncValue.data(user);
   }

@@ -31,6 +31,11 @@ class AuthRepository {
     required String country,
     required String phoneNumber,
     required String password,
+    required String sex,
+    required DateTime birthDate,
+    required String region,
+    required String profession,
+    required List<String> interests,
   }) async {
     final data = await _api.post(
       '/auth/register',
@@ -39,6 +44,11 @@ class AuthRepository {
         'country': country,
         'phoneNumber': phoneNumber,
         'password': password,
+        'sex': sex,
+        'birthDate': birthDate.toIso8601String().substring(0, 10),
+        'region': region,
+        'profession': profession,
+        'interests': interests,
       },
     ) as Map<String, dynamic>;
     return _startSession(data);

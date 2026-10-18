@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:sbc_contacts/core/network/api_exception.dart';
 import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
+import 'package:sbc_contacts/features/directory/application/search_controller.dart';
 import 'package:sbc_contacts/features/directory/domain/filter_options.dart';
 import 'package:sbc_contacts/shared/widgets/sbc_logo.dart';
 
@@ -48,6 +49,12 @@ class _NetworkAccountScreenState extends ConsumerState<NetworkAccountScreen> {
   final _confirm = TextEditingController();
   late bool _create = widget.create;
   String _country = 'CM';
+  // What criteria and filters match on — what SBC holds for its own members.
+  String? _sex;
+  DateTime? _birthDate;
+  String? _region;
+  String? _profession;
+  final Set<String> _interests = {};
   bool _busy = false;
   bool _showPassword = false;
   String? _error;
@@ -64,6 +71,19 @@ class _NetworkAccountScreenState extends ConsumerState<NetworkAccountScreen> {
   Future<void> _submit() async {
     setState(() => _error = null);
     if (!_form.currentState!.validate()) return;
+    if (_create) {
+      final missing = _sex == null
+          ? 'Indique ton sexe'
+          : _birthDate == null
+              ? 'Indique ta date de naissance'
+              : _interests.isEmpty
+                  ? "Choisis au moins un centre d'intérêt"
+                  : null;
+      if (missing != null) {
+        setState(() => _error = missing);
+        return;
+      }
+    }
     setState(() => _busy = true);
     final auth = ref.read(authControllerProvider.notifier);
     try {
@@ -73,6 +93,14 @@ class _NetworkAccountScreenState extends ConsumerState<NetworkAccountScreen> {
           country: _country,
           phoneNumber: _phone.text.trim(),
           password: _password.text,
+          sex: _sex!,
+          birthDate: _birthDate!,
+          region: _region!,
+          profession: _profession!,
+          interests: [
+            for (final i in FilterOptions.interests)
+              if (_interests.contains(i)) i,
+          ],
         );
       } else {
         await auth.loginWithPhone(
@@ -90,6 +118,121 @@ class _NetworkAccountScreenState extends ConsumerState<NetworkAccountScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _pickBirthDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _birthDate ?? DateTime(now.year - 25),
+      firstDate: DateTime(now.year - 100),
+      lastDate: DateTime(now.year - 13, now.month, now.day),
+      initialEntryMode: DatePickerEntryMode.input,
+      helpText: 'Date de naissance',
+      fieldHintText: 'jj/mm/aaaa',
+    );
+    if (picked != null) setState(() => _birthDate = picked);
+  }
+
+  /// Région, sexe, âge, profession and centres d'intérêt: the profile the
+  /// criteria and the Vues WhatsApp filters match on.
+  List<Widget> _profileFields(ThemeData theme) {
+    final regions = ref.watch(regionOptionsProvider(_country)).value ??
+        FilterOptions.regionsFor(_country);
+    final birth = _birthDate;
+    return [
+      const Gap(22),
+      Text('Ton profil', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+      const Gap(2),
+      Text(
+        'Pour que les bons membres te trouvent, et toi eux.',
+        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      ),
+      const Gap(14),
+      DropdownButtonFormField<String>(
+        key: ValueKey('region-$_country'),
+        initialValue: regions.contains(_region) ? _region : null,
+        isExpanded: true,
+        decoration: const InputDecoration(
+          labelText: 'Région',
+          prefixIcon: Icon(Icons.place_outlined),
+        ),
+        items: [
+          for (final r in regions) DropdownMenuItem(value: r, child: Text(r)),
+        ],
+        onChanged: (v) => setState(() => _region = v),
+        validator: (v) => v == null ? 'Choisis ta région' : null,
+      ),
+      const Gap(14),
+      Text('Sexe', style: theme.textTheme.labelLarge),
+      const Gap(6),
+      Wrap(
+        spacing: 8,
+        children: [
+          for (final e in FilterOptions.sexes.entries)
+            ChoiceChip(
+              label: Text(e.value),
+              selected: _sex == e.key,
+              onSelected: (_) => setState(() => _sex = e.key),
+            ),
+        ],
+      ),
+      const Gap(14),
+      InkWell(
+        onTap: _pickBirthDate,
+        borderRadius: BorderRadius.circular(12),
+        child: InputDecorator(
+          decoration: const InputDecoration(
+            labelText: 'Date de naissance',
+            prefixIcon: Icon(Icons.cake_outlined),
+          ),
+          child: Text(
+            birth == null
+                ? 'Choisir'
+                : '${birth.day.toString().padLeft(2, '0')}/'
+                    '${birth.month.toString().padLeft(2, '0')}/${birth.year}',
+          ),
+        ),
+      ),
+      const Gap(14),
+      DropdownButtonFormField<String>(
+        initialValue: _profession,
+        isExpanded: true,
+        menuMaxHeight: 420,
+        decoration: const InputDecoration(
+          labelText: 'Profession',
+          prefixIcon: Icon(Icons.work_outline),
+        ),
+        items: [
+          for (final p in FilterOptions.professions)
+            DropdownMenuItem(value: p, child: Text(p, overflow: TextOverflow.ellipsis)),
+        ],
+        onChanged: (v) => setState(() => _profession = v),
+        validator: (v) => v == null ? 'Choisis ta profession' : null,
+      ),
+      const Gap(14),
+      Text("Centres d'intérêt", style: theme.textTheme.labelLarge),
+      const Gap(6),
+      Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: [
+          for (final i in FilterOptions.interests)
+            FilterChip(
+              label: Text(i),
+              selected: _interests.contains(i),
+              onSelected: (on) => setState(() => on ? _interests.add(i) : _interests.remove(i)),
+            ),
+        ],
+      ),
+      const Gap(22),
+      Text('Ton compte', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+      const Gap(2),
+      Text(
+        'Ton numéro WhatsApp et ton mot de passe servent à te connecter.',
+        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      ),
+    ];
   }
 
   @override
@@ -146,8 +289,12 @@ class _NetworkAccountScreenState extends ConsumerState<NetworkAccountScreen> {
                   for (final e in FilterOptions.countries.entries)
                     DropdownMenuItem(value: e.key, child: Text(e.value)),
                 ],
-                onChanged: (v) => setState(() => _country = v ?? _country),
+                onChanged: (v) => setState(() {
+                  _country = v ?? _country;
+                  _region = null; // a région belongs to one country
+                }),
               ),
+              if (_create) ..._profileFields(theme),
               const Gap(14),
               TextFormField(
                 controller: _phone,
