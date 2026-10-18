@@ -21,6 +21,7 @@ describe('CriteriaSweepService', () => {
     const matcher = {
       findNewSince: jest.fn().mockResolvedValue(fresh),
       count: jest.fn().mockResolvedValue(42),
+      matchesMember: jest.fn().mockReturnValue(true),
     };
     const hydration = { hydrateFull: jest.fn().mockResolvedValue(0) };
     const notifications = { notifyNewMatch: jest.fn().mockResolvedValue(true) };
@@ -151,5 +152,23 @@ describe('CriteriaSweepService', () => {
     // knew them.
     expect(matcher.findNewSince).not.toHaveBeenCalled();
     expect(notifications.notifyNewMatch).toHaveBeenCalledTimes(2);
+  });
+
+  it('only alerts on new members of the list who fit its filters', async () => {
+    const { service, matcher, notifications } = build([
+      active({ countries: ['CM'], interests: ['Football'], statusBoost: true }),
+    ]);
+    matcher.matchesMember.mockImplementation((m: { sbcId: string }) => m.sbcId === 'p1');
+
+    await service.sweep();
+
+    expect(matcher.matchesMember).toHaveBeenCalledWith(
+      expect.objectContaining({ sbcId: 'p2' }),
+      expect.objectContaining({ countries: ['CM'], interests: ['Football'], sbcIds: null }),
+    );
+    expect(notifications.notifyNewMatch).toHaveBeenCalledTimes(1);
+    expect(notifications.notifyNewMatch.mock.calls[0][1]).toEqual(
+      expect.objectContaining({ sbcId: 'p1' }),
+    );
   });
 });

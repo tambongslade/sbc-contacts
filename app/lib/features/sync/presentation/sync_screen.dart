@@ -583,11 +583,15 @@ class _CriteriaTile extends ConsumerWidget {
     ];
     final boost = criteria.statusBoost;
     final desc = boost
-        ? 'Membres de « Augmenter mes vues WhatsApp »'
+        // The list, narrowed by its filters when it has any.
+        ? bits.isEmpty
+            ? 'Membres de « Augmenter mes vues WhatsApp »'
+            : 'Vues WhatsApp · ${bits.take(3).join(' · ')}'
         : bits.isEmpty
             ? 'Tous les membres'
             : bits.take(4).join(' · ');
-    final more = !boost && bits.length > 4 ? ' +${bits.length - 4}' : '';
+    final shown = boost ? 3 : 4;
+    final more = bits.length > shown ? ' +${bits.length - shown}' : '';
     final tint = boost ? SbcColors.whatsapp : SbcColors.primary;
 
     return Padding(

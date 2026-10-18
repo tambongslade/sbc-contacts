@@ -285,10 +285,12 @@ private struct CriteriaCard: View {
     var body: some View {
         let bits = criteria.countries.map(FilterOptions.countryLabel) + criteria.cities + criteria.professions + criteria.interests
         let boost = criteria.statusBoost
+        // The list, narrowed by its filters when it has any.
         let desc = boost
-            ? "Membres de « Augmenter mes vues WhatsApp »"
+            ? (bits.isEmpty ? "Membres de « Augmenter mes vues WhatsApp »" : "Vues WhatsApp · " + bits.prefix(3).joined(separator: " · "))
             : bits.isEmpty ? "Tous les membres" : bits.prefix(4).joined(separator: " · ")
-        let more = !boost && bits.count > 4 ? " +\(bits.count - 4)" : ""
+        let shown = boost ? 3 : 4
+        let more = bits.count > shown ? " +\(bits.count - shown)" : ""
         let tint = boost ? SBCColors.whatsapp : SBCColors.primary
 
         VStack(alignment: .leading, spacing: 6) {

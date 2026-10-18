@@ -90,12 +90,14 @@ export class CriteriaSweepService {
     let notified = 0;
     if (sinceBaseline) {
       // For "Augmenter mes vues WhatsApp", new means joined the list since —
-      // they may have been in the mirror for months.
+      // they may have been in the mirror for months — and fits its filters.
       const fresh = criteria.statusBoost
-        ? await this.statusBoost.participants(criteria.userId, {
-            since: sinceBaseline,
-            take: CriteriaSweepService.MAX_NOTIFICATIONS_PER_SWEEP,
-          })
+        ? (
+            await this.statusBoost.participants(criteria.userId, {
+              since: sinceBaseline,
+              take: CriteriaSweepService.MAX_NOTIFICATIONS_PER_SWEEP,
+            })
+          ).filter((m) => this.matcher.matchesMember(m, { ...matchCriteria, sbcIds: null }))
         : await this.matcher.findNewSince(
             matchCriteria,
             sinceBaseline,

@@ -1,9 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { Member, Prisma, SyncStatus } from '@prisma/client';
 import { PaginatedResult, paginate } from '../../common/dto/pagination.dto';
 import { toIsoCountry } from '../../common/utils/country';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { MemberMatchService } from '../members/member-match.service';
 import { StatusBoostQueryDto } from './status-boost.dto';
+import {
+  ADVANCED_FILTERS_MESSAGE,
+  BoostFilters,
+  FilterAccess,
+  filterAccessFor,
+  hasAdvancedFilters,
+  hasFilters,
+} from './status-boost.filters';
 
 /** One member in "Je veux augmenter mon nombre de vues en statut WhatsApp". */
 export interface StatusBoostEntry {
@@ -34,13 +43,21 @@ export interface StatusBoostPage extends PaginatedResult<StatusBoostEntry> {
  */
 @Injectable()
 export class StatusBoostService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly match: MemberMatchService,
+  ) {}
 
   async me(userId: string) {
     const [user, participants, criteria] = await this.prisma.$transaction([
       this.prisma.user.findUniqueOrThrow({
         where: { id: userId },
-        select: { statusBoostOptIn: true, statusBoostSince: true, phoneNumber: true },
+        select: {
+          statusBoostOptIn: true,
+          statusBoostSince: true,
+          phoneNumber: true,
+          subscriptionTypes: true,
+        },
       }),
       this.prisma.user.count({ where: { statusBoostOptIn: true, deletedAt: null } }),
       this.prisma.syncCriteria.findFirst({
@@ -56,7 +73,24 @@ export class StatusBoostService {
       hasPhone: Boolean(user.phoneNumber?.trim()),
       // The member's "save everyone in the list" criteria, once created.
       criteria,
+      // Which filters the member's subscription opens on the list.
+      filterAccess: filterAccessFor(user.subscriptionTypes),
     };
+  }
+
+  async filterAccess(userId: string): Promise<FilterAccess> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { subscriptionTypes: true },
+    });
+    return filterAccessFor(user?.subscriptionTypes ?? []);
+  }
+
+  /** Ciblé filters by everything; anyone else by country only. */
+  async assertFiltersAllowed(userId: string, f: BoostFilters): Promise<void> {
+    if (hasAdvancedFilters(f) && (await this.filterAccess(userId)) !== 'all') {
+      throw new ForbiddenException(ADVANCED_FILTERS_MESSAGE);
+    }
   }
 
   async setOptIn(userId: string, optIn: boolean) {
@@ -131,6 +165,7 @@ export class StatusBoostService {
     const term = q.search?.trim();
     const where: Prisma.UserWhereInput = {
       ...this.othersWhere(userId),
+      ...(hasFilters(q) ? { sbcUserId: { in: await this.matching(userId, q) } } : {}),
       ...(q.subscription ? { subscriptionTypes: { has: q.subscription } } : {}),
       ...(term
         ? {
@@ -187,6 +222,31 @@ export class StatusBoostService {
     }));
     const types = [...new Set(all.flatMap((u) => u.subscriptionTypes))].sort();
     return { ...paginate(items, total, q.page, q.limit), subscriptionTypes: types };
+  }
+
+  /**
+   * SBC ids of the participants whose profile matches the filters. Profession,
+   * interests, age… live on the member mirror, not the account, so the filters
+   * run there, against the participants only.
+   */
+  private async matching(userId: string, f: BoostFilters): Promise<string[]> {
+    await this.assertFiltersAllowed(userId, f);
+    const participants = await this.participants(userId);
+    if (!participants.length) return [];
+    const rows = await this.prisma.member.findMany({
+      where: this.match.buildWhere({
+        countries: f.countries ?? [],
+        cities: f.cities ?? [],
+        professions: f.professions ?? [],
+        interests: f.interests ?? [],
+        sex: f.sex,
+        ageMin: f.ageMin,
+        ageMax: f.ageMax,
+        sbcIds: participants.map((m) => m.sbcId),
+      }),
+      select: { sbcId: true },
+    });
+    return rows.map((r) => r.sbcId);
   }
 
   /** Member mirror rows for these users, created from their SBC snapshot when missing. */
