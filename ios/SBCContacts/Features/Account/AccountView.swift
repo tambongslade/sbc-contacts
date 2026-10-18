@@ -108,7 +108,9 @@ private struct SubscriptionBadges: View {
     let user: AppUser
 
     var body: some View {
-        if user.hasActiveSubscription {
+        if user.isNetworkAccount {
+            StatusPill(label: "SBC Network", systemImage: "point.3.connected.trianglepath.dotted", tone: SBCColors.primary)
+        } else if user.hasActiveSubscription {
             FlowLayout(spacing: 8, alignment: .center) {
                 ForEach(user.subscriptionTypes, id: \.self) { type in
                     StatusPill(label: Tier.label(type), systemImage: Tier.icon(type), tone: Tier.tone(type))
@@ -158,10 +160,12 @@ private struct SubscriptionBlock: View {
                     HStack(alignment: .top, spacing: 12) {
                         IconTile(systemImage: active ? "checkmark.seal.fill" : "lock", tone: tone)
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(active ? "Abonnement actif" : "Aucun abonnement actif")
+                            Text(user.isNetworkAccount ? "Compte SBC Network" : active ? "Abonnement actif" : "Aucun abonnement actif")
                                 .font(.sbc(.titleSmall, weight: .bold))
                                 .foregroundStyle(SBCColors.onSurface)
-                            Text(active
+                            Text(user.isNetworkAccount
+                                ? "Ton compte reste sur SBC Network : il te donne « Augmenter mes vues WhatsApp ». L'annuaire des membres SBC demande un compte SBC."
+                                : active
                                 ? "Ton offre \(user.subscriptionTypes.joined(separator: " · ")) te donne accès à l'annuaire des membres SBC."
                                 : "L'annuaire des membres est réservé aux abonnés SBC. Active ton abonnement sur SBC, puis actualise ton profil.")
                                 .font(.sbc(.bodySmall))
@@ -175,9 +179,19 @@ private struct SubscriptionBlock: View {
                         // Brand blue (not the card's orange tint) so the label
                         // keeps an accessible contrast ratio on the fill.
                         Button {
-                            Task { await auth.refreshProfile() }
+                            Task {
+                                if user.isNetworkAccount {
+                                    await SSOAuthenticator.openSBCSignup()
+                                } else {
+                                    await auth.refreshProfile()
+                                }
+                            }
                         } label: {
-                            Label("Actualiser mon statut", systemImage: "arrow.clockwise")
+                            if user.isNetworkAccount {
+                                Label("Créer mon compte sur SBC", systemImage: "arrow.up.right.square")
+                            } else {
+                                Label("Actualiser mon statut", systemImage: "arrow.clockwise")
+                            }
                         }
                         .buttonStyle(FilledButtonStyle(minHeight: 46))
                     }
@@ -337,7 +351,9 @@ private struct LogoutButton: View {
                 Task { await auth.logout() }
             }
         } message: {
-            Text("Tu devras te reconnecter avec ton compte SBC pour retrouver l'annuaire.")
+            Text(auth.user?.isNetworkAccount == true
+                ? "Tu pourras te reconnecter avec ton numéro WhatsApp et ton mot de passe."
+                : "Tu devras te reconnecter avec ton compte SBC pour retrouver l'annuaire.")
         }
     }
 }

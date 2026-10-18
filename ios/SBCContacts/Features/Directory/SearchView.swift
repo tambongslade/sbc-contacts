@@ -84,6 +84,8 @@ struct SearchView: View {
             CardListSkeleton(rows: 6)
         } else if store.subscriptionRequired {
             SubscriptionGate { Task { await store.search() } }
+        } else if store.sbcAccountRequired {
+            SubscriptionGate(networkAccount: true) { Task { await SSOAuthenticator.openSBCSignup() } }
         } else if let error = store.error {
             ErrorView(message: error) { Task { await store.search() } }
         } else if store.members.isEmpty {
@@ -378,6 +380,9 @@ private struct ErrorView: View {
 
 /// The paywall: it has to explain what is behind the lock, not just refuse.
 private struct SubscriptionGate: View {
+    /// An SBC Network account: it needs an SBC account, not a subscription.
+    var networkAccount = false
+    /// Retry, or for `networkAccount` open SBC's sign-up.
     let onRetry: () -> Void
 
     var body: some View {
@@ -390,11 +395,13 @@ private struct SubscriptionGate: View {
                         .foregroundStyle(SBCColors.accent)
                         .frame(width: 44, height: 44)
                         .background(RoundedRectangle(cornerRadius: 14).fill(SBCColors.accent.opacity(0.12)))
-                    Text("Réservé aux abonnés SBC")
+                    Text(networkAccount ? "Réservé aux membres SBC" : "Réservé aux abonnés SBC")
                         .font(.sbc(.titleLarge, weight: .heavy))
                         .foregroundStyle(SBCColors.onSurface)
                         .padding(.top, 16)
-                    Text("L’annuaire des membres est réservé aux abonnés SBC. Active ton abonnement, puis actualise cette page.")
+                    Text(networkAccount
+                        ? "Ton compte SBC Network te donne « Augmenter mes vues WhatsApp ». L’annuaire des membres SBC demande un compte SBC."
+                        : "L’annuaire des membres est réservé aux abonnés SBC. Active ton abonnement, puis actualise cette page.")
                         .font(.sbc(.bodyMedium))
                         .foregroundStyle(SBCColors.onSurfaceVariant)
                         .lineSpacing(4)
@@ -406,16 +413,22 @@ private struct SubscriptionGate: View {
                     }
                     .padding(.top, 18)
                     Button(action: onRetry) {
-                        Label("J’ai activé mon abonnement", systemImage: "arrow.clockwise")
+                        if networkAccount {
+                            Label("Créer mon compte sur SBC", systemImage: "arrow.up.right.square")
+                        } else {
+                            Label("J’ai activé mon abonnement", systemImage: "arrow.clockwise")
+                        }
                     }
                     .buttonStyle(FilledButtonStyle(minHeight: 48))
                     .padding(.top, 20)
-                    HStack(spacing: 6) {
-                        Image(systemName: "info.circle").font(.system(size: 13))
-                        Text("Ton abonnement se gère dans l’onglet Profil.").font(.sbc(.bodySmall))
+                    if !networkAccount {
+                        HStack(spacing: 6) {
+                            Image(systemName: "info.circle").font(.system(size: 13))
+                            Text("Ton abonnement se gère dans l’onglet Profil.").font(.sbc(.bodySmall))
+                        }
+                        .foregroundStyle(SBCColors.onSurfaceVariant)
+                        .padding(.top, 10)
                     }
-                    .foregroundStyle(SBCColors.onSurfaceVariant)
-                    .padding(.top, 10)
                 }
                 .padding(20)
             }

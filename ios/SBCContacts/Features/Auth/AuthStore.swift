@@ -55,6 +55,21 @@ final class AuthStore {
         }
     }
 
+    /// Create an SBC Network account and sign it in. Throws so the form can
+    /// show why; the current phase is left alone on failure.
+    func register(name: String, country: String, phoneNumber: String, password: String) async throws {
+        let user = try await repo.register(name: name, country: country, phoneNumber: phoneNumber, password: password)
+        loginError = nil
+        phase = .signedIn(user)
+    }
+
+    /// Sign in to an SBC Network account. Throws on failure, like `register`.
+    func loginWithPhone(country: String, phoneNumber: String, password: String) async throws {
+        let user = try await repo.loginWithPhone(country: country, phoneNumber: phoneNumber, password: password)
+        loginError = nil
+        phase = .signedIn(user)
+    }
+
     func logout() async {
         await repo.logout()
         loginError = nil

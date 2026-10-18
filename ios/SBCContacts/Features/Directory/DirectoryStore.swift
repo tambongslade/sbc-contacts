@@ -17,6 +17,8 @@ final class DirectoryStore {
     private(set) var hasSearched = false
 
     var subscriptionRequired: Bool { errorCode == "SUBSCRIPTION_REQUIRED" }
+    /// An SBC Network account: the directory is SBC's, it has no SBC account.
+    var sbcAccountRequired: Bool { errorCode == "SBC_ACCOUNT_REQUIRED" }
 
     private let repo: DirectoryRepository
     private var generation = 0

@@ -8,10 +8,16 @@ struct LoginView: View {
     @State private var busy = false
     @State private var showCode = false
     @State private var code = ""
-    @State private var showSignup = false
-    @State private var sponsor = ""
+    @State private var networkAccount: NetworkAccountRoute?
+
+    /// Which SBC Network form to open.
+    private enum NetworkAccountRoute: Hashable, Identifiable {
+        case create, signIn
+        var id: Self { self }
+    }
 
     var body: some View {
+        NavigationStack {
         ScrollView {
             VStack(spacing: 0) {
                 SBCLogo(height: 96)
@@ -52,39 +58,34 @@ struct LoginView: View {
                 }
 
                 if !(auth.isExchangingCode || busy) {
+                    HStack(spacing: 12) {
+                        Rectangle().fill(SBCColors.outlineVariant).frame(height: 1)
+                        Text("ou avec SBC Network")
+                            .font(.sbc(.bodySmall))
+                            .foregroundStyle(SBCColors.onSurfaceVariant)
+                            .fixedSize()
+                        Rectangle().fill(SBCColors.outlineVariant).frame(height: 1)
+                    }
+                    .padding(.top, 24)
+
                     Button {
-                        withAnimation { showSignup.toggle() }
+                        networkAccount = .create
                     } label: {
-                        Label("Créer un compte", systemImage: "person.badge.plus")
+                        Label("Créer un compte SBC Network", systemImage: "person.badge.plus")
                     }
                     .buttonStyle(.outlined)
-                    .padding(.top, 12)
+                    .padding(.top, 16)
 
-                    if showSignup {
-                        VStack(spacing: 10) {
-                            TextField("Code parrain (facultatif)", text: $sponsor)
-                                .font(.sbc(.bodyLarge))
-                                .textInputAutocapitalization(.characters)
-                                .autocorrectionDisabled()
-                                .padding(.horizontal, 14)
-                                .frame(minHeight: 52)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .stroke(SBCColors.outlineVariant)
-                                )
-                            Text("Le code de la personne qui t'a invité. Tu peux le laisser vide.")
-                                .font(.sbc(.bodySmall))
-                                .foregroundStyle(SBCColors.onSurfaceVariant)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            Button("Continuer l'inscription sur SBC") {
-                                Task { await startSignup() }
-                            }
-                            .buttonStyle(FilledButtonStyle(minHeight: 48))
-                        }
+                    Button("J'ai un compte SBC Network") { networkAccount = .signIn }
+                        .buttonStyle(.text)
+                        .padding(.top, 4)
+
+                    Text("Tu veux plutôt un compte SBC ?")
+                        .font(.sbc(.bodySmall))
+                        .foregroundStyle(SBCColors.onSurfaceVariant)
                         .padding(.top, 12)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
+                    Button("Créer mon compte sur SBC") { Task { await signUpOnSBC() } }
+                        .buttonStyle(.text)
                 }
 
                 Button("J'ai un code d'autorisation") {
@@ -121,6 +122,11 @@ struct LoginView: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .background(SBCColors.background)
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationDestination(item: $networkAccount) { route in
+            NetworkAccountView(create: route == .create)
+        }
+        }
     }
 
     private func startSSO() async {
@@ -136,14 +142,13 @@ struct LoginView: View {
         }
     }
 
-    /// App accounts are SBC accounts: sign-up (OTP, sponsor, subscription)
-    /// happens on SBC's own page, opened inside the app.
-    private func startSignup() async {
+    /// For whoever wants an SBC account rather than an SBC Network one: SBC's
+    /// own sign-up page, opened in the same in-app session as sign-in.
+    private func signUpOnSBC() async {
         busy = true
         defer { busy = false }
-        await authenticator.signUp(sponsorCode: sponsor.trimmingCharacters(in: .whitespacesAndNewlines))
-        showSignup = false
-        toasts.show("Compte créé ? Touche « Se connecter avec SBC » pour entrer.")
+        await SSOAuthenticator.openSBCSignup()
+        toasts.show("Compte SBC créé ? Touche « Se connecter avec SBC » pour entrer.")
     }
 
     private func submitCode() async {

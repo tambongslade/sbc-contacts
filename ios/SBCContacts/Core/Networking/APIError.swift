@@ -17,6 +17,8 @@ struct APIError: Error, LocalizedError, Sendable, Equatable {
     var isUnauthorized: Bool { statusCode == 401 }
     var isForbidden: Bool { statusCode == 403 }
     var isSubscriptionRequired: Bool { code == "SUBSCRIPTION_REQUIRED" }
+    /// An SBC Network account asked for something only SBC has (the directory).
+    var isSBCAccountRequired: Bool { code == "SBC_ACCOUNT_REQUIRED" }
 
     var errorDescription: String? { message }
 }
