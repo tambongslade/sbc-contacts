@@ -401,7 +401,7 @@ private struct SubscriptionGate: View {
                         .padding(.top, 16)
                     Text(networkAccount
                         ? "Ton compte SBC Network te donne « Augmenter mes vues WhatsApp ». L’annuaire des membres SBC demande un compte SBC."
-                        : "L’annuaire des membres est réservé aux abonnés SBC. Active ton abonnement, puis actualise cette page.")
+                        : "L’annuaire des membres est réservé aux abonnés SBC. Si ton abonnement vient d’être activé, actualise cette page.")
                         .font(.sbc(.bodyMedium))
                         .foregroundStyle(SBCColors.onSurfaceVariant)
                         .lineSpacing(4)

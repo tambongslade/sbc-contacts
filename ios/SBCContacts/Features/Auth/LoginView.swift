@@ -88,6 +88,10 @@ struct LoginView: View {
                         .buttonStyle(.text)
                 }
 
+                // Fallback from before the in-app SSO session returned the code
+                // itself. Kept for local testing only: in a release build it just
+                // makes App Review ask where such a code comes from.
+                #if DEBUG
                 Button("J'ai un code d'autorisation") {
                     withAnimation { showCode.toggle() }
                 }
@@ -114,6 +118,7 @@ struct LoginView: View {
                     }
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
+                #endif
             }
             .padding(28)
             .frame(maxWidth: 480)

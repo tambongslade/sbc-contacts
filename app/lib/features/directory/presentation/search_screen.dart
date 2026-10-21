@@ -889,7 +889,7 @@ class _SubscriptionGate extends StatelessWidget {
                         ? 'Ton compte SBC Network te donne « Augmenter mes vues WhatsApp ». '
                             'L’annuaire des membres SBC demande un compte SBC.'
                         : 'L’annuaire des membres est réservé aux abonnés SBC. '
-                            'Active ton abonnement, puis actualise cette page.',
+                            'Si ton abonnement vient d’être activé, actualise cette page.',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                       height: 1.45,

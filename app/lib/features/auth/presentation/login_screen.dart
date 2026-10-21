@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -48,9 +49,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// Random, unguessable value tying the callback to this request.
   static String _newState() {
     final r = Random.secure();
-    return List.generate(32, (_) => r.nextInt(256))
-        .map((b) => b.toRadixString(16).padLeft(2, '0'))
-        .join();
+    return List.generate(
+      32,
+      (_) => r.nextInt(256),
+    ).map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
   /// Sign in without ever leaving the app.
@@ -114,20 +116,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     await openSbcSignup();
     if (!mounted) return;
     setState(() => _busy = false);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('Compte SBC créé ? Touche « Se connecter avec SBC » pour entrer.'),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Compte SBC créé ? Touche « Se connecter avec SBC » pour entrer.',
+        ),
+      ),
+    );
   }
 
   void _openNetworkAccount({required bool create}) {
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => NetworkAccountScreen(create: create),
-    ));
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => NetworkAccountScreen(create: create),
+      ),
+    );
   }
 
   void _fail(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _submitCode() async {
@@ -153,8 +162,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const Gap(18),
                 Text(
                   'Ton réseau SBC, directement dans ton téléphone.',
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const Gap(4),
@@ -197,8 +207,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         child: Text(
                           'ou avec SBC Network',
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ),
                       const Expanded(child: Divider()),
@@ -221,32 +232,38 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const Gap(12),
                   Text(
                     'Tu veux plutôt un compte SBC ?',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   TextButton(
                     onPressed: _sbcSignup,
                     child: const Text('Créer mon compte sur SBC'),
                   ),
                 ],
-                const Gap(4),
-                TextButton(
-                  onPressed: () => setState(() => _showCode = !_showCode),
-                  child: const Text("J'ai un code d'autorisation"),
-                ),
-                if (_showCode) ...[
-                  TextField(
-                    controller: _codeCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Code SBC',
-                      hintText: 'Colle le code reçu',
+                // Fallback from before the in-app SSO session returned the code
+                // itself. Kept for local testing only: in a release build it just
+                // makes store review ask where such a code comes from.
+                if (kDebugMode) ...[
+                  const Gap(4),
+                  TextButton(
+                    onPressed: () => setState(() => _showCode = !_showCode),
+                    child: const Text("J'ai un code d'autorisation"),
+                  ),
+                  if (_showCode) ...[
+                    TextField(
+                      controller: _codeCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Code SBC',
+                        hintText: 'Colle le code reçu',
+                      ),
                     ),
-                  ),
-                  const Gap(10),
-                  OutlinedButton(
-                    onPressed: _submitCode,
-                    child: const Text('Valider le code'),
-                  ),
+                    const Gap(10),
+                    OutlinedButton(
+                      onPressed: _submitCode,
+                      child: const Text('Valider le code'),
+                    ),
+                  ],
                 ],
               ],
             ),

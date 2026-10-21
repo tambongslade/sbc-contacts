@@ -319,7 +319,7 @@ class _SubscriptionBlock extends ConsumerWidget {
                               ? "Ton offre ${user.subscriptionTypes.join(' · ')} te donne "
                                   "accès à l'annuaire des membres SBC."
                               : "L'annuaire des membres est réservé aux abonnés SBC. "
-                                  'Active ton abonnement sur SBC, puis actualise ton profil.',
+                                  "Si ton abonnement vient d'être activé, actualise ton profil.",
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                             height: 1.45,

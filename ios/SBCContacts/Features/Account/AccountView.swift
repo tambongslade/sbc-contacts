@@ -167,7 +167,7 @@ private struct SubscriptionBlock: View {
                                 ? "Ton compte reste sur SBC Network : il te donne « Augmenter mes vues WhatsApp ». L'annuaire des membres SBC demande un compte SBC."
                                 : active
                                 ? "Ton offre \(user.subscriptionTypes.joined(separator: " · ")) te donne accès à l'annuaire des membres SBC."
-                                : "L'annuaire des membres est réservé aux abonnés SBC. Active ton abonnement sur SBC, puis actualise ton profil.")
+                                : "L'annuaire des membres est réservé aux abonnés SBC. Si ton abonnement vient d'être activé, actualise ton profil.")
                                 .font(.sbc(.bodySmall))
                                 .foregroundStyle(SBCColors.onSurfaceVariant)
                                 .lineSpacing(3)
