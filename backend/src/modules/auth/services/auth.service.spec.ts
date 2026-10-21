@@ -9,7 +9,7 @@ import { AuthService } from './auth.service';
 describe('AuthService — SBC Network accounts', () => {
   const meta = { ip: '127.0.0.1' };
 
-  function build() {
+  function build(appReview?: { sbcUserId: string; phone: string }) {
     const tx = {
       user: { create: jest.fn(async ({ data }) => ({ id: 'u1', role: 'USER', ...data })) },
       member: { create: jest.fn().mockResolvedValue({}) },
@@ -20,7 +20,14 @@ describe('AuthService — SBC Network accounts', () => {
       $transaction: jest.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)),
     };
     const tokens = { issueForUser: jest.fn().mockResolvedValue({ accessToken: 'a' }) };
-    const service = new AuthService(prisma as never, {} as never, {} as never, tokens as never);
+    const config = { get: jest.fn().mockReturnValue(appReview) };
+    const service = new AuthService(
+      prisma as never,
+      {} as never,
+      {} as never,
+      tokens as never,
+      config as never,
+    );
     return { service, prisma, tx, tokens };
   }
 
@@ -106,6 +113,43 @@ describe('AuthService — SBC Network accounts', () => {
       where: { sbcId: 'net_1' },
       data: { age: expect.any(Number) },
     });
+  });
+
+  it("signs App Review's number in to the SBC account set aside for it", async () => {
+    const { service, prisma } = build({ sbcUserId: 'sbc-review', phone: '+237 690 00 00 01' });
+    const passwordHash = await bcrypt.hash('secret123', 4);
+    prisma.user.findFirst.mockResolvedValueOnce({
+      id: 'u2',
+      sbcUserId: 'sbc-review',
+      origin: 'SBC',
+      role: 'USER',
+      passwordHash,
+      subscriptionTypes: ['CLASSIQUE'],
+    });
+
+    const result = await service.loginWithPhone(
+      { country: 'CM', phoneNumber: '690 00 00 01', password: 'secret123' },
+      meta,
+    );
+
+    // Found by its SBC id: the stored number is whatever SBC last sent.
+    expect(prisma.user.findFirst.mock.calls[0][0].where).toEqual({
+      sbcUserId: 'sbc-review',
+      passwordHash: { not: null },
+      deletedAt: null,
+    });
+    expect(result.user.id).toBe('u2');
+  });
+
+  it('keeps every other number to SBC Network accounts when App Review is set up', async () => {
+    const { service, prisma } = build({ sbcUserId: 'sbc-review', phone: '237690000001' });
+
+    await expect(
+      service.loginWithPhone({ phoneNumber: '237670000000', password: 'secret123' }, meta),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(prisma.user.findFirst.mock.calls[0][0].where).toEqual(
+      expect.objectContaining({ origin: 'NETWORK', phoneNumber: '237670000000' }),
+    );
   });
 
   it('gives one generic error for a wrong password or an unknown number', async () => {

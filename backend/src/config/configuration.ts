@@ -47,6 +47,10 @@ export const configuration = (env: EnvironmentVariables) => ({
       .filter(Boolean),
     webhookSecret: env.SBC_WEBHOOK_SECRET,
   },
+  appReview: {
+    sbcUserId: env.APP_REVIEW_SBC_USER_ID,
+    phone: env.APP_REVIEW_PHONE,
+  },
   gemini: {
     apiKey: env.GEMINI_API_KEY,
     model: env.GEMINI_MODEL,

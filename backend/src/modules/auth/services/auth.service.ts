@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { MemberSource, User } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
@@ -67,6 +68,7 @@ export class AuthService {
     private readonly sbc: SbcClientService,
     private readonly sbcTokens: SbcTokenService,
     private readonly tokens: TokenService,
+    private readonly config: ConfigService,
   ) {}
 
   async ssoCallback(code: string, meta: SessionMeta, redirectUri?: string): Promise<AuthResult> {
@@ -181,11 +183,7 @@ export class AuthService {
    */
   async loginWithPhone(dto: PhoneLoginDto, meta: SessionMeta): Promise<AuthResult> {
     const phoneNumber = toInternationalPhone(dto.phoneNumber, dto.country);
-    const user = phoneNumber
-      ? await this.prisma.user.findFirst({
-          where: { origin: 'NETWORK', phoneNumber, passwordHash: { not: null }, deletedAt: null },
-        })
-      : null;
+    const user = phoneNumber ? await this.phoneAccount(phoneNumber) : null;
     const ok = await bcrypt.compare(dto.password, user?.passwordHash ?? DUMMY_HASH);
     if (!user || !ok) {
       throw new UnauthorizedException('Numéro ou mot de passe incorrect');
@@ -203,6 +201,25 @@ export class AuthService {
       meta,
     );
     return { user: this.toPublic(user), tokens };
+  }
+
+  /**
+   * The account a WhatsApp number signs in to: an SBC Network account, or the
+   * one SBC account set aside for App Review. That one is matched on the
+   * number configured for it, not its stored one, which SBC rewrites at every
+   * profile refresh. Its SBC session was opened once through SSO and is kept
+   * alive by SbcTokenService, so it has the whole directory.
+   */
+  private phoneAccount(phoneNumber: string): Promise<User | null> {
+    const review = this.config.get<{ sbcUserId: string; phone: string }>('appReview');
+    if (review?.sbcUserId && review.phone && toInternationalPhone(review.phone) === phoneNumber) {
+      return this.prisma.user.findFirst({
+        where: { sbcUserId: review.sbcUserId, passwordHash: { not: null }, deletedAt: null },
+      });
+    }
+    return this.prisma.user.findFirst({
+      where: { origin: 'NETWORK', phoneNumber, passwordHash: { not: null }, deletedAt: null },
+    });
   }
 
   private phone(raw: string, country: string): string {

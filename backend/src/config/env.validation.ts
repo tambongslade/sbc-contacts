@@ -119,6 +119,19 @@ export class EnvironmentVariables {
   @IsOptional()
   SBC_WEBHOOK_SECRET = '';
 
+  // --- App Review sign-in ---
+  // One SBC account App Review signs in to with a WhatsApp number + password
+  // ("J'ai un compte SBC Network"), so it never meets SBC's sign-in page and
+  // the code SBC may send there. Both empty = off. See
+  // scripts/set-review-login.ts.
+  @IsString()
+  @IsOptional()
+  APP_REVIEW_SBC_USER_ID = '';
+
+  @IsString()
+  @IsOptional()
+  APP_REVIEW_PHONE = '';
+
   // --- Gemini (SBC Data: request analysis, service structuring, matching) ---
   // Optional so the rest of the app boots without it; SBC Data then falls
   // back to keyword matching and asks nothing of the AI.
