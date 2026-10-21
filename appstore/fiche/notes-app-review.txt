@@ -1,0 +1,29 @@
+SBC Network is a free app for the Sniper Business Center (SBC) business network. Anyone can download it and create an account in the app, with no invitation or approval needed. The member directory lists the SBC network's members.
+
+DEMO ACCOUNT (full access)
+The username and password above belong to an SBC member with an active SBC membership, so the whole app is unlocked, including the member directory.
+1. On the first screen, tap "Se connecter avec SBC" (Sign in with SBC).
+2. SBC's secure sign-in page opens inside the app. Enter the username and password provided above.
+3. You come back to the app automatically, already signed in. You don't need to type any code.
+
+CREATING AN ACCOUNT WITHOUT AN INVITATION
+On the first screen, tap "Créer un compte SBC Network" (Create an SBC Network account). Enter a name, a country, a phone number and a password, and the account is created immediately. This kind of account can post a request for a service ("Demandes"), get answers from professionals, set up a professional profile, and use "Augmenter mes vues WhatsApp". The member directory lists only SBC members, so it is not shown to this kind of account.
+
+WHAT TO TRY WITH THE DEMO ACCOUNT
+- Recherche (Search): search for a member by name or profession, use the filters (country, region, profession, age), and open a profile.
+- On a profile: "WhatsApp" opens WhatsApp with a message already written. "Ajouter" (Add) saves the member to the phone's contacts, and iOS asks for Contacts permission at that point. You can also leave a review.
+- Synchro: create a criteria (for example profession + city), review the matching members, then tap "Synchroniser" to save the members you selected to the phone's contacts.
+- Demandes: describe a need, then compare the professionals who answer.
+- Alertes: notifications appear here when a new member matches one of your criteria.
+- Favoris and Profil.
+
+PAYMENTS
+The app is free and has no in-app purchases. Joining SBC and paying for an SBC membership happen on SBC's website, outside the app. The app only reads whether an account has an active membership.
+
+CONTACTS PERMISSION
+Contacts access is used only to save the members the user chooses and to avoid creating duplicates. The address book is read on the device and never uploaded. The server only receives the IDs of the SBC members that were saved.
+
+ACCOUNT DELETION
+Users can request deletion of their SBC Network data at https://contacts.sniperbusinesscenterlive.com/delete-account/
+
+The app is in French, the language of SBC members.

@@ -18,12 +18,17 @@ des fixtures de `DemoMode.swift`. Barre d'état figée à 09:41 (convention Appl
 
 ## Tailles
 
-- `iphone-6.9/` → **1320 × 2868** (6,9" — iPhone 17 Pro Max). Taille principale
-  demandée par App Store Connect.
+- `iphone-6.3/` → **1206 × 2622** (6,3" — « iPhone with Dynamic Island,
+  medium display »). C'est l'emplacement qu'App Store Connect affiche par
+  défaut et il **refuse** toute autre taille (seuls 1206 × 2622 et
+  1179 × 2556 passent). Dérivé de la 6,9" : mise à l'échelle à 2622 px de haut
+  puis recadrage centré d'1 px en largeur.
+- `iphone-6.9/` → **1320 × 2868** (6,9" — iPhone 17 Pro Max), pour
+  l'emplacement grand écran.
 - `iphone-6.5/` → **1242 × 2688** (6,5"), au cas où la fiche la réclame encore.
 
-App Store Connect met à l'échelle la 6,9" pour les autres tailles d'iPhone :
-téléverser `iphone-6.9/` suffit dans la plupart des cas.
+Chaque emplacement n'accepte que ses propres dimensions : déposer le dossier
+qui correspond à l'onglet ouvert dans App Store Connect.
 
 ## Régénérer
 
