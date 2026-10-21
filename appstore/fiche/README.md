@@ -64,8 +64,8 @@ copier-coller, limites de caractères déjà vérifiées).
 | Champ | Valeur |
 |---|---|
 | Connexion requise | **Oui** |
-| Nom d'utilisateur | ⚠️ identifiant d'un compte membre SBC de test |
-| Mot de passe | ⚠️ mot de passe de ce compte (il ne doit pas expirer pendant la revue) |
+| Nom d'utilisateur | ⚠️ le numéro WhatsApp du compte de revue, avec l'indicatif (ex. +237 690 00 00 01) — voir `backend/scripts/set-review-login.ts` |
+| Mot de passe | ⚠️ le mot de passe donné à ce script (pas celui du compte SBC) |
 | Prénom / Nom | ⚠️ |
 | Téléphone | ⚠️ (avec indicatif, ex. +237 …) |
 | E-mail | tambongkersten7@gmail.com |

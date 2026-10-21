@@ -3,7 +3,7 @@ Hello,
 Thank you for the review. We've uploaded a new build (1.0.0 build 20) and answer each point below.
 
 GUIDELINE 2.1 - DEMO ACCOUNT
-The account we provided before wasn't valid on the SBC sign-in page. We're sorry about that. We've replaced it in App Review Information with a real SBC member account that has an active membership. We tested it ourselves on an iPhone and an iPad running this build. To sign in, tap "Se connecter avec SBC", enter the username and password on SBC's sign-in page, and you come back to the app already signed in.
+The account we provided before wasn't valid on the SBC sign-in page. We're sorry about that. We've replaced it in App Review Information with a real SBC member account that has an active membership, and it signs in without any verification code. On the first screen, tap "J'ai un compte SBC Network", leave the country on Cameroun, and enter the phone number and password from App Review Information. You go straight to the app's home screen with full access. We tested it ourselves on an iPhone and an iPad running this build.
 
 GUIDELINE 2.1 - AUTHORISATION CODE
 Users never need an authorisation code. The "J'ai un code d'autorisation" button was a leftover from an older sign-in flow, where the code had to be pasted in by hand. Sign-in now returns to the app automatically, and we've removed the button from this build.

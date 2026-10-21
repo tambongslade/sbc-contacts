@@ -1,10 +1,10 @@
 SBC Network is a free app for the Sniper Business Center (SBC) business network. Anyone can download it and create an account in the app, with no invitation or approval needed. The member directory lists the SBC network's members.
 
-DEMO ACCOUNT (full access)
-The username and password above belong to an SBC member with an active SBC membership, so the whole app is unlocked, including the member directory.
-1. On the first screen, tap "Se connecter avec SBC" (Sign in with SBC).
-2. SBC's secure sign-in page opens inside the app. Enter the username and password provided above.
-3. You come back to the app automatically, already signed in. You don't need to type any code.
+DEMO ACCOUNT (full access, no code needed)
+The demo account is an SBC member with an active SBC membership, so the whole app is unlocked, including the member directory. Sign in with its phone number:
+1. On the first screen, tap "J'ai un compte SBC Network" (I have an SBC Network account).
+2. Leave the country on Cameroun, enter the phone number given as the user name above, and the password.
+3. Tap "Se connecter". You go straight to the app's home screen. No verification code is sent or asked for.
 
 CREATING AN ACCOUNT WITHOUT AN INVITATION
 On the first screen, tap "Créer un compte SBC Network" (Create an SBC Network account). Enter a name, a country, a phone number and a password, and the account is created immediately. This kind of account can post a request for a service ("Demandes"), get answers from professionals, set up a professional profile, and use "Augmenter mes vues WhatsApp". The member directory lists only SBC members, so it is not shown to this kind of account.
