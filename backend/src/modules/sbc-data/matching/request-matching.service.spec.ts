@@ -5,6 +5,8 @@ import {
   applyVerdicts,
   bestPerPro,
   budgetScore,
+  PRO_LOCATION_TTL_MS,
+  proximityScore,
   scoreService,
 } from './request-matching.service';
 
@@ -25,6 +27,8 @@ describe('SBC Data matching', () => {
     mode: ServiceMode.HOME as ServiceMode | null,
     budget: 20000 as number | null,
     embedding: [] as number[],
+    latitude: null as number | null,
+    longitude: null as number | null,
     ...over,
   });
 
@@ -48,6 +52,9 @@ describe('SBC Data matching', () => {
         zones: [],
         modes: [ServiceMode.HOME],
         priceMin: null,
+        latitude: null,
+        longitude: null,
+        locatedAt: null,
         ...pro,
       },
       ...over,
@@ -96,6 +103,55 @@ describe('SBC Data matching', () => {
     expect(scoreService(request(), s)).toBeNull();
   });
 
+  describe('near the requester', () => {
+    const now = new Date('2026-10-26T12:00:00Z');
+    // Akwa, Douala; Bonapriso is ~3 km away, Yaoundé ~200 km.
+    const here = { latitude: 4.0511, longitude: 9.7679 };
+    const bonapriso = { latitude: 4.0275, longitude: 9.6943, locatedAt: now };
+    const yaounde = { latitude: 3.848, longitude: 11.5021, locatedAt: now };
+
+    it('takes a pro close by even when their zones name another town', () => {
+      const c = scoreService(request(here), service({}, { city: 'Bafoussam', ...bonapriso }), now);
+      expect(c!.reasons.location).toBe('près de toi');
+      expect(c!.reasons.distanceKm).toBeGreaterThan(2);
+      expect(c!.reasons.distanceKm).toBeLessThan(10);
+    });
+
+    it('still takes a far pro whose zones cover the named city', () => {
+      const c = scoreService(request(here), service({}, yaounde), now);
+      expect(c!.reasons.location).toBe('yaounde');
+    });
+
+    it('ranks the pro close by above the same pro far away', () => {
+      const near = scoreService(request(here), service({}, bonapriso), now)!;
+      const far = scoreService(request(here), service({}, yaounde), now)!;
+      expect(near.score).toBeGreaterThan(far.score);
+    });
+
+    it('with no city named, leaves out a pro in another town', () => {
+      const c = scoreService(request({ ...here, city: null }), service({}, yaounde), now);
+      expect(c).toBeNull();
+    });
+
+    it('ignores a position the pro has not refreshed in days', () => {
+      const stale = { ...bonapriso, city: 'Bafoussam' };
+      stale.locatedAt = new Date(now.getTime() - PRO_LOCATION_TTL_MS - 1);
+      expect(scoreService(request(here), service({}, stale), now)).toBeNull();
+    });
+
+    it('ranks the pro close by above an equal pro with no position', () => {
+      const near = scoreService(request(here), service({}, bonapriso), now)!;
+      const unknown = scoreService(request(here), service(), now)!;
+      expect(near.score).toBeGreaterThan(unknown.score);
+    });
+
+    it('lifts only a pro known to be close', () => {
+      expect(proximityScore(null)).toBe(0);
+      expect(proximityScore(0)).toBe(1);
+      expect(proximityScore(30)).toBe(0);
+    });
+  });
+
   it('matches on the raw text when the AI could not name the service', () => {
     const c = scoreService(request({ service: null, profession: null }), service());
     expect(c!.reasons.keyword).toBeGreaterThan(0);
@@ -137,6 +193,7 @@ describe('SBC Data matching', () => {
       retrieval: score,
       relevance: null,
       location: 'x',
+      distanceKm: null,
     },
   });
 

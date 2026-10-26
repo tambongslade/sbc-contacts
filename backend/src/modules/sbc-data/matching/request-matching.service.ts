@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ProProfile, ProService, ServiceMode, ServiceRequest } from '@prisma/client';
+import { distanceKm, toLatLng } from '../../../common/utils/geo';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { SbcDataAiService } from '../ai/sbc-data-ai.service';
 import { cosine, coverage, fold, samePlace, tokens } from '../text';
@@ -18,6 +19,12 @@ const SHORTLIST = 20;
 const MIN_RETRIEVAL = 0.25;
 /** Below this AI relevance, a shortlisted service is dropped. */
 const MIN_RELEVANCE = 0.5;
+/** Within this, a pro is "près de toi": they qualify whatever their zones say. */
+export const NEARBY_KM = 15;
+/** With no city named, a pro further than this is in another town. */
+export const FAR_KM = 50;
+/** A pro's position older than this is no longer where they are. */
+export const PRO_LOCATION_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
 type ServiceWithPro = ProService & { pro: ProProfile };
 
@@ -33,6 +40,8 @@ type RequestForMatching = Pick<
   | 'mode'
   | 'budget'
   | 'embedding'
+  | 'latitude'
+  | 'longitude'
 >;
 
 /** Why a pro was picked — stored on the dispatch for the matching logs (Data §21). */
@@ -44,6 +53,8 @@ export interface MatchReasons {
   retrieval: number;
   relevance: number | null;
   location: string;
+  /** Requester ↔ pro, exact; only ever shown rounded. Null when unknown. */
+  distanceKm: number | null;
 }
 
 export interface MatchCandidate {
@@ -84,7 +95,7 @@ export class RequestMatchingService {
 
     const shortlist = bestPerPro(
       services
-        .map((s) => scoreService(request, s))
+        .map((s) => scoreService(request, s, now))
         .filter((c): c is MatchCandidate => c !== null && c.reasons.retrieval >= MIN_RETRIEVAL),
     )
       .sort((a, b) => b.score - a.score)
@@ -113,6 +124,7 @@ export class RequestMatchingService {
 export function scoreService(
   request: RequestForMatching,
   service: ServiceWithPro,
+  now = new Date(),
 ): MatchCandidate | null {
   const modes = service.modes.length ? service.modes : service.pro.modes;
   const zones = service.zones.length ? service.zones : service.pro.zones;
@@ -121,17 +133,24 @@ export function scoreService(
   // An empty list means the pro did not say, which we do not hold against them.
   if (request.mode && modes.length && !modes.includes(request.mode)) return null;
 
-  // Location matters unless the job is done remotely.
+  // Location matters unless the job is done remotely. A pro close by
+  // qualifies on distance alone; otherwise the zones they named decide, as
+  // they do for every pro who has not shared a position.
   let location = 'non précisé';
   const remote = request.mode === ServiceMode.ONLINE || request.mode === ServiceMode.DELIVERY;
-  if (request.city && !remote) {
+  const distance = remote ? null : proDistance(request, service.pro, now);
+  if (remote) {
+    location = 'à distance';
+  } else if (distance !== null && distance <= NEARBY_KM) {
+    location = 'près de toi';
+  } else if (request.city) {
     const place = [service.pro.city, ...zones].find(
       (z) => samePlace(z, request.city) || (request.district && samePlace(z, request.district)),
     );
     if (!place) return null;
     location = place;
-  } else if (remote) {
-    location = 'à distance';
+  } else if (distance !== null && distance > FAR_KM) {
+    return null;
   }
 
   const need = tokens(
@@ -160,9 +179,40 @@ export function scoreService(
   return {
     proId: service.proId,
     serviceId: service.id,
-    score: retrieval * 0.9 + budgetFit * 0.1,
-    reasons: { keyword, semantic, profession, budgetFit, retrieval, relevance: null, location },
+    score: retrieval * 0.75 + budgetFit * 0.1 + proximityScore(distance) * 0.15,
+    reasons: {
+      keyword,
+      semantic,
+      profession,
+      budgetFit,
+      retrieval,
+      relevance: null,
+      location,
+      distanceKm: distance,
+    },
   };
+}
+
+/** Requester ↔ pro in km, when both shared a position and the pro's is recent. */
+export function proDistance(
+  request: Pick<ServiceRequest, 'latitude' | 'longitude'>,
+  pro: Pick<ProProfile, 'latitude' | 'longitude' | 'locatedAt'>,
+  now = new Date(),
+): number | null {
+  const from = toLatLng(request);
+  const to = toLatLng(pro);
+  if (!from || !to || !pro.locatedAt) return null;
+  if (now.getTime() - pro.locatedAt.getTime() > PRO_LOCATION_TTL_MS) return null;
+  return distanceKm(from, to);
+}
+
+/**
+ * 1 next door, falling to 0 at NEARBY_KM. Only a pro known to be close is
+ * lifted: one who shares no position ranks like one who is far, as before.
+ */
+export function proximityScore(km: number | null): number {
+  if (km === null) return 0;
+  return Math.max(0, 1 - km / NEARBY_KM);
 }
 
 /** 1 = within budget or unknown, falling to 0 at twice the budget. */

@@ -9,6 +9,8 @@ import {
   IsEnum,
   IsIn,
   IsInt,
+  IsLatitude,
+  IsLongitude,
   IsObject,
   IsOptional,
   IsString,
@@ -23,6 +25,12 @@ import {
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 
 // ── Pro side ────────────────────────────────────────────────────────────────
+
+/** The phone's current position ("Près de moi"). */
+export class LocationDto {
+  @ApiProperty({ example: 4.0511 }) @Type(() => Number) @IsLatitude() latitude!: number;
+  @ApiProperty({ example: 9.7679 }) @Type(() => Number) @IsLongitude() longitude!: number;
+}
 
 /** The fields a pro adds on top of the SBC profile (Data §3). */
 export class UpsertProProfileDto {
@@ -220,6 +228,16 @@ export class CreateRequestDto {
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) budget?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(60) desiredDate?: string;
   @ApiPropertyOptional({ enum: ServiceMode }) @IsOptional() @IsEnum(ServiceMode) mode?: ServiceMode;
+}
+
+/** "Envoyer ma demande", optionally from where the requester stands now. */
+export class SendRequestDto {
+  /** Turns pros close by into candidates; never shown to them (Data §22). */
+  @ApiPropertyOptional({ type: LocationDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LocationDto)
+  location?: LocationDto;
 }
 
 /** Corrections to the AI's reading before sending, or an answer to its question. */

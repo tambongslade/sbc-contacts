@@ -26,6 +26,7 @@ import {
   ProServiceInputDto,
   RespondDto,
   UpdateServiceDto,
+  LocationDto,
   UpsertProProfileDto,
 } from '../dto/sbc-data.dto';
 import { MAX_RESPONSES, serviceDocument } from '../matching/request-matching.service';
@@ -127,6 +128,24 @@ export class ProfessionalService {
       update: data,
     });
     return this.getProfile(userId);
+  }
+
+  /**
+   * The app reports where the pro is while it runs. No profile yet (still in
+   * onboarding) is not an error: there is just nowhere to keep it.
+   */
+  async updateLocation(userId: string, dto: LocationDto): Promise<void> {
+    await this.prisma.proProfile.updateMany({
+      where: { userId },
+      data: { latitude: dto.latitude, longitude: dto.longitude, locatedAt: new Date() },
+    });
+  }
+
+  async clearLocation(userId: string): Promise<void> {
+    await this.prisma.proProfile.updateMany({
+      where: { userId },
+      data: { latitude: null, longitude: null, locatedAt: null },
+    });
   }
 
   /** AI proposals only — nothing is saved until the pro validates (Data §4). */
