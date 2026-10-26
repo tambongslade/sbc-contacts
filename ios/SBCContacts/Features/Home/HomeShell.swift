@@ -94,7 +94,7 @@ struct HomeShell: View {
         // After login: a member who is not a pro is invited to become one, a
         // pro with an incomplete setup is told what is missing.
         .sheet(item: $proPrompt) { kind in
-            ProOnboardingFlow(kind: kind).environment(requests)
+            ProOnboardingFlow(kind: kind).environment(requests).environment(auth)
         }
         .task { await notifications.refreshUnreadCount() }
         .task { await regions.loadIfNeeded() }

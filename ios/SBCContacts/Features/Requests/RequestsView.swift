@@ -228,23 +228,33 @@ private struct ReceivingBanner: View {
 }
 
 private struct BecomeProCard: View {
+    @Environment(AuthStore.self) private var auth
+
     var body: some View {
         RequestPanel {
-            VStack(alignment: .leading, spacing: 10) {
-                Image(systemName: "briefcase")
-                    .font(.system(size: 22))
-                    .foregroundStyle(SBCColors.primary)
-                Text("Tu proposes un service ?")
-                    .font(.sbc(.titleMedium, weight: .heavy))
-                Text("Crée ton profil professionnel et décris ce que tu sais faire. Les membres qui en ont besoin t'envoient leurs demandes.")
-                    .font(.sbc(.bodyMedium))
-                    .foregroundStyle(SBCColors.onSurfaceVariant)
-                NavigationLink(value: AppRoute.proProfileForm) {
-                    Text("Créer mon profil pro")
-                }
-                .buttonStyle(FilledButtonStyle(minHeight: 46))
-                .padding(.top, 4)
+            if auth.user?.isNetworkAccount == true {
+                ProMembersOnlyView()
+            } else {
+                invitation
             }
+        }
+    }
+
+    private var invitation: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: "briefcase")
+                .font(.system(size: 22))
+                .foregroundStyle(SBCColors.primary)
+            Text("Tu proposes un service ?")
+                .font(.sbc(.titleMedium, weight: .heavy))
+            Text("Crée ton profil professionnel et décris ce que tu sais faire. Les membres qui en ont besoin t'envoient leurs demandes.")
+                .font(.sbc(.bodyMedium))
+                .foregroundStyle(SBCColors.onSurfaceVariant)
+            NavigationLink(value: AppRoute.proProfileForm) {
+                Text("Créer mon profil pro")
+            }
+            .buttonStyle(FilledButtonStyle(minHeight: 46))
+            .padding(.top, 4)
         }
     }
 }
