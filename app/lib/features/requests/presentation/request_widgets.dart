@@ -336,3 +336,54 @@ class ProSetupBanner extends StatelessWidget {
     );
   }
 }
+
+/// What being a pro gets you, for an SBC Network account: it has to be an SBC
+/// member to create a pro profile, so there is nothing here to tap.
+class ProMembersOnly extends StatelessWidget {
+  const ProMembersOnly({super.key, this.centered = false});
+
+  /// Centred heading, as in the post-login sheet.
+  final bool centered;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    Widget check(String text) => Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.check_box_rounded, size: 20, color: SbcColors.primary),
+              const Gap(10),
+              Expanded(child: Text(text, style: theme.textTheme.bodyMedium)),
+            ],
+          ),
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Tu proposes des services ? Trouve de nouveaux clients avec SBC !',
+          textAlign: centered ? TextAlign.center : TextAlign.start,
+          style: (centered ? theme.textTheme.headlineSmall : theme.textTheme.titleMedium)
+              ?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        const Gap(10),
+        Text(
+          'Rejoins la communauté SBC et crée ton profil professionnel pour présenter ton métier, '
+          'mettre en avant ton savoir-faire et recevoir des demandes de clients qui recherchent tes services.',
+          style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        ),
+        const Gap(4),
+        check('Présente ton activité et tes compétences.'),
+        check('Reçois des demandes de clients intéressés.'),
+        check('Développe ton réseau et multiplie tes opportunités.'),
+        const Gap(14),
+        Text(
+          'Pour créer ton profil professionnel, tu dois être membre de la SBC.',
+          style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+      ],
+    );
+  }
+}

@@ -4,11 +4,13 @@ import 'package:gap/gap.dart';
 import 'package:intl/intl.dart';
 import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
+import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
 import 'package:sbc_contacts/features/sync/application/sync_controllers.dart';
 import 'package:sbc_contacts/features/sync/domain/sync_models.dart';
 import 'package:sbc_contacts/shared/widgets/empty_state.dart';
 import 'package:sbc_contacts/shared/widgets/member_avatar.dart';
 import 'package:sbc_contacts/shared/widgets/skeletons.dart';
+import 'package:sbc_contacts/shared/widgets/subscription_gate.dart';
 import 'package:sbc_contacts/shared/widgets/whatsapp_button.dart';
 
 /// "Qui m'a enregistré ?" (cahier §21) — the members who saved you.
@@ -22,6 +24,13 @@ class SavedMeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Who saved you is SBC member data: an SBC Network account gets the paywall.
+    if (ref.watch(authControllerProvider).value?.isNetworkAccount ?? false) {
+      return Scaffold(
+        appBar: AppBar(title: const Text("Qui m'a enregistré")),
+        body: const SubscriptionGate(networkAccount: true),
+      );
+    }
     final async = ref.watch(savedMeProvider);
 
     return Scaffold(

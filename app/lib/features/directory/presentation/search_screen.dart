@@ -8,7 +8,6 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sbc_contacts/core/theme/app_theme.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
-import 'package:sbc_contacts/features/auth/application/sbc_signup.dart';
 import 'package:sbc_contacts/features/directory/application/search_controller.dart';
 import 'package:sbc_contacts/features/directory/data/directory_repository.dart';
 import 'package:sbc_contacts/features/directory/domain/filter_options.dart';
@@ -17,6 +16,7 @@ import 'package:sbc_contacts/shared/widgets/dark_pill_button.dart';
 import 'package:sbc_contacts/shared/widgets/empty_state.dart';
 import 'package:sbc_contacts/shared/widgets/member_card.dart';
 import 'package:sbc_contacts/shared/widgets/skeletons.dart';
+import 'package:sbc_contacts/shared/widgets/subscription_gate.dart';
 
 /// "Rechercher" — the directory.
 ///
@@ -157,11 +157,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (state.loading) return const CardListSkeleton(rows: 6);
 
     if (state.subscriptionRequired) {
-      return _SubscriptionGate(onRetry: () => unawaited(_notifier.search()));
+      return SubscriptionGate(onRetry: () => unawaited(_notifier.search()));
     }
 
     if (state.sbcAccountRequired) {
-      return _SubscriptionGate(networkAccount: true, onRetry: () => unawaited(openSbcSignup()));
+      return const SubscriptionGate(networkAccount: true);
     }
 
     if (state.error != null) {
@@ -819,166 +819,6 @@ class _ErrorView extends StatelessWidget {
           label: const Text('Réessayer'),
         ),
       ),
-    );
-  }
-}
-
-/// The paywall. This is the one moment on the screen worth a brand treatment:
-/// it has to explain what is behind the lock, not just refuse.
-class _SubscriptionGate extends StatelessWidget {
-  const _SubscriptionGate({required this.onRetry, this.networkAccount = false});
-
-  /// Retry, or for [networkAccount] open SBC's sign-up.
-  final VoidCallback onRetry;
-
-  /// An SBC Network account: it needs an SBC account, not a subscription.
-  final bool networkAccount;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
-      child: Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(
-              height: 4,
-              width: double.infinity,
-              child: DecoratedBox(
-                decoration: BoxDecoration(gradient: SbcColors.brandArc),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.tertiary.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(
-                      Icons.lock_outline,
-                      color: theme.colorScheme.tertiary,
-                      size: 24,
-                    ),
-                  ),
-                  const Gap(16),
-                  Text(
-                    networkAccount ? 'Réservé aux membres SBC' : 'Réservé aux abonnés SBC',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      height: 1.2,
-                    ),
-                  ),
-                  const Gap(8),
-                  Text(
-                    networkAccount
-                        ? 'Ton compte SBC Network te donne « Augmenter mes vues WhatsApp ». '
-                            'L’annuaire des membres SBC demande un compte SBC.'
-                        : 'L’annuaire des membres est réservé aux abonnés SBC. '
-                            'Active ton abonnement, puis actualise cette page.',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      height: 1.45,
-                    ),
-                  ),
-                  const Gap(18),
-                  const _GateBenefit(
-                    icon: Icons.groups_2_outlined,
-                    label: 'Tout le répertoire des membres SBC',
-                  ),
-                  const Gap(10),
-                  const _GateBenefit(
-                    icon: Icons.tune_rounded,
-                    label: 'Filtres par métier, région, âge et centres '
-                        'd’intérêt',
-                  ),
-                  const Gap(10),
-                  const _GateBenefit(
-                    icon: Icons.chat_bubble_outline,
-                    label: 'Contact WhatsApp direct et ajout au répertoire',
-                  ),
-                  const Gap(20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: onRetry,
-                      icon: Icon(
-                        networkAccount ? Icons.open_in_new_rounded : Icons.refresh_rounded,
-                        size: 20,
-                      ),
-                      label: Text(
-                        networkAccount ? 'Créer mon compte sur SBC' : 'J’ai activé mon abonnement',
-                      ),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(48),
-                      ),
-                    ),
-                  ),
-                  const Gap(10),
-                  if (!networkAccount)
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.info_outline,
-                        size: 15,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      const Gap(6),
-                      Expanded(
-                        child: Text(
-                          'Ton abonnement se gère dans l’onglet Profil.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ).animate().fadeIn(duration: const Duration(milliseconds: 240)),
-    );
-  }
-}
-
-class _GateBenefit extends StatelessWidget {
-  const _GateBenefit({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 18, color: theme.colorScheme.primary),
-        const Gap(10),
-        Expanded(
-          child: Text(
-            label,
-            style: theme.textTheme.bodyMedium?.copyWith(height: 1.35),
-          ),
-        ),
-      ],
     );
   }
 }
