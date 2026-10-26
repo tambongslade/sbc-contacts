@@ -4,6 +4,7 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
+import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
 import 'package:sbc_contacts/features/requests/application/requests_controllers.dart';
 import 'package:sbc_contacts/features/requests/domain/request_models.dart';
 import 'package:sbc_contacts/features/requests/presentation/request_widgets.dart';
@@ -27,6 +28,24 @@ class _ProPromptSheet extends ConsumerWidget {
     final space = ref.watch(proSpaceProvider).value;
     final finish = kind == ProInvite.finishSetup;
     final missing = space?.missingSetup ?? const [];
+
+    // An SBC Network account cannot become a pro: it is told why, with nothing to start.
+    if (!finish && (ref.watch(authControllerProvider).value?.isNetworkAccount ?? false)) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const ProMembersOnly(centered: true),
+              const Gap(20),
+              TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Fermer')),
+            ],
+          ),
+        ),
+      );
+    }
 
     Widget benefit(IconData icon, String text) => Padding(
           padding: const EdgeInsets.only(bottom: 12),

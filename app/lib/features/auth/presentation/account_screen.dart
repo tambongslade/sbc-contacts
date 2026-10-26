@@ -9,7 +9,6 @@ import 'package:sbc_contacts/core/theme/app_theme.dart';
 import 'package:sbc_contacts/features/requests/application/requests_controllers.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
-import 'package:sbc_contacts/features/auth/application/sbc_signup.dart';
 import 'package:sbc_contacts/features/auth/domain/app_user.dart';
 import 'package:sbc_contacts/shared/widgets/member_avatar.dart';
 import 'package:skeletonizer/skeletonizer.dart';
@@ -39,11 +38,14 @@ class AccountScreen extends ConsumerWidget {
                       .animate()
                       .fadeIn(duration: 260.ms)
                       .slideY(begin: 0.04, end: 0, curve: Curves.easeOut),
-                  const Gap(20),
-                  _SubscriptionBlock(user: user)
-                      .animate(delay: 60.ms)
-                      .fadeIn(duration: 260.ms)
-                      .slideY(begin: 0.04, end: 0, curve: Curves.easeOut),
+                  // An SBC Network account has no subscription to show.
+                  if (!user.isNetworkAccount) ...[
+                    const Gap(20),
+                    _SubscriptionBlock(user: user)
+                        .animate(delay: 60.ms)
+                        .fadeIn(duration: 260.ms)
+                        .slideY(begin: 0.04, end: 0, curve: Curves.easeOut),
+                  ],
                   const Gap(20),
                   _InfoBlock(user: user)
                       .animate(delay: 120.ms)
@@ -301,21 +303,13 @@ class _SubscriptionBlock extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          user.isNetworkAccount
-                              ? 'Compte SBC Network'
-                              : active
-                                  ? 'Abonnement actif'
-                                  : 'Aucun abonnement actif',
+                          active ? 'Abonnement actif' : 'Aucun abonnement actif',
                           style: theme.textTheme.titleSmall
                               ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         const Gap(4),
                         Text(
-                          user.isNetworkAccount
-                              ? 'Ton compte reste sur SBC Network : il te donne « Augmenter '
-                                  "mes vues WhatsApp ». L'annuaire des membres SBC demande "
-                                  'un compte SBC.'
-                              : active
+                          active
                               ? "Ton offre ${user.subscriptionTypes.join(' · ')} te donne "
                                   "accès à l'annuaire des membres SBC."
                               : "L'annuaire des membres est réservé aux abonnés SBC. "
@@ -334,17 +328,10 @@ class _SubscriptionBlock extends ConsumerWidget {
                 const Gap(16),
                 FilledButton.icon(
                   onPressed: () => unawaited(
-                    user.isNetworkAccount
-                        ? openSbcSignup()
-                        : ref.read(authControllerProvider.notifier).refreshProfile(),
+                    ref.read(authControllerProvider.notifier).refreshProfile(),
                   ),
-                  icon: Icon(
-                    user.isNetworkAccount ? Icons.open_in_new_rounded : Icons.refresh_rounded,
-                    size: 20,
-                  ),
-                  label: Text(
-                    user.isNetworkAccount ? 'Créer mon compte sur SBC' : 'Actualiser mon statut',
-                  ),
+                  icon: const Icon(Icons.refresh_rounded, size: 20),
+                  label: const Text('Actualiser mon statut'),
                   // Brand blue (not the card's orange tint) so the label keeps
                   // an accessible contrast ratio on the filled surface.
                   style: FilledButton.styleFrom(
@@ -467,6 +454,8 @@ class _MySpaceBlock extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isPro = ref.watch(proSpaceProvider).value?.isPro ?? false;
+    // An SBC Network account cannot use the assistant: the pro space says why.
+    final networkAccount = ref.watch(authControllerProvider).value?.isNetworkAccount ?? false;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -479,7 +468,7 @@ class _MySpaceBlock extends ConsumerWidget {
               _NavRow(
                 icon: Icons.work_rounded,
                 label: isPro ? 'Espace pro' : 'Devenir pro',
-                onTap: () => context.push(isPro ? '/pro' : '/pro/assistant'),
+                onTap: () => context.push(isPro || networkAccount ? '/pro' : '/pro/assistant'),
               ),
               const Divider(height: 1, indent: 68),
               _NavRow(

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:sbc_contacts/core/theme/app_theme.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
+import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
 import 'package:sbc_contacts/features/requests/application/requests_controllers.dart';
 import 'package:sbc_contacts/features/requests/domain/request_models.dart';
 import 'package:sbc_contacts/features/requests/presentation/request_widgets.dart';
@@ -324,12 +325,15 @@ class _ReceivingBanner extends StatelessWidget {
   }
 }
 
-class _BecomeProCard extends StatelessWidget {
+class _BecomeProCard extends ConsumerWidget {
   const _BecomeProCard();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    if (ref.watch(authControllerProvider).value?.isNetworkAccount ?? false) {
+      return const RequestPanel(child: ProMembersOnly());
+    }
     return RequestPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

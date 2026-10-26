@@ -2,15 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sbc_contacts/core/theme/app_theme.dart';
+import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
 import 'package:sbc_contacts/features/favorites/application/favorites_controller.dart';
 import 'package:sbc_contacts/shared/widgets/empty_state.dart';
 import 'package:sbc_contacts/shared/widgets/member_card.dart';
+import 'package:sbc_contacts/shared/widgets/subscription_gate.dart';
 
 class FavoritesScreen extends ConsumerWidget {
   const FavoritesScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Favourites are SBC members: an SBC Network account gets the paywall.
+    if (ref.watch(authControllerProvider).value?.isNetworkAccount ?? false) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Mes favoris')),
+        body: const SubscriptionGate(networkAccount: true),
+      );
+    }
     final favorites = ref.watch(favoritesControllerProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Mes favoris')),

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
+import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
 import 'package:sbc_contacts/features/requests/application/requests_controllers.dart';
 import 'package:sbc_contacts/features/requests/domain/request_models.dart';
 import 'package:sbc_contacts/features/requests/presentation/request_widgets.dart';
@@ -34,6 +35,12 @@ class ProSpaceScreen extends ConsumerWidget {
           data: (s) {
             final profile = s.profile;
             if (profile == null) {
+              if (ref.watch(authControllerProvider).value?.isNetworkAccount ?? false) {
+                return ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: const [RequestPanel(child: ProMembersOnly())],
+                );
+              }
               return ListView(children: [
                 EmptyState(
                   icon: Icons.work_outline,
