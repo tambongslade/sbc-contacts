@@ -78,6 +78,7 @@ enum DispatchStatus {
 
 String? _s(Object? v) => v == null ? null : v.toString();
 int? _i(Object? v) => v is num ? v.toInt() : int.tryParse('${v ?? ''}');
+double? _f(Object? v) => v is num ? v.toDouble() : null;
 DateTime? _d(Object? v) => v == null ? null : DateTime.tryParse(v.toString())?.toLocal();
 List<String> _list(Object? v) => (v as List<dynamic>? ?? const []).map((e) => '$e').toList();
 List<Map<String, dynamic>> _maps(Object? v) =>
@@ -116,6 +117,7 @@ class RequestResponse {
     required this.shopUrl,
     required this.confidenceScore,
     this.avatarUrl,
+    this.distanceKm,
     this.whatsapp,
     this.serviceName,
     this.price,
@@ -134,6 +136,7 @@ class RequestResponse {
       avatarUrl: _s(p['avatarUrl']),
       profession: _s(p['profession']) ?? '',
       city: _s(p['city']) ?? '',
+      distanceKm: _f(p['distanceKm']),
       whatsapp: _s(p['whatsapp']),
       shopUrl: _s(p['shopUrl']) ?? '',
       confidenceScore: _i(p['confidenceScore']) ?? 50,
@@ -152,6 +155,9 @@ class RequestResponse {
   final String? avatarUrl;
   final String profession;
   final String city;
+
+  /// How far the pro was when the request went out, rounded by the backend.
+  final double? distanceKm;
   final String? whatsapp;
   final String shopUrl;
   final int confidenceScore;
@@ -264,6 +270,7 @@ class InboxItem {
     required this.request,
     required this.createdAt,
     this.matchedService,
+    this.distanceKm,
     this.price,
     this.availability,
     this.delay,
@@ -279,6 +286,7 @@ class InboxItem {
         request: ServiceRequestItem.fromJson((j['request'] as Map<String, dynamic>?) ?? const {}),
         createdAt: _d(j['createdAt']) ?? DateTime.now(),
         matchedService: _s(j['matchedService']),
+        distanceKm: _f(j['distanceKm']),
         price: _i(j['price']),
         availability: _s(j['availability']),
         delay: _s(j['delay']),
@@ -293,6 +301,9 @@ class InboxItem {
   final ServiceRequestItem request;
   final DateTime createdAt;
   final String? matchedService;
+
+  /// How far the requester is, rounded; never where (Data §22).
+  final double? distanceKm;
   final int? price;
   final String? availability;
   final String? delay;

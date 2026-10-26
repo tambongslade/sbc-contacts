@@ -7,6 +7,7 @@ import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/requests/application/requests_controllers.dart';
 import 'package:sbc_contacts/features/requests/domain/request_models.dart';
 import 'package:sbc_contacts/features/requests/presentation/request_widgets.dart';
+import 'package:sbc_contacts/shared/services/location.dart';
 
 String? _nilIfBlank(String s) => s.trim().isEmpty ? null : s.trim();
 
@@ -180,6 +181,9 @@ class RequestReviewScreen extends ConsumerStatefulWidget {
 class _RequestReviewScreenState extends ConsumerState<RequestReviewScreen> {
   late ServiceRequestItem _request = widget.request;
   bool _busy = false;
+
+  /// "Près de ma position": pros close by receive it first.
+  bool _nearMe = true;
   String? _error;
 
   void _set(ServiceRequestItem r) {
@@ -201,7 +205,9 @@ class _RequestReviewScreenState extends ConsumerState<RequestReviewScreen> {
   Future<void> _send() async {
     setState(() => _busy = true);
     try {
-      final sent = await ref.read(requestsRepositoryProvider).send(_request.id);
+      // No position (refused, off, no fix) just means the city alone matches.
+      final here = _nearMe ? await ref.read(locationServiceProvider).current() : null;
+      final sent = await ref.read(requestsRepositoryProvider).send(_request.id, location: here);
       ref.read(myRequestsProvider.notifier).upsert(sent);
       if (!mounted) return;
       showToast(context, 'Demande envoyée. On la transmet aux professionnels concernés.');
@@ -324,6 +330,19 @@ class _RequestReviewScreenState extends ConsumerState<RequestReviewScreen> {
               ),
             ),
           ],
+          const Gap(16),
+          RequestPanel(
+            child: SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              secondary: const Icon(Icons.near_me_rounded, color: SbcColors.primary),
+              title: const Text('Près de ma position', style: TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: const Text(
+                "Les pros proches de toi la reçoivent en premier. Ils ne voient qu'une distance approximative.",
+              ),
+              value: _nearMe,
+              onChanged: _busy ? null : (on) => setState(() => _nearMe = on),
+            ),
+          ),
           const Gap(16),
           const PrivacyNote('Ton numéro reste privé. Les pros voient seulement ta demande, jusqu\'à ce que tu les contactes.'),
           if (_error != null) ...[

@@ -11,6 +11,12 @@
     <uses-permission android:name="android.permission.READ_CONTACTS"/>
     <uses-permission android:name="android.permission.WRITE_CONTACTS"/>
 
+    <!-- "Près de moi": a request goes first to pros close to the requester,
+         and a pro's app reports where they are while it is open. Foreground
+         only; each side is only ever shown a rounded distance. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+
     <application
         android:label="SBC Network"
         android:name="${applicationName}"

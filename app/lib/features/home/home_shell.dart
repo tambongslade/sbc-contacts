@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
@@ -22,9 +24,15 @@ class HomeShell extends ConsumerStatefulWidget {
 class _HomeShellState extends ConsumerState<HomeShell> {
   int _index = 0;
 
+  /// A pro's position follows the phone while the app is in use (foreground only).
+  late final AppLifecycleListener _lifecycle;
+
   @override
   void initState() {
     super.initState();
+    _lifecycle = AppLifecycleListener(
+      onResume: () => unawaited(ref.read(proLocationProvider.notifier).report()),
+    );
     // Ask for contacts access once the shell is on screen, so the member sees
     // the app behind the explanation rather than a bare system dialog.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -33,7 +41,14 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       // After login, and once the contacts prompt is out of the way: invite a
       // member who is not a pro, or tell a pro what is missing.
       await _promptProIfDue();
+      if (mounted) await ref.read(proLocationProvider.notifier).report();
     });
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
   }
 
   Future<void> _promptProIfDue() async {

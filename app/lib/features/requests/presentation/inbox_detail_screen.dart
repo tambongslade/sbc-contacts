@@ -7,6 +7,7 @@ import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/requests/application/requests_controllers.dart';
 import 'package:sbc_contacts/features/requests/domain/request_models.dart';
 import 'package:sbc_contacts/features/requests/presentation/request_widgets.dart';
+import 'package:sbc_contacts/shared/services/location.dart';
 
 /// A request as the pro sees it: the need, never who asked, the four answers,
 /// the conversation and what happened since (Data §10, §18, §22). Opening it
@@ -109,6 +110,10 @@ class _InboxDetailScreenState extends ConsumerState<InboxDetailScreen> {
             child: Column(
               children: [
                 FactRow('Lieu', r.place.isEmpty ? 'Non précisé' : r.place),
+                if (item.distanceKm != null) ...[
+                  const Divider(height: 1),
+                  FactRow('Distance', 'à ~${formatKm(item.distanceKm!)} de toi'),
+                ],
                 const Divider(height: 1),
                 FactRow('Prestation', r.mode?.label ?? 'Indifférent'),
                 const Divider(height: 1),
