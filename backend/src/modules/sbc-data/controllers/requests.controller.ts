@@ -19,6 +19,7 @@ import {
   RequesterMessageDto,
   RequestsQueryDto,
   SelectProDto,
+  SendRequestDto,
   UpdateRequestDto,
 } from '../dto/sbc-data.dto';
 import { RequestView } from '../sbc-data.views';
@@ -72,8 +73,9 @@ export class RequestsController {
   send(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SendRequestDto,
   ): Promise<RequestView> {
-    return this.requests.send(user.userId, id);
+    return this.requests.send(user.userId, id, dto);
   }
 
   @Post(':id/select')

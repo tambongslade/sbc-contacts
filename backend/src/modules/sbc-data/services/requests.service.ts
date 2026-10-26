@@ -28,6 +28,7 @@ import {
   CompleteRequestDto,
   CreateRequestDto,
   RequestsQueryDto,
+  SendRequestDto,
   UpdateRequestDto,
 } from '../dto/sbc-data.dto';
 import {
@@ -40,6 +41,7 @@ import {
   CONVERSATION_DISPATCH,
   RequestView,
   ResponseView,
+  shownDistance,
   toMessages,
   toPublicView,
 } from '../sbc-data.views';
@@ -131,7 +133,7 @@ export class RequestsService {
   }
 
   /** "Envoyer ma demande" — matching and routing happen on the queue. */
-  async send(userId: string, id: string): Promise<RequestView> {
+  async send(userId: string, id: string, dto: SendRequestDto = {}): Promise<RequestView> {
     const current = await this.own(userId, id);
     if (current.status !== RequestStatus.DRAFT) {
       throw new ConflictException('Cette demande est déjà envoyée');
@@ -141,7 +143,13 @@ export class RequestsService {
     }
     const request = await this.prisma.serviceRequest.update({
       where: { id },
-      data: { status: RequestStatus.MATCHING, sentAt: new Date() },
+      data: {
+        status: RequestStatus.MATCHING,
+        sentAt: new Date(),
+        // Sent without a position, the request is matched on its city alone.
+        latitude: dto.location?.latitude ?? null,
+        longitude: dto.location?.longitude ?? null,
+      },
     });
     await this.queue.add('match', { requestId: id }, { jobId: `match-${id}` });
     return this.view(request);
@@ -534,6 +542,7 @@ export class RequestsService {
           avatarUrl: d.pro.user.avatarUrl,
           profession: d.pro.profession,
           city: d.pro.city,
+          distanceKm: shownDistance(d.reasons),
           whatsapp: d.pro.whatsapp ?? d.pro.user.phoneNumber,
           shopUrl: d.pro.shopUrl,
           confidenceScore: confidenceScore(score?.averageStars ?? 0, score?.reviewCount ?? 0),

@@ -1,5 +1,6 @@
 import {
   DispatchMessage,
+  Prisma,
   DispatchStatus,
   ProProfile,
   ProService,
@@ -8,6 +9,7 @@ import {
   ServiceMode,
   ServiceRequest,
 } from '@prisma/client';
+import { approximateKm } from '../../common/utils/geo';
 
 /** What a pro sees of a request: the need, never who asked (Data §22). */
 export interface RequestPublicView {
@@ -55,6 +57,8 @@ export interface ResponseView {
     avatarUrl: string | null;
     profession: string;
     city: string;
+    /** Rounded, from where both were at matching time; null when unknown. */
+    distanceKm: number | null;
     whatsapp: string | null;
     shopUrl: string | null;
     confidenceScore: number;
@@ -106,6 +110,8 @@ export interface InboxItemView {
   dispatchId: string;
   status: DispatchStatus;
   matchedService: string | null;
+  /** How far the requester is, rounded; null when either shared no position. */
+  distanceKm: number | null;
   request: RequestPublicView;
   price: number | null;
   availability: string | null;
@@ -136,6 +142,12 @@ export function toPublicView(r: ServiceRequest): RequestPublicView {
   };
 }
 
+/** The matching distance stored on a dispatch, rounded for showing (Data §22). */
+export function shownDistance(reasons: Prisma.JsonValue | null): number | null {
+  const km = (reasons as { distanceKm?: unknown } | null)?.distanceKm;
+  return typeof km === 'number' ? approximateKm(km) : null;
+}
+
 export function toInboxItem(
   d: RequestDispatch & {
     request: ServiceRequest;
@@ -147,6 +159,7 @@ export function toInboxItem(
     dispatchId: d.id,
     status: d.status,
     matchedService: d.service?.name ?? null,
+    distanceKm: shownDistance(d.reasons),
     request: toPublicView(d.request),
     price: d.price,
     availability: d.availability,

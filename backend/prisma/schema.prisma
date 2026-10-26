@@ -465,6 +465,12 @@ model ProProfile {
   /// Defaults to the SBC phone number; a pro may route requests elsewhere.
   whatsapp     String?
 
+  /// The pro's phone position, refreshed by the app while it runs. Matching
+  /// trusts it only while `locatedAt` is recent; null = not shared.
+  latitude  Float?
+  longitude Float?
+  locatedAt DateTime?
+
   /// Receiving requests is the paid part (Data §17: 2 000 FCFA/mois). Until
   /// payments exist an admin switches it on; `receivingUntil` null = no expiry.
   receivingEnabled Boolean   @default(false)
@@ -553,6 +559,10 @@ model ServiceRequest {
   desiredTime String?
   budget      Int? // FCFA
   constraints String[]     @default([])
+  /// Where the requester was when they asked, if they shared it. Only ever
+  /// turned into a distance; never shown to a pro (Data §22).
+  latitude    Float?
+  longitude   Float?
 
   /// A short question the AI asks when the need is ambiguous (Data §7).
   clarificationQuestion String?

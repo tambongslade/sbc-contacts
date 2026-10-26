@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Headers,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -20,6 +21,7 @@ import {
   AddServicesDto,
   AssistantTurnDto,
   InboxQueryDto,
+  LocationDto,
   MessageDto,
   RespondDto,
   StructureServicesDto,
@@ -50,6 +52,20 @@ export class ProController {
     @Headers('x-client-platform') platform?: string,
   ): Promise<ProProfileView> {
     return this.pros.upsertProfile(user.userId, dto, platform);
+  }
+
+  @Put('location')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Where I am now — pros close to a request receive it first' })
+  updateLocation(@CurrentUser() user: AuthenticatedUser, @Body() dto: LocationDto): Promise<void> {
+    return this.pros.updateLocation(user.userId, dto);
+  }
+
+  @Delete('location')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Stop sharing my position' })
+  clearLocation(@CurrentUser() user: AuthenticatedUser): Promise<void> {
+    return this.pros.clearLocation(user.userId);
   }
 
   @Post('assistant')
