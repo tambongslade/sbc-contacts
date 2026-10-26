@@ -191,6 +191,8 @@ struct RequestResponse: Identifiable, Sendable, Equatable {
     var avatarUrl: String?
     var profession: String
     var city: String
+    /// How far the pro was from the requester, rounded by the server.
+    var distanceKm: Double?
     var whatsapp: String?
     var shopUrl: String
     var confidenceScore: Int
@@ -211,6 +213,8 @@ struct InboxItem: Identifiable, Sendable, Hashable {
     var id: String // dispatchId
     var status: DispatchStatus
     var matchedService: String?
+    /// How far the requester is, rounded by the server; nil when unknown.
+    var distanceKm: Double?
     var request: ServiceRequestItem
     var price: Int?
     var availability: String?
@@ -390,7 +394,7 @@ extension RequestResponse: Decodable {
     }
 
     private enum ProKeys: String, CodingKey {
-        case userId, sbcUserId, name, avatarUrl, profession, city, whatsapp, shopUrl, confidenceScore, reviewCount
+        case userId, sbcUserId, name, avatarUrl, profession, city, distanceKm, whatsapp, shopUrl, confidenceScore, reviewCount
     }
 
     init(from decoder: Decoder) throws {
@@ -404,6 +408,7 @@ extension RequestResponse: Decodable {
         avatarUrl = p.string(.avatarUrl)
         profession = p.string(.profession) ?? ""
         city = p.string(.city) ?? ""
+        distanceKm = p.double(.distanceKm)
         whatsapp = p.string(.whatsapp)
         shopUrl = p.string(.shopUrl) ?? ""
         confidenceScore = p.int(.confidenceScore) ?? 50
@@ -419,7 +424,7 @@ extension RequestResponse: Decodable {
 
 extension InboxItem: Decodable {
     private enum CodingKeys: String, CodingKey {
-        case dispatchId, status, matchedService, request, price, availability, delay, message, createdAt,
+        case dispatchId, status, matchedService, distanceKm, request, price, availability, delay, message, createdAt,
              viewedAt, respondedAt, messages
     }
 
@@ -428,6 +433,7 @@ extension InboxItem: Decodable {
         id = c.string(.dispatchId) ?? ""
         status = DispatchStatus(rawValue: c.string(.status) ?? "") ?? .unknown
         matchedService = c.string(.matchedService)
+        distanceKm = c.double(.distanceKm)
         request = try c.decode(ServiceRequestItem.self, forKey: .request)
         price = c.int(.price)
         availability = c.string(.availability)
@@ -530,6 +536,11 @@ extension ProStats: Decodable {
         conversionRate = c.double(.conversionRate) ?? 0
         topServices = ((try? c.decodeIfPresent([Top].self, forKey: .topServices)) ?? []).map { ($0.name, $0.count) }
     }
+}
+
+/// "à ~1,5 km" — the server already rounded it to half-km steps up close.
+func approxDistance(_ km: Double) -> String {
+    "à ~\(km.formatted(.number.precision(.fractionLength(0...1)).locale(Locale(identifier: "fr_FR")))) km"
 }
 
 /// "15 000 FCFA", with the non-breaking thousands separator French uses.

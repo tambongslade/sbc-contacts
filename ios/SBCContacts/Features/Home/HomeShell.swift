@@ -35,7 +35,9 @@ struct HomeShell: View {
     @State private var requests: RequestsStore
     @State private var contactsSettled = false
     @State private var proPrompt: ProInvite?
+    @State private var proLocation: ProLocationReporter
     @Environment(AuthStore.self) private var auth
+    @Environment(\.scenePhase) private var scenePhase
 
     init(services: AppServices) {
         _directory = State(initialValue: DirectoryStore(repo: services.directory))
@@ -44,6 +46,7 @@ struct HomeShell: View {
         _regions = State(initialValue: RegionsStore(repo: services.directory))
         _notifications = State(initialValue: NotificationsStore(repo: services.notifications))
         _requests = State(initialValue: RequestsStore(repo: services.requests))
+        _proLocation = State(initialValue: ProLocationReporter(repo: services.requests))
         #if DEBUG
         let path = DemoMode.initialPath()
         switch Tab.initial {
@@ -85,6 +88,7 @@ struct HomeShell: View {
         .environment(sync)
         .environment(regions)
         .environment(requests)
+        .environment(proLocation)
         // Ask for contacts access once the shell is on screen, so the member
         // sees the app behind the explanation rather than a bare system dialog.
         .contactsPermissionGate {
@@ -101,7 +105,17 @@ struct HomeShell: View {
         .task {
             await requests.load()
             inviteToBecomeProIfDue()
+            await reportProLocation()
         }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await reportProLocation() } }
+        }
+    }
+
+    /// A pro's position, so requests close by reach them first.
+    private func reportProLocation() async {
+        guard requests.isPro else { return }
+        await proLocation.refresh()
     }
 
     /// Both the pro profile and the contacts prompt must be settled first:

@@ -127,7 +127,12 @@ struct RequestReviewView: View {
     @State private var editing = false
     @State private var sent: ServiceRequestItem?
     @State private var deleting: ServiceRequestItem?
+    /// "Près de ma position" — remembered for the next request.
+    @AppStorage("requests.nearMe") private var nearMe = true
     @Environment(\.dismiss) private var dismiss
+
+    /// Distance means nothing for work done remotely.
+    private var placeMatters: Bool { request.mode != .online && request.mode != .delivery }
 
     var body: some View {
         ScrollView {
@@ -176,6 +181,21 @@ struct RequestReviewView: View {
                         busy: busy
                     ) { answer in
                         Task { await answerQuestion(answer) }
+                    }
+                }
+
+                if placeMatters {
+                    RequestPanel {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Toggle(isOn: $nearMe) {
+                                Label("Près de ma position", systemImage: "location.fill")
+                                    .font(.sbc(.titleSmall, weight: .bold))
+                            }
+                            .tint(SBCColors.primary)
+                            Text("Les pros proches de toi la reçoivent en premier. Ils ne voient qu'une distance approximative, jamais ta position.")
+                                .font(.sbc(.bodySmall))
+                                .foregroundStyle(SBCColors.onSurfaceVariant)
+                        }
                     }
                 }
 
@@ -231,7 +251,9 @@ struct RequestReviewView: View {
         busy = true
         defer { busy = false }
         do {
-            let updated = try await services.requests.send(request.id)
+            // No permission or no fix: sent anyway, matched on the city alone.
+            let here = placeMatters && nearMe ? await LocationProvider.shared.current() : nil
+            let updated = try await services.requests.send(request.id, from: here)
             store.upsert(updated)
             toasts.show("Demande envoyée. On la transmet aux professionnels concernés.")
             sent = updated

@@ -285,6 +285,9 @@ private struct InboxRow: View {
                         if let city = item.request.city {
                             Label(city, systemImage: "mappin.and.ellipse")
                         }
+                        if let km = item.distanceKm {
+                            Label("\(approxDistance(km)) de toi", systemImage: "location.fill")
+                        }
                         if let mode = item.request.mode {
                             Label(mode.label, systemImage: mode.systemImage)
                         }

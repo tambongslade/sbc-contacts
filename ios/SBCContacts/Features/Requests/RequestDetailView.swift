@@ -311,6 +311,11 @@ private struct ResponseCard: View {
                             TagChip(label: response.profession)
                             ConfidenceScorePill(score: response.confidenceScore)
                         }
+                        if let km = response.distanceKm {
+                            Label(approxDistance(km), systemImage: "location.fill")
+                                .font(.sbc(.labelMedium, weight: .semibold))
+                                .foregroundStyle(SBCColors.primary)
+                        }
                     }
                     Spacer(minLength: 0)
                     switch response.status {

@@ -43,8 +43,15 @@ struct RequestsRepository: Sendable {
         try await api.patch("/data/requests/\(id)", body: body)
     }
 
-    func send(_ id: String) async throws -> ServiceRequestItem {
-        try await api.post("/data/requests/\(id)/send")
+    private struct SendBody: Encodable, Sendable { let location: Coordinates }
+
+    /// Sent from `location`, pros close by receive it first; they only ever
+    /// see a rounded distance.
+    func send(_ id: String, from location: Coordinates? = nil) async throws -> ServiceRequestItem {
+        if let location {
+            return try await api.post("/data/requests/\(id)/send", body: SendBody(location: location))
+        }
+        return try await api.post("/data/requests/\(id)/send")
     }
 
     func list(page: Int = 1, limit: Int = 50) async throws -> Paginated<ServiceRequestItem> {
@@ -79,6 +86,15 @@ struct RequestsRepository: Sendable {
     /// "Relancer cette demande": a new draft with the same need.
     func reopen(_ id: String) async throws -> ServiceRequestItem {
         try await api.post("/data/requests/\(id)/reopen")
+    }
+
+    /// Where the pro is now, so requests close by reach them first.
+    func updateProLocation(_ location: Coordinates) async throws {
+        try await api.put("/data/pro/location", body: location)
+    }
+
+    func clearProLocation() async throws {
+        try await api.delete("/data/pro/location")
     }
 
     /// The pro writes to the requester in the request conversation.
