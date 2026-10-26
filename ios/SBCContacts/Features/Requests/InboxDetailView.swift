@@ -41,6 +41,10 @@ struct InboxDetailView: View {
                     VStack(spacing: 0) {
                         FactRow(label: "Lieu", value: [request.district, request.city].compactMap { $0 }.joined(separator: ", ").nilIfBlank ?? "Non précisé")
                         Divider()
+                        if let km = item.distanceKm {
+                            FactRow(label: "Distance", value: "\(approxDistance(km)) de toi")
+                            Divider()
+                        }
                         FactRow(label: "Prestation", value: request.mode?.label ?? "Indifférent")
                         Divider()
                         FactRow(label: "Date", value: [request.desiredDate, request.desiredTime].compactMap { $0 }.joined(separator: " à ").nilIfBlank ?? "Flexible")

@@ -16,6 +16,7 @@ struct ProSpaceView: View {
                 if let space = store.proSpace, let profile = space.profile {
                     ProSetupBanner(missing: space.missingSetup)
                     SubscriptionCard(active: space.receivingActive, until: profile.receivingUntil)
+                    LocationCard()
                     if let stats { StatsBlock(stats: stats) }
                     ServicesBlock(services: space.services)
                     ProfileBlock(profile: profile)
@@ -78,6 +79,67 @@ private struct SubscriptionCard: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(active ? SBCColors.secondaryContainer : SBCColors.accent.opacity(0.12))
         )
+    }
+}
+
+/// "Partager ma position": pros close to a request receive it first. Says
+/// what iOS currently allows and offers the one next step.
+private struct LocationCard: View {
+    @Environment(ProLocationReporter.self) private var reporter
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        RequestPanel {
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle(isOn: Binding(
+                    get: { reporter.isEnabled },
+                    set: { on in Task { await reporter.setEnabled(on) } }
+                )) {
+                    Label("Partager ma position", systemImage: "location.fill")
+                        .font(.sbc(.titleSmall, weight: .heavy))
+                }
+                .tint(SBCColors.primary)
+                Text(detail)
+                    .font(.sbc(.bodySmall))
+                    .foregroundStyle(SBCColors.onSurfaceVariant)
+                if reporter.isEnabled, let action {
+                    Button(action.label, action: action.run)
+                        .font(.sbc(.labelLarge, weight: .semibold))
+                }
+            }
+        }
+        .task { reporter.readPermission() }
+    }
+
+    private var detail: String {
+        guard reporter.isEnabled else {
+            return "Les demandes te parviennent selon ta ville et tes zones uniquement."
+        }
+        return switch reporter.permission {
+        case .always:
+            "Les demandes près de toi te parviennent en premier, même app fermée. Le client ne voit qu'une distance approximative."
+        case .whileInUse:
+            "Ta position est mise à jour quand tu ouvres l'app. Le client ne voit qu'une distance approximative."
+        case .denied:
+            "La localisation est désactivée pour SBC Network dans Réglages."
+        case .unknown:
+            "Les demandes près de toi te parviennent en premier. Le client ne voit qu'une distance approximative."
+        }
+    }
+
+    private var action: (label: String, run: () -> Void)? {
+        switch reporter.permission {
+        case .unknown:
+            ("Activer la localisation", { Task { await reporter.refresh(prompt: true) } })
+        case .whileInUse:
+            ("Autoriser « Toujours »", { reporter.askForAlways() })
+        case .denied:
+            ("Ouvrir Réglages", {
+                if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+            })
+        case .always:
+            nil
+        }
     }
 }
 

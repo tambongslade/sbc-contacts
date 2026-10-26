@@ -50,6 +50,10 @@ actor APIClient {
         _ = try await send(.post, path, body: encode(body))
     }
 
+    func put(_ path: String, body: some Encodable & Sendable) async throws {
+        _ = try await send(.put, path, body: encode(body))
+    }
+
     func delete(_ path: String) async throws {
         _ = try await send(.delete, path)
     }

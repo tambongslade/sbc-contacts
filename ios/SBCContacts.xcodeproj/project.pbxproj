@@ -258,6 +258,8 @@
 				INFOPLIST_FILE = "SBCContacts-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "SBC Network";
 				INFOPLIST_KEY_NSContactsUsageDescription = "SBC Network enregistre les membres SBC que vous choisissez dans le carnet de contacts de votre téléphone, et vérifie les doublons avant d'ajouter.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Avec « Toujours », les demandes près de vous vous parviennent même quand SBC Network est fermé. Les clients ne voient qu'une distance approximative, jamais votre position.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "SBC Network utilise votre position pour mettre en relation demandes et professionnels proches. L'autre personne ne voit qu'une distance approximative, jamais votre position.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
@@ -289,6 +291,8 @@
 				INFOPLIST_FILE = "SBCContacts-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "SBC Network";
 				INFOPLIST_KEY_NSContactsUsageDescription = "SBC Network enregistre les membres SBC que vous choisissez dans le carnet de contacts de votre téléphone, et vérifie les doublons avant d'ajouter.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Avec « Toujours », les demandes près de vous vous parviennent même quand SBC Network est fermé. Les clients ne voient qu'une distance approximative, jamais votre position.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "SBC Network utilise votre position pour mettre en relation demandes et professionnels proches. L'autre personne ne voit qu'une distance approximative, jamais votre position.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
