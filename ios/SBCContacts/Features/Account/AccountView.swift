@@ -14,8 +14,11 @@ struct AccountView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     ProfileHeader(user: user)
                         .appearAnimation()
-                    SubscriptionBlock(user: user)
-                        .appearAnimation(delay: 0.06)
+                    // An SBC Network account has no subscription to show.
+                    if !user.isNetworkAccount {
+                        SubscriptionBlock(user: user)
+                            .appearAnimation(delay: 0.06)
+                    }
                     ShortcutsBlock()
                         .appearAnimation(delay: 0.09)
                     InfoBlock(user: user)
@@ -160,12 +163,10 @@ private struct SubscriptionBlock: View {
                     HStack(alignment: .top, spacing: 12) {
                         IconTile(systemImage: active ? "checkmark.seal.fill" : "lock", tone: tone)
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(user.isNetworkAccount ? "Compte SBC Network" : active ? "Abonnement actif" : "Aucun abonnement actif")
+                            Text(active ? "Abonnement actif" : "Aucun abonnement actif")
                                 .font(.sbc(.titleSmall, weight: .bold))
                                 .foregroundStyle(SBCColors.onSurface)
-                            Text(user.isNetworkAccount
-                                ? "Ton compte reste sur SBC Network : il te donne « Augmenter mes vues WhatsApp ». L'annuaire des membres SBC demande un compte SBC."
-                                : active
+                            Text(active
                                 ? "Ton offre \(user.subscriptionTypes.joined(separator: " · ")) te donne accès à l'annuaire des membres SBC."
                                 : "L'annuaire des membres est réservé aux abonnés SBC. Active ton abonnement sur SBC, puis actualise ton profil.")
                                 .font(.sbc(.bodySmall))
@@ -179,19 +180,9 @@ private struct SubscriptionBlock: View {
                         // Brand blue (not the card's orange tint) so the label
                         // keeps an accessible contrast ratio on the fill.
                         Button {
-                            Task {
-                                if user.isNetworkAccount {
-                                    await SSOAuthenticator.openSBCSignup()
-                                } else {
-                                    await auth.refreshProfile()
-                                }
-                            }
+                            Task { await auth.refreshProfile() }
                         } label: {
-                            if user.isNetworkAccount {
-                                Label("Créer mon compte sur SBC", systemImage: "arrow.up.right.square")
-                            } else {
-                                Label("Actualiser mon statut", systemImage: "arrow.clockwise")
-                            }
+                            Label("Actualiser mon statut", systemImage: "arrow.clockwise")
                         }
                         .buttonStyle(FilledButtonStyle(minHeight: 46))
                     }
@@ -270,6 +261,7 @@ private struct InfoBlock: View {
 /// Espace pro, and Favoris now that "Demandes" has its tab slot.
 private struct ShortcutsBlock: View {
     @Environment(RequestsStore.self) private var requests
+    @Environment(AuthStore.self) private var auth
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -277,7 +269,8 @@ private struct ShortcutsBlock: View {
             SurfaceCard(padding: 0) {
                 VStack(spacing: 0) {
                     ShortcutLink(
-                        route: requests.isPro ? .proSpace : .proProfileForm,
+                        // An SBC Network account cannot fill the form: the pro space says why.
+                        route: requests.isPro || auth.user?.isNetworkAccount == true ? .proSpace : .proProfileForm,
                         systemImage: "briefcase.fill",
                         tone: SBCColors.primary,
                         title: requests.isPro ? "Espace pro" : "Devenir pro",

@@ -2,13 +2,20 @@ import SwiftUI
 
 struct FavoritesView: View {
     @Environment(FavoritesStore.self) private var store
+    @Environment(AuthStore.self) private var auth
 
     var body: some View {
-        content
-            .background(SBCColors.background)
-            .navigationTitle("Mes favoris")
-            .navigationBarTitleDisplayMode(.inline)
-            .task { await store.load() }
+        Group {
+            // Favourites are SBC members: an SBC Network account gets the paywall.
+            if auth.user?.isNetworkAccount == true {
+                SubscriptionGate(networkAccount: true)
+            } else {
+                content.task { await store.load() }
+            }
+        }
+        .background(SBCColors.background)
+        .navigationTitle("Mes favoris")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     @ViewBuilder

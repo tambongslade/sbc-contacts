@@ -7,6 +7,7 @@ import SwiftUI
 /// listed, never someone who merely looked at your profile.
 struct SavedMeView: View {
     @Environment(\.services) private var services
+    @Environment(AuthStore.self) private var auth
 
     private enum LoadState {
         case loading
@@ -17,10 +18,16 @@ struct SavedMeView: View {
     @State private var state: LoadState = .loading
 
     var body: some View {
-        content
-            .navigationTitle("Qui m'a enregistré")
-            .navigationBarTitleDisplayMode(.inline)
-            .task { await load() }
+        Group {
+            // Who saved you is SBC member data: an SBC Network account gets the paywall.
+            if auth.user?.isNetworkAccount == true {
+                SubscriptionGate(networkAccount: true)
+            } else {
+                content.task { await load() }
+            }
+        }
+        .navigationTitle("Qui m'a enregistré")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     @ViewBuilder

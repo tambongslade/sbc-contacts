@@ -5,6 +5,7 @@ import SwiftUI
 struct ProSpaceView: View {
     @Environment(\.services) private var services
     @Environment(RequestsStore.self) private var store
+    @Environment(AuthStore.self) private var auth
 
     @State private var stats: ProStats?
     @State private var error: String?
@@ -18,6 +19,8 @@ struct ProSpaceView: View {
                     if let stats { StatsBlock(stats: stats) }
                     ServicesBlock(services: space.services)
                     ProfileBlock(profile: profile)
+                } else if store.proSpace != nil, auth.user?.isNetworkAccount == true {
+                    RequestPanel { ProMembersOnlyView() }
                 } else if store.proSpace != nil {
                     EmptyStateView(systemImage: "briefcase", title: "Pas encore de profil pro") {
                         NavigationLink("Créer mon profil pro", value: AppRoute.proProfileForm)

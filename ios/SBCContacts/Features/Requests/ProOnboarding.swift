@@ -168,10 +168,30 @@ private struct FinishSetupView: View {
 
 /// "Tu proposes un service ?" — what being a pro gets you, in three lines.
 private struct ProInvitationView: View {
+    @Environment(AuthStore.self) private var auth
     let onStart: () -> Void
     let onLater: () -> Void
 
     var body: some View {
+        if auth.user?.isNetworkAccount == true {
+            // An SBC Network account cannot become a pro: it is told why, with nothing to start.
+            VStack(spacing: 0) {
+                ProMembersOnlyView(centered: true)
+                    .padding(.top, 8)
+                Spacer(minLength: 20)
+                Button("Fermer", action: onLater)
+                    .buttonStyle(.text)
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 12)
+            .background(SBCColors.background)
+            .toolbar(.hidden, for: .navigationBar)
+        } else {
+            invitation
+        }
+    }
+
+    private var invitation: some View {
         VStack(spacing: 0) {
             Image(systemName: "briefcase.fill")
                 .font(.system(size: 26))
@@ -205,6 +225,48 @@ private struct ProInvitationView: View {
         .padding(.bottom, 12)
         .background(SBCColors.background)
         .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
+/// What being a pro gets you, for an SBC Network account: it has to be an SBC
+/// member to create a pro profile, so there is nothing here to tap.
+struct ProMembersOnlyView: View {
+    /// Centred heading, as in the post-login sheet.
+    var centered = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Tu proposes des services ? Trouve de nouveaux clients avec SBC !")
+                .font(.sbc(centered ? .headlineSmall : .titleMedium, weight: .heavy))
+                .multilineTextAlignment(centered ? .center : .leading)
+                .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
+            Text("Rejoins la communauté SBC et crée ton profil professionnel pour présenter ton métier, mettre en avant ton savoir-faire et recevoir des demandes de clients qui recherchent tes services.")
+                .font(.sbc(.bodyMedium))
+                .foregroundStyle(SBCColors.onSurfaceVariant)
+                .padding(.top, 10)
+            VStack(alignment: .leading, spacing: 10) {
+                check("Présente ton activité et tes compétences.")
+                check("Reçois des demandes de clients intéressés.")
+                check("Développe ton réseau et multiplie tes opportunités.")
+            }
+            .padding(.top, 14)
+            Text("Pour créer ton profil professionnel, tu dois être membre de la SBC.")
+                .font(.sbc(.bodyMedium, weight: .bold))
+                .foregroundStyle(SBCColors.onSurface)
+                .padding(.top, 14)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func check(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "checkmark.square.fill")
+                .font(.system(size: 17))
+                .foregroundStyle(SBCColors.primary)
+            Text(text)
+                .font(.sbc(.bodyMedium))
+                .foregroundStyle(SBCColors.onSurface)
+        }
     }
 }
 
