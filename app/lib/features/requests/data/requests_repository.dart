@@ -1,5 +1,6 @@
 import 'package:sbc_contacts/core/network/api_client.dart';
 import 'package:sbc_contacts/features/requests/domain/request_models.dart';
+import 'package:sbc_contacts/shared/services/location.dart';
 
 /// The requests & pros endpoints (`/data/requests`, `/data/pro`).
 class RequestsRepository {
@@ -30,8 +31,10 @@ class RequestsRepository {
   Future<ServiceRequestItem> update(String id, Map<String, dynamic> fields) async =>
       _request(await _api.patch('/data/requests/$id', body: fields));
 
-  Future<ServiceRequestItem> send(String id) async =>
-      _request(await _api.post('/data/requests/$id/send'));
+  /// From [location], pros close by receive it first; without, the city alone matches.
+  Future<ServiceRequestItem> send(String id, {LatLng? location}) async => _request(
+        await _api.post('/data/requests/$id/send', body: location == null ? null : {'location': location.json}),
+      );
 
   Future<List<ServiceRequestItem>> list() async {
     final data = await _api.get('/data/requests', query: {'page': 1, 'limit': 50}) as Map<String, dynamic>;
@@ -78,6 +81,11 @@ class RequestsRepository {
 
   Future<ProSpace> saveProfile(Map<String, dynamic> body) async =>
       _space(await _api.put('/data/pro/profile', body: body));
+
+  /// Where the pro is now; matching trusts it for three days.
+  Future<void> updateLocation(LatLng location) => _api.put('/data/pro/location', body: location.json);
+
+  Future<void> clearLocation() => _api.delete('/data/pro/location');
 
   Future<List<ServiceProposal>> structure(String text) async {
     final data = await _api.post('/data/pro/services/structure', body: {'text': text}) as Map<String, dynamic>;

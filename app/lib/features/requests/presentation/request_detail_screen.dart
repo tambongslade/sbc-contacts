@@ -9,6 +9,7 @@ import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/requests/application/requests_controllers.dart';
 import 'package:sbc_contacts/features/requests/domain/request_models.dart';
 import 'package:sbc_contacts/features/requests/presentation/request_widgets.dart';
+import 'package:sbc_contacts/shared/services/location.dart';
 import 'package:sbc_contacts/shared/services/whatsapp.dart';
 import 'package:sbc_contacts/shared/widgets/confidence_score_badge.dart';
 import 'package:sbc_contacts/shared/widgets/member_avatar.dart';
@@ -414,7 +415,16 @@ class _ResponseCard extends StatelessWidget {
                       Wrap(
                         spacing: 6,
                         crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [Chip(label: Text(a.profession), visualDensity: VisualDensity.compact), ConfidenceScorePill(score: a.confidenceScore)],
+                        children: [
+                          Chip(label: Text(a.profession), visualDensity: VisualDensity.compact),
+                          ConfidenceScorePill(score: a.confidenceScore),
+                          if (a.distanceKm != null)
+                            Chip(
+                              avatar: const Icon(Icons.near_me_outlined, size: 14),
+                              label: Text('à ~${formatKm(a.distanceKm!)}'),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                        ],
                       ),
                     ],
                   ),

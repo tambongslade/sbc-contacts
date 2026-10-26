@@ -9,6 +9,7 @@ import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
 import 'package:sbc_contacts/features/requests/application/requests_controllers.dart';
 import 'package:sbc_contacts/features/requests/domain/request_models.dart';
 import 'package:sbc_contacts/features/requests/presentation/request_widgets.dart';
+import 'package:sbc_contacts/shared/services/location.dart';
 import 'package:sbc_contacts/shared/widgets/dark_pill_button.dart';
 import 'package:sbc_contacts/shared/widgets/empty_state.dart';
 import 'package:sbc_contacts/shared/widgets/skeletons.dart';
@@ -403,6 +404,7 @@ class _InboxRow extends StatelessWidget {
                 runSpacing: 6,
                 children: [
                   if (r.city != null) fact(Icons.place_outlined, r.city!),
+                  if (item.distanceKm != null) fact(Icons.near_me_outlined, 'à ~${formatKm(item.distanceKm!)} de toi'),
                   if (r.mode != null) fact(Icons.home_work_outlined, r.mode!.label),
                   if (r.desiredDate != null) fact(Icons.calendar_today_outlined, r.desiredDate!),
                   if (r.budget != null) fact(Icons.payments_outlined, fcfa(r.budget!)),

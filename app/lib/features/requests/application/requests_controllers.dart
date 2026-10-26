@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/features/requests/domain/request_models.dart';
+import 'package:sbc_contacts/shared/services/location.dart';
 
 /// The member's own requests ("Mes demandes").
 class MyRequestsController extends AsyncNotifier<List<ServiceRequestItem>> {
@@ -39,6 +40,55 @@ class ProSpaceController extends AsyncNotifier<ProSpace> {
 }
 
 final proSpaceProvider = AsyncNotifierProvider<ProSpaceController, ProSpace>(ProSpaceController.new);
+
+/// "Partager ma position": while on, a pro's app reports where they are each
+/// time it comes to the foreground, so requests close by reach them first.
+/// On unless the pro turned it off; the choice stays on this phone.
+class ProLocationController extends AsyncNotifier<bool> {
+  static const _storage = FlutterSecureStorage();
+  static const _key = 'proLocation.sharing';
+
+  /// The backend keeps a position three days; more often than this is noise.
+  static const _every = Duration(minutes: 15);
+  DateTime? _lastSent;
+
+  @override
+  FutureOr<bool> build() async => await _storage.read(key: _key) != 'off';
+
+  Future<void> setSharing(bool on) async {
+    state = AsyncValue.data(on);
+    await _storage.write(key: _key, value: on ? 'on' : 'off');
+    if (on) {
+      await report(force: true);
+    } else {
+      _lastSent = null;
+      try {
+        await ref.read(requestsRepositoryProvider).clearLocation();
+      } catch (_) {
+        // A stale position expires on its own after three days.
+      }
+    }
+  }
+
+  /// Sends the current position if this member is a pro and shares it.
+  Future<void> report({bool force = false}) async {
+    try {
+      if (!await future) return;
+      final last = _lastSent;
+      if (!force && last != null && DateTime.now().difference(last) < _every) return;
+      final space = await ref.read(proSpaceProvider.future);
+      if (!space.isPro) return;
+      final here = await ref.read(locationServiceProvider).current();
+      if (here == null) return;
+      await ref.read(requestsRepositoryProvider).updateLocation(here);
+      _lastSent = DateTime.now();
+    } catch (_) {
+      // Next time the app comes back; the zones still match meanwhile.
+    }
+  }
+}
+
+final proLocationProvider = AsyncNotifierProvider<ProLocationController, bool>(ProLocationController.new);
 
 /// Requests routed to the pro ("Reçues").
 class InboxController extends AsyncNotifier<List<InboxItem>> {

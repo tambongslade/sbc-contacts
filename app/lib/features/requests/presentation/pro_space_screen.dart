@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -58,6 +60,8 @@ class ProSpaceScreen extends ConsumerWidget {
                 ProSetupBanner(missing: s.missingSetup),
                 if (s.missingSetup.isNotEmpty) const Gap(12),
                 _SubscriptionCard(active: s.receivingActive, until: profile.receivingUntil),
+                const Gap(12),
+                const _LocationCard(),
                 const Gap(16),
                 const _StatsBlock(),
                 const Gap(16),
@@ -110,6 +114,29 @@ class _SubscriptionCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// "Partager ma position": requests from people close by reach the pro first.
+class _LocationCard extends ConsumerWidget {
+  const _LocationCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sharing = ref.watch(proLocationProvider).value ?? true;
+    return RequestPanel(
+      child: SwitchListTile.adaptive(
+        contentPadding: EdgeInsets.zero,
+        secondary: const Icon(Icons.near_me_rounded, color: SbcColors.primary),
+        title: const Text('Partager ma position', style: TextStyle(fontWeight: FontWeight.w700)),
+        subtitle: const Text(
+          "Tu reçois en premier les demandes des gens proches de toi. Ils ne voient qu'une distance "
+          'approximative, jamais ta position.',
+        ),
+        value: sharing,
+        onChanged: (on) => unawaited(ref.read(proLocationProvider.notifier).setSharing(on)),
       ),
     );
   }
