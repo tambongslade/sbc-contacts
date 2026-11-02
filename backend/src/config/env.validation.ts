@@ -147,6 +147,22 @@ export class EnvironmentVariables {
   @IsOptional()
   GEMINI_EMBEDDING_MODEL = 'gemini-embedding-001';
 
+  // --- DeepSeek (SBC Data: request analysis, service structuring, matching) ---
+  // Text reasoning runs on DeepSeek; embeddings stay on Gemini (DeepSeek has no
+  // embeddings endpoint). Optional like Gemini: without it SBC Data falls back
+  // to keyword matching and asks nothing of the AI.
+  @IsString()
+  @IsOptional()
+  DEEPSEEK_API_KEY = '';
+
+  @IsString()
+  @IsOptional()
+  DEEPSEEK_MODEL = 'deepseek-chat';
+
+  @IsString()
+  @IsOptional()
+  DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
+
   // --- Firebase Cloud Messaging (push delivery) ---
   // All optional: with none set the push provider stays a no-op (logs only),
   // so the app boots and every other channel keeps working without FCM creds.

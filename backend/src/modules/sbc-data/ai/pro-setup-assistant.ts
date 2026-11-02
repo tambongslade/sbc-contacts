@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ServiceMode } from '@prisma/client';
 import { isPlaceholder } from '../text';
-import { GeminiClient, GeminiUnavailableError } from './gemini.client';
+import { AiUnavailableError } from './ai-unavailable.error';
+import { DeepseekClient } from './deepseek.client';
 
 /** The profile being built, as far as the conversation got. */
 export interface ProDraft {
@@ -120,7 +121,7 @@ Règles :
 export class ProSetupAssistant {
   private readonly logger = new Logger(ProSetupAssistant.name);
 
-  constructor(private readonly gemini: GeminiClient) {}
+  constructor(private readonly deepseek: DeepseekClient) {}
 
   async turn(
     context: AssistantContext,
@@ -139,7 +140,7 @@ export class ProSetupAssistant {
       .filter(Boolean)
       .join('\n');
 
-    // Gemini wants the conversation to open on a user turn.
+    // The model wants the conversation to open on a user turn.
     const turns: Array<{ role: 'user' | 'model'; text: string }> = [
       { role: 'user', text: '(Le membre ouvre l’assistant.)' },
       ...messages.slice(-30).map((m) => ({
@@ -152,7 +153,7 @@ export class ProSetupAssistant {
     }
 
     try {
-      const raw = await this.gemini.generateJsonChat<{
+      const raw = await this.deepseek.generateJsonChat<{
         reply: string;
         options: string[];
         profile: ProDraft['profile'];
@@ -176,7 +177,7 @@ export class ProSetupAssistant {
         available: true,
       };
     } catch (err) {
-      if (!(err instanceof GeminiUnavailableError)) throw err;
+      if (!(err instanceof AiUnavailableError)) throw err;
       this.logger.warn(`Setup assistant unavailable: ${err.message}`);
       const missing = missingFields(before, context.existingServices.length > 0);
       return {

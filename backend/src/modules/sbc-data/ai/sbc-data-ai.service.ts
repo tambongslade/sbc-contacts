@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ServiceMode } from '@prisma/client';
-import { GeminiClient, GeminiUnavailableError } from './gemini.client';
+import { AiUnavailableError } from './ai-unavailable.error';
+import { DeepseekClient } from './deepseek.client';
+import { GeminiClient } from './gemini.client';
 
 /** One service as the AI proposes it; the pro accepts, edits or drops it (Data §4). */
 export interface ServiceProposal {
@@ -147,16 +149,35 @@ Juge uniquement la prestation, pas le lieu ni le prix.`;
 export class SbcDataAiService {
   private readonly logger = new Logger(SbcDataAiService.name);
 
-  constructor(private readonly gemini: GeminiClient) {}
+  constructor(
+    private readonly deepseek: DeepseekClient,
+    private readonly gemini: GeminiClient,
+  ) {}
 
+  /** Whether the text jobs (structuring, analysis, judging) have an AI. */
   get enabled(): boolean {
-    return this.gemini.enabled;
+    return this.deepseek.enabled;
+  }
+
+  /**
+   * Which provider backs each AI job and whether it is configured. Neither is
+   * required — both degrade to keyword matching — so this is reported for
+   * visibility, never as a readiness gate.
+   */
+  get status(): {
+    text: { provider: string; model: string; enabled: boolean };
+    embeddings: { provider: string; enabled: boolean };
+  } {
+    return {
+      text: { provider: 'deepseek', model: this.deepseek.modelName, enabled: this.deepseek.enabled },
+      embeddings: { provider: 'gemini', enabled: this.gemini.enabled },
+    };
   }
 
   /** "je fais les dreads, pose de locks…" → proposals for the pro to validate (Data §4–5). */
   async structureServices(text: string): Promise<StructuredServices> {
     try {
-      const raw = await this.gemini.generateJson<{
+      const raw = await this.deepseek.generateJson<{
         profession: string;
         category: string;
         services: Array<{ name: string; synonyms: string[]; specialties: string[] }>;
@@ -177,7 +198,7 @@ export class SbcDataAiService {
           })),
       };
     } catch (err) {
-      if (!(err instanceof GeminiUnavailableError)) throw err;
+      if (!(err instanceof AiUnavailableError)) throw err;
       this.logger.warn(`Structuring without AI: ${err.message}`);
       // Without AI each comma-separated item becomes a service as typed.
       const names = text
@@ -220,7 +241,7 @@ export class SbcDataAiService {
       .join('\n');
 
     try {
-      const raw = await this.gemini.generateJson<RequestAnalysis>(
+      const raw = await this.deepseek.generateJson<RequestAnalysis>(
         ANALYSIS_SYSTEM,
         prompt,
         ANALYSIS_SCHEMA,
@@ -242,7 +263,7 @@ export class SbcDataAiService {
         clarificationOptions: question ? cleanList(raw.clarificationOptions).slice(0, 4) : [],
       };
     } catch (err) {
-      if (!(err instanceof GeminiUnavailableError)) throw err;
+      if (!(err instanceof AiUnavailableError)) throw err;
       this.logger.warn(`Analysing without AI: ${err.message}`);
       // The raw text still drives keyword matching; the requester fills the rest.
       return {
@@ -287,7 +308,7 @@ export class SbcDataAiService {
       })),
     });
     try {
-      const raw = await this.gemini.generateJson<{
+      const raw = await this.deepseek.generateJson<{
         verdicts: Array<{ id: string; relevance: number }>;
       }>(JUDGE_SYSTEM, prompt, JUDGE_SCHEMA);
       const known = new Set(candidates.map((c) => c.id));
@@ -297,7 +318,7 @@ export class SbcDataAiService {
       }
       return out;
     } catch (err) {
-      if (!(err instanceof GeminiUnavailableError)) throw err;
+      if (!(err instanceof AiUnavailableError)) throw err;
       this.logger.warn(`Matching without the AI judge: ${err.message}`);
       return null;
     }
@@ -311,7 +332,7 @@ export class SbcDataAiService {
     try {
       return await this.gemini.embed(texts, task);
     } catch (err) {
-      if (!(err instanceof GeminiUnavailableError)) throw err;
+      if (!(err instanceof AiUnavailableError)) throw err;
       this.logger.warn(`Embedding skipped: ${err.message}`);
       return texts.map(() => []);
     }

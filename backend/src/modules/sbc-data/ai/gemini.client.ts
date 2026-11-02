@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AiUnavailableError } from './ai-unavailable.error';
 
 const API = 'https://generativelanguage.googleapis.com/v1beta/models';
 const TIMEOUT_MS = 25_000;
@@ -8,88 +9,29 @@ export const EMBEDDING_DIMENSIONS = 768;
 
 export type EmbeddingTask = 'RETRIEVAL_QUERY' | 'RETRIEVAL_DOCUMENT';
 
-/** Thrown when Gemini is not configured or does not answer usably. */
-export class GeminiUnavailableError extends Error {}
-
 /**
- * Thin REST client for the two Gemini calls SBC Data needs: JSON generation
- * against a response schema, and batch embeddings.
+ * Thin REST client for the one Gemini call SBC Data still needs: batch
+ * embeddings. Text generation (structuring, analysis, matching) runs on
+ * DeepSeek now; Gemini stays only for embeddings, which DeepSeek cannot do.
  *
- * REST rather than the SDK: two endpoints do not justify a dependency, and the
- * request shapes are stable. Every caller must treat [GeminiUnavailableError]
- * as "carry on without AI" — a missing key or a Google outage degrades SBC Data
- * to keyword matching, it never blocks a request.
+ * REST rather than the SDK: one endpoint does not justify a dependency, and
+ * the request shape is stable. Every caller must treat [AiUnavailableError]
+ * as "carry on without AI" — a missing key or a Google outage degrades SBC
+ * Data to keyword matching, it never blocks a request.
  */
 @Injectable()
 export class GeminiClient {
   private readonly logger = new Logger(GeminiClient.name);
   private readonly apiKey: string;
-  private readonly model: string;
   private readonly embeddingModel: string;
 
   constructor(config: ConfigService) {
     this.apiKey = config.get<string>('gemini.apiKey') ?? '';
-    this.model = config.get<string>('gemini.model') ?? 'gemini-flash-latest';
     this.embeddingModel = config.get<string>('gemini.embeddingModel') ?? 'gemini-embedding-001';
-  }
-
-  /** The generation model in use, for logs and the health check. */
-  get modelName(): string {
-    return this.model;
   }
 
   get enabled(): boolean {
     return this.apiKey.length > 0;
-  }
-
-  /** Generate one JSON object that conforms to [schema] (OpenAPI subset). */
-  generateJson<T>(system: string, prompt: string, schema: object): Promise<T> {
-    return this.generateJsonChat<T>(system, [{ role: 'user', text: prompt }], schema);
-  }
-
-  /** Same, continuing a conversation: [turns] alternate user and model. */
-  async generateJsonChat<T>(
-    system: string,
-    turns: Array<{ role: 'user' | 'model'; text: string }>,
-    schema: object,
-    temperature = 0.1,
-  ): Promise<T> {
-    const body = {
-      systemInstruction: { parts: [{ text: system }] },
-      contents: turns.map((t) => ({ role: t.role, parts: [{ text: t.text }] })),
-      generationConfig: {
-        responseMimeType: 'application/json',
-        responseSchema: schema,
-        temperature,
-      },
-    };
-    const res = await this.post<{
-      candidates?: Array<{
-        finishReason?: string;
-        content?: { parts?: Array<{ text?: string; thought?: boolean }> };
-      }>;
-    }>(`${this.model}:generateContent`, body);
-
-    // Thinking models can return thought or signature-only parts before the
-    // answer: the JSON is the text of the parts that are not thoughts.
-    const candidate = res.candidates?.[0];
-    const text = (candidate?.content?.parts ?? [])
-      .filter((p) => !p.thought && typeof p.text === 'string')
-      .map((p) => p.text)
-      .join('')
-      .trim();
-    if (!text) {
-      this.logger.warn(
-        `Gemini ${this.model} returned no content (finishReason=${candidate?.finishReason ?? 'none'})`,
-      );
-      throw new GeminiUnavailableError('Gemini returned no content');
-    }
-    try {
-      return JSON.parse(text) as T;
-    } catch {
-      this.logger.warn(`Gemini ${this.model} returned malformed JSON: ${text.slice(0, 200)}`);
-      throw new GeminiUnavailableError('Gemini returned malformed JSON');
-    }
   }
 
   /** Embed [texts] in one call; the result is index-aligned with the input. */
@@ -109,13 +51,13 @@ export class GeminiClient {
     );
     const vectors = res.embeddings?.map((e) => e.values) ?? [];
     if (vectors.length !== texts.length) {
-      throw new GeminiUnavailableError('Gemini returned the wrong number of embeddings');
+      throw new AiUnavailableError('Gemini returned the wrong number of embeddings');
     }
     return vectors;
   }
 
   private async post<T>(path: string, body: unknown): Promise<T> {
-    if (!this.enabled) throw new GeminiUnavailableError('GEMINI_API_KEY is not set');
+    if (!this.enabled) throw new AiUnavailableError('GEMINI_API_KEY is not set');
     let res: Response;
     try {
       res = await fetch(`${API}/${path}`, {
@@ -126,13 +68,13 @@ export class GeminiClient {
       });
     } catch (err) {
       this.logger.warn(`Gemini ${path} unreachable: ${(err as Error).message}`);
-      throw new GeminiUnavailableError(`Gemini unreachable: ${(err as Error).message}`);
+      throw new AiUnavailableError(`Gemini unreachable: ${(err as Error).message}`);
     }
     if (!res.ok) {
       // The body names the problem (quota, bad model) but never echoes the key.
       const detail = (await res.text()).slice(0, 300);
       this.logger.warn(`Gemini ${path} → ${res.status}: ${detail}`);
-      throw new GeminiUnavailableError(`Gemini answered ${res.status}`);
+      throw new AiUnavailableError(`Gemini answered ${res.status}`);
     }
     return (await res.json()) as T;
   }

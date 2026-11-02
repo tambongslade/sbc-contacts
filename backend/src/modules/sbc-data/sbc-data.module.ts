@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ReviewsModule } from '../reviews/reviews.module';
+import { DeepseekClient } from './ai/deepseek.client';
 import { GeminiClient } from './ai/gemini.client';
 import { ProSetupAssistant } from './ai/pro-setup-assistant';
 import { SbcDataAiService } from './ai/sbc-data-ai.service';
@@ -22,6 +23,7 @@ import { RequestsService } from './services/requests.service';
   imports: [NotificationsModule, ReviewsModule],
   controllers: [ProController, RequestsController, SbcDataAdminController],
   providers: [
+    DeepseekClient,
     GeminiClient,
     ProSetupAssistant,
     SbcDataAiService,
@@ -31,5 +33,6 @@ import { RequestsService } from './services/requests.service';
     SbcDataAdminService,
     SbcDataProcessor,
   ],
+  exports: [SbcDataAiService],
 })
 export class SbcDataModule {}
