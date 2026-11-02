@@ -56,6 +56,11 @@ export const configuration = (env: EnvironmentVariables) => ({
     model: env.GEMINI_MODEL,
     embeddingModel: env.GEMINI_EMBEDDING_MODEL,
   },
+  deepseek: {
+    apiKey: env.DEEPSEEK_API_KEY,
+    model: env.DEEPSEEK_MODEL,
+    baseUrl: env.DEEPSEEK_BASE_URL,
+  },
   throttle: {
     ttl: env.THROTTLE_TTL,
     limit: env.THROTTLE_LIMIT,
