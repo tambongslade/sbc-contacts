@@ -136,7 +136,7 @@ struct RequestsRepository: Sendable {
         var availability: String
         var priceMin: Int?
         var priceMax: Int?
-        var shopUrl: String
+        var shopUrl: String?
         var whatsapp: String?
     }
 

@@ -215,7 +215,7 @@ struct ProAssistantView: View {
 
     private func save() async {
         guard let p = draft?.profile, let profession = p.profession, let description = p.description,
-              let city = p.city, let availability = p.availability, let shopUrl = p.shopUrl
+              let city = p.city, let availability = p.availability
         else { return }
         saving = true
         defer { saving = false }
@@ -229,7 +229,7 @@ struct ProAssistantView: View {
                 availability: availability,
                 priceMin: p.priceMin,
                 priceMax: p.priceMax,
-                shopUrl: shopUrl,
+                shopUrl: p.shopUrl?.nilIfBlank,
                 whatsapp: store.proSpace?.profile?.whatsapp
             ))
             if let new = draft?.services, !new.isEmpty {

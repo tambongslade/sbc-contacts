@@ -274,7 +274,7 @@ enum ProSetupItem: Hashable, Sendable {
 
     var todo: String {
         switch self {
-        case .profile: "Compléter mon profil (métier, ville, disponibilité, boutique)"
+        case .profile: "Compléter mon profil (métier, ville, disponibilité)"
         case .services: "Ajouter au moins un service"
         }
     }
@@ -287,7 +287,7 @@ extension ProProfile {
         !isPlaceholder(profession) && !isPlaceholder(city) && !isPlaceholder(availability)
             && !isPlaceholder(description) && description.count >= 10
             && !modes.isEmpty
-            && !isPlaceholder(shopUrl) && isRealLink(shopUrl)
+        // The SBC Shop link is optional: it does not make a profile incomplete.
     }
 }
 

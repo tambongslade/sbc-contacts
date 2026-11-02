@@ -261,20 +261,23 @@ private struct ProfileBlock: View {
                     FactRow(label: "Prestation", value: profile.modes.map(\.label).joined(separator: ", ").nilIfBlank ?? "—")
                     Divider()
                     FactRow(label: "Disponibilité", value: profile.availability)
-                    Divider()
-                    Button {
-                        if let url = URL(string: profile.shopUrl) { openURL(url) }
-                    } label: {
-                        HStack {
-                            Label("Ma boutique SBC Shop", systemImage: "bag")
-                                .font(.sbc(.bodyMedium, weight: .semibold))
-                            Spacer()
-                            Image(systemName: "arrow.up.right").font(.system(size: 12, weight: .semibold))
+                    // The shop link is optional: no link, no button.
+                    if isRealLink(profile.shopUrl), let url = URL(string: profile.shopUrl) {
+                        Divider()
+                        Button {
+                            openURL(url)
+                        } label: {
+                            HStack {
+                                Label("Ma boutique SBC Shop", systemImage: "bag")
+                                    .font(.sbc(.bodyMedium, weight: .semibold))
+                                Spacer()
+                                Image(systemName: "arrow.up.right").font(.system(size: 12, weight: .semibold))
+                            }
+                            .padding(.vertical, 10)
                         }
-                        .padding(.vertical, 10)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(SBCColors.primary)
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(SBCColors.primary)
                 }
             }
         }
