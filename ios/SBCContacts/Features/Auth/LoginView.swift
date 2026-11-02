@@ -6,8 +6,6 @@ struct LoginView: View {
 
     @State private var authenticator = SSOAuthenticator()
     @State private var busy = false
-    @State private var showCode = false
-    @State private var code = ""
     @State private var networkAccount: NetworkAccountRoute?
 
     /// Which SBC Network form to open.
@@ -87,38 +85,6 @@ struct LoginView: View {
                     Button("Créer mon compte sur SBC") { Task { await signUpOnSBC() } }
                         .buttonStyle(.text)
                 }
-
-                // Fallback from before the in-app SSO session returned the code
-                // itself. Kept for local testing only: in a release build it just
-                // makes App Review ask where such a code comes from.
-                #if DEBUG
-                Button("J'ai un code d'autorisation") {
-                    withAnimation { showCode.toggle() }
-                }
-                .buttonStyle(.text)
-                .padding(.top, 12)
-
-                if showCode {
-                    VStack(spacing: 10) {
-                        TextField("Colle le code reçu", text: $code)
-                            .font(.sbc(.bodyLarge))
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .padding(.horizontal, 14)
-                            .frame(minHeight: 52)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .stroke(SBCColors.outlineVariant)
-                            )
-                            .accessibilityLabel("Code SBC")
-                        Button("Valider le code") {
-                            Task { await submitCode() }
-                        }
-                        .buttonStyle(.outlined)
-                    }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-                #endif
             }
             .padding(28)
             .frame(maxWidth: 480)
@@ -154,12 +120,6 @@ struct LoginView: View {
         defer { busy = false }
         await SSOAuthenticator.openSBCSignup()
         toasts.show("Compte SBC créé ? Touche « Se connecter avec SBC » pour entrer.")
-    }
-
-    private func submitCode() async {
-        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        await auth.login(code: trimmed)
     }
 }
 
