@@ -30,6 +30,10 @@ async function bootstrap(): Promise<void> {
   const swaggerEnabled = config.get<boolean>('app.swaggerEnabled');
   const isProd = config.get('app.env') === 'production';
 
+  // Behind nginx: without this every request comes from 127.0.0.1, and the
+  // rate limiter put the whole user base in one bucket.
+  app.set('trust proxy', 1);
+
   // Security headers (brief §9).
   app.use(helmet());
 
