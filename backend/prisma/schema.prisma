@@ -461,7 +461,7 @@ model ProProfile {
   availability String // free text for now ("lun-sam 8h-18h", "sur rendez-vous")
   priceMin     Int?
   priceMax     Int?
-  shopUrl      String
+  shopUrl      String?
   /// Defaults to the SBC phone number; a pro may route requests elsewhere.
   whatsapp     String?
 
