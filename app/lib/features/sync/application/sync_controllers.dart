@@ -44,10 +44,37 @@ final syncedContactsProvider =
   (ref, status) => ref.watch(syncRepositoryProvider).syncedContacts(status: status),
 );
 
-/// "Qui m'a enregistré ?" (cahier §21) — who has saved you.
-final savedMeProvider = FutureProvider<Paginated<SavedMeEntry>>(
-  (ref) => ref.watch(syncRepositoryProvider).savedMe(),
-);
+/// "Qui m'a enregistré ?" (cahier §21) — who has saved you. Paged: the list
+/// asks for the next page as the member reaches its end.
+class SavedMeController extends AsyncNotifier<Paginated<SavedMeEntry>> {
+  bool _loadingMore = false;
+
+  @override
+  Future<Paginated<SavedMeEntry>> build() => ref.watch(syncRepositoryProvider).savedMe();
+
+  /// Append the next page, once. No-ops while a load is in flight or when the
+  /// last page is already in hand; a failure keeps what we have.
+  Future<void> loadMore() async {
+    final current = state.asData?.value;
+    if (current == null || _loadingMore || !current.hasMore) return;
+    _loadingMore = true;
+    try {
+      final next =
+          await ref.read(syncRepositoryProvider).savedMe(page: current.page + 1);
+      // A pull-to-refresh may have replaced the list meanwhile.
+      if (state.asData?.value.page == current.page) {
+        state = AsyncData(current.concat(next));
+      }
+    } catch (_) {
+      // Scrolling back to the end retries.
+    } finally {
+      _loadingMore = false;
+    }
+  }
+}
+
+final savedMeProvider =
+    AsyncNotifierProvider<SavedMeController, Paginated<SavedMeEntry>>(SavedMeController.new);
 
 /// Synchronisation history (cahier §17).
 final syncHistoryProvider = FutureProvider<Paginated<SyncRunEntry>>(
