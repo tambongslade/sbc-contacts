@@ -127,7 +127,7 @@ private struct FinishSetupView: View {
                 .padding(.top, 16)
 
             Text(receivingActive
-                ? "Ton abonnement Pro est actif, mais aucune demande ne peut t'arriver tant que ton profil n'est pas complet."
+                ? "Ta réception est active, mais aucune demande ne peut t'arriver tant que ton profil n'est pas complet."
                 : "Aucune demande ne peut t'arriver tant que ton profil n'est pas complet.")
                 .font(.sbc(.bodyMedium))
                 .foregroundStyle(SBCColors.onSurfaceVariant)
@@ -305,7 +305,7 @@ private struct ProReadyView: View {
                 .font(.sbc(.headlineSmall, weight: .heavy))
             Text(store.proSpace?.receivingActive == true
                 ? "Tu recevras ici les demandes qui correspondent à tes services."
-                : "Pour recevoir les demandes, active l'abonnement Pro (2 000 FCFA/mois) auprès de SBC. Tu retrouves tout dans Profil › Espace pro.")
+                : "Tu retrouves ton profil et tes demandes dans Profil › Espace pro.")
                 .font(.sbc(.bodyMedium))
                 .foregroundStyle(SBCColors.onSurfaceVariant)
                 .multilineTextAlignment(.center)

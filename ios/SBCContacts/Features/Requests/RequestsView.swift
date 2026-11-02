@@ -210,7 +210,7 @@ private struct ReceivingBanner: View {
                 Image(systemName: active ? "checkmark.shield" : "pause.circle")
                 Text(active
                     ? "Réception active\(until.map { " · jusqu'au \($0.formatted(.dateTime.day().month(.abbreviated)))" } ?? "")"
-                    : "Réception en pause — abonnement Pro requis")
+                    : "Réception en pause — enregistre ton profil")
                 Spacer()
                 Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
             }

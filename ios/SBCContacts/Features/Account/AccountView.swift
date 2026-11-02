@@ -274,7 +274,7 @@ private struct ShortcutsBlock: View {
                         systemImage: "briefcase.fill",
                         tone: SBCColors.primary,
                         title: requests.isPro ? "Espace pro" : "Devenir pro",
-                        detail: requests.isPro ? "Services, statistiques, abonnement" : "Reçois les demandes qui te correspondent"
+                        detail: requests.isPro ? "Services, statistiques" : "Reçois les demandes qui te correspondent"
                     )
                     Divider().padding(.leading, 68)
                     ShortcutLink(route: .favorites, systemImage: "star.fill", tone: SBCColors.accent, title: "Mes favoris", detail: nil)

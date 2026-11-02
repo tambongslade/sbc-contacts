@@ -63,11 +63,12 @@ private struct SubscriptionCard: View {
                 .font(.system(size: 22))
                 .foregroundStyle(active ? SBCColors.secondaryDark : SBCColors.accentDark)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Abonnement Pro · 2 000 FCFA/mois")
+                Text("Réception des demandes")
                     .font(.sbc(.titleSmall, weight: .heavy))
                 Text(active
                     ? (until.map { "Réception active jusqu'au \($0.formatted(date: .long, time: .omitted))" } ?? "Réception des demandes active")
-                    : "Réception en pause. Contacte SBC pour activer ton abonnement.")
+                    // Saving the profile from the iOS app switches reception on.
+                    : "Réception en pause. Enregistre ton profil pour la réactiver.")
                     .font(.sbc(.bodySmall))
             }
             Spacer(minLength: 0)

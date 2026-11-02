@@ -69,6 +69,8 @@ actor APIClient {
         request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        // Lets the server apply iOS-only rules (receiving requests is free here).
+        request.setValue("ios", forHTTPHeaderField: "X-Client-Platform")
         request.httpBody = body
         if !Self.isAuthPath(path), let access = await storage.readAccess() {
             request.setValue("Bearer \(access)", forHTTPHeaderField: "Authorization")
