@@ -16,6 +16,7 @@ struct SavedMeView: View {
     }
 
     @State private var state: LoadState = .loading
+    @State private var loadingMore = false
 
     var body: some View {
         Group {
@@ -49,7 +50,17 @@ struct SavedMeView: View {
         case let .loaded(page):
             List {
                 Section {
-                    ForEach(page.items) { SavedMeRow(entry: $0) }
+                    ForEach(page.items) { entry in
+                        SavedMeRow(entry: entry)
+                            // The list is paged: reaching the last row fetches the next page.
+                            .onAppear {
+                                if entry.id == page.items.last?.id { Task { await loadMore() } }
+                            }
+                    }
+                    if page.hasMore {
+                        HStack { Spacer(); ProgressView(); Spacer() }
+                            .listRowBackground(Color.clear)
+                    }
                 } header: {
                     Label(
                         page.total == 1 ? "1 membre a enregistré ton contact" : "\(page.total) membres ont enregistré ton contact",
@@ -62,6 +73,20 @@ struct SavedMeView: View {
             }
             .listStyle(.insetGrouped)
             .refreshable { await load() }
+        }
+    }
+
+    private func loadMore() async {
+        guard case let .loaded(page) = state, page.hasMore, !loadingMore else { return }
+        loadingMore = true
+        defer { loadingMore = false }
+        do {
+            let next = try await services.sync.savedMe(page: page.page + 1)
+            // A pull-to-refresh may have replaced the list meanwhile.
+            guard case let .loaded(current) = state, current.page == page.page else { return }
+            state = .loaded(current.concat(next))
+        } catch {
+            // The spinner row stays; scrolling back to the end retries.
         }
     }
 
