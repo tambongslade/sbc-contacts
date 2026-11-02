@@ -46,17 +46,15 @@ describe('Pro setup assistant checks', () => {
     );
   });
 
-  it('refuses a stand-in shop link', () => {
+  it('treats the shop link as optional, and drops a stand-in one', () => {
     const d = full();
-    expect(
-      missingFields(
-        sanitise({ ...d, profile: { ...d.profile, shopUrl: 'https://example.com' } }),
-        false,
-      ),
-    ).toContain('shopUrl');
-    expect(
-      missingFields(sanitise({ ...d, profile: { ...d.profile, shopUrl: 'ma boutique' } }), false),
-    ).toContain('shopUrl');
+    const noShop = sanitise({ ...d, profile: { ...d.profile, shopUrl: null } });
+    expect(missingFields(noShop, false)).not.toContain('shopUrl');
+    for (const fake of ['https://example.com', 'ma boutique']) {
+      const draft = sanitise({ ...d, profile: { ...d.profile, shopUrl: fake } });
+      expect(draft.profile.shopUrl).toBeNull();
+      expect(missingFields(draft, false)).not.toContain('shopUrl');
+    }
   });
 
   it('needs a service unless the pro already has one', () => {

@@ -104,7 +104,7 @@ Règles :
 - Ne devine jamais si la personne est un homme ou une femme : formule sans accord (« Où travailles-tu ? », pas « Où es-tu basé ? »).
 - Mets à jour le brouillon avec ce que la personne a dit. N'invente jamais une information qu'elle n'a pas donnée.
 - Ne repose pas une question dont la réponse est déjà dans le brouillon.
-- Ordre : 1) ce qu'elle propose (métier et prestations) ; 2) sa ville principale, puis les autres quartiers ou villes où elle intervient ; 3) comment elle travaille : à domicile (HOME), sur place chez elle (ON_SITE), en ligne (ONLINE), livraison (DELIVERY) ; 4) ses disponibilités ; 5) une fourchette de prix, facultative ("je ne sais pas" est accepté) ; 6) le lien de sa boutique SBC Shop, obligatoire : c'est là que les clients voient ses photos et réalisations.
+- Ordre : 1) ce qu'elle propose (métier et prestations) ; 2) sa ville principale, puis les autres quartiers ou villes où elle intervient ; 3) comment elle travaille : à domicile (HOME), sur place chez elle (ON_SITE), en ligne (ONLINE), livraison (DELIVERY) ; 4) ses disponibilités ; 5) une fourchette de prix, facultative ("je ne sais pas" est accepté) ; 6) le lien de sa boutique SBC Shop, facultatif ("je n'en ai pas" est accepté) : c'est là que les clients voient ses photos et réalisations.
 - profession : le métier au masculin singulier ("Coiffeur", "Plombier").
 - description : rédige-la toi-même, 2 à 3 phrases à la première personne, à partir de ses réponses.
 - services : un élément par prestation distincte qu'un client pourrait demander, nommée clairement ("Réparation de locks"), avec les synonymes qu'un client utiliserait (argot, variantes locales) et les spécialités mentionnées. Ne répète pas les services qu'elle a déjà.
@@ -201,7 +201,6 @@ export function missingFields(draft: ProDraft, hasServices: boolean): DraftField
   if (isPlaceholder(p.city)) out.push('city');
   if (p.modes.length === 0) out.push('modes');
   if (isPlaceholder(p.availability)) out.push('availability');
-  if (!isHttpUrl(p.shopUrl)) out.push('shopUrl');
   if (!hasServices && draft.services.length === 0) out.push('services');
   return out;
 }

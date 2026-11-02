@@ -118,7 +118,7 @@ export class ProfessionalService {
       availability: dto.availability.trim(),
       priceMin: dto.priceMin ?? null,
       priceMax: dto.priceMax ?? null,
-      shopUrl: dto.shopUrl.trim(),
+      shopUrl: dto.shopUrl?.trim() || null,
       whatsapp: dto.whatsapp?.trim() || null,
     };
     await this.prisma.proProfile.upsert({

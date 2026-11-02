@@ -587,7 +587,7 @@ function setupMissing(
     availability: string;
     priceMin: number | null;
     priceMax: number | null;
-    shopUrl: string;
+    shopUrl: string | null;
   },
   hasServices: boolean,
 ) {

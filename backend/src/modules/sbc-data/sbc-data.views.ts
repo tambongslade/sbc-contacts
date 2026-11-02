@@ -56,7 +56,7 @@ export interface ResponseView {
     profession: string;
     city: string;
     whatsapp: string | null;
-    shopUrl: string;
+    shopUrl: string | null;
     confidenceScore: number;
     reviewCount: number;
   };

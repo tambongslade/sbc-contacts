@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { DispatchStatus, RequestStatus, ServiceMode } from '@prisma/client';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -66,10 +66,13 @@ export class UpsertProProfileDto {
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) priceMin?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) priceMax?: number;
 
-  @ApiProperty({ description: 'Lien de la boutique SBC Shop' })
+  @ApiPropertyOptional({ description: 'Lien de la boutique SBC Shop (facultatif)' })
+  // An empty field means "no shop": it is stored as null, not rejected.
+  @Transform(({ value }) => (typeof value === 'string' && value.trim() === '' ? undefined : value))
+  @IsOptional()
   @IsUrl({ require_protocol: true, protocols: ['https', 'http'] })
   @MaxLength(500)
-  shopUrl!: string;
+  shopUrl?: string;
 
   @ApiPropertyOptional({ description: 'Numéro WhatsApp, si différent du numéro SBC' })
   @IsOptional()
