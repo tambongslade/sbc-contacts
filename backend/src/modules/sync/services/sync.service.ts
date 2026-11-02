@@ -178,14 +178,22 @@ export class SyncService {
       });
 
       // "Qui m'a ajouté ?" — record only technically-confirmed additions (§21).
+      // Once per person: a re-sync, a second device or a late report saves the
+      // same contact again, and must neither list nor notify them twice.
       if (isSynced) {
-        await this.prisma.addedEvent.create({
-          data: { actorId: userId, targetMemberSbcId: member.sbcId },
+        const already = await this.prisma.addedEvent.findFirst({
+          where: { actorId: userId, targetMemberSbcId: member.sbcId },
+          select: { id: true },
         });
-        // ...and tell the person who was saved. The event alone was write-only:
-        // nothing read it, so being added to someone's phone stayed invisible
-        // to the one being added, which is the whole point of §21.
-        await this.notifySaved(userId, member.sbcId);
+        if (!already) {
+          await this.prisma.addedEvent.create({
+            data: { actorId: userId, targetMemberSbcId: member.sbcId },
+          });
+          // ...and tell the person who was saved. The event alone was write-only:
+          // nothing read it, so being added to someone's phone stayed invisible
+          // to the one being added, which is the whole point of §21.
+          await this.notifySaved(userId, member.sbcId);
+        }
       }
     }
 
@@ -301,18 +309,27 @@ export class SyncService {
     userSbcId: string,
     pagination: PaginationQueryDto,
   ): Promise<PaginatedResult<SavedMeEntry>> {
-    const [events, total] = await this.prisma.$transaction([
-      this.prisma.addedEvent.findMany({
-        where: { targetMemberSbcId: userSbcId },
-        orderBy: { confirmedAt: 'desc' },
-        skip: pagination.skip,
-        take: pagination.limit,
-        include: {
-          actor: { select: { id: true, sbcUserId: true, name: true, phoneNumber: true } },
-        },
-      }),
-      this.prisma.addedEvent.count({ where: { targetMemberSbcId: userSbcId } }),
-    ]);
+    // One row per person, at their latest save: older data holds a duplicate
+    // event for every re-sync, which inflated the count and repeated rows.
+    const people = await this.prisma.addedEvent.groupBy({
+      by: ['actorId'],
+      where: { targetMemberSbcId: userSbcId },
+      _max: { confirmedAt: true },
+      orderBy: { _max: { confirmedAt: 'desc' } },
+    });
+    const total = people.length;
+    const pageOf = people.slice(pagination.skip, pagination.skip + pagination.limit);
+    const actors = pageOf.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: pageOf.map((p) => p.actorId) } },
+          select: { id: true, sbcUserId: true, name: true, phoneNumber: true },
+        })
+      : [];
+    const actorById = new Map(actors.map((a) => [a.id, a]));
+    const events = pageOf.flatMap((p) => {
+      const actor = actorById.get(p.actorId);
+      return actor ? [{ actor, confirmedAt: p._max.confirmedAt ?? new Date(0) }] : [];
+    });
 
     // The actor's directory profile, when we have mirrored it, adds the
     // profession/location that make a name recognisable.
@@ -407,7 +424,9 @@ export class SyncService {
       // AddedEvent targets the member, not the local account row. Without the
       // id we cannot ask the question, so the tile reads 0 rather than lying.
       userSbcId
-        ? this.prisma.addedEvent.count({ where: { targetMemberSbcId: userSbcId } })
+        ? this.prisma.addedEvent
+            .groupBy({ by: ['actorId'], where: { targetMemberSbcId: userSbcId } })
+            .then((people) => people.length)
         : Promise.resolve(0),
     ]);
 
