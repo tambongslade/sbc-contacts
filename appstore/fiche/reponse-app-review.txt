@@ -7,7 +7,7 @@ Your screenshot shows the sign-in page of the SBC website, which opens from the 
 1. On the first screen, tap "J'ai un compte SBC Network", the link under "Créer un compte SBC Network". Don't use the blue "Se connecter avec SBC" button.
 2. Leave the country on "Cameroun". Enter 690000001 as the phone number ("+237" is already filled in), and SbcReview2026 as the password.
 3. Tap "Se connecter". You go straight to the app's home screen with full access: member directory, filters, contact sync, requests, alerts and the professional space. No verification code is sent or asked for.
-We tested these exact steps on an iPad Air 11-inch simulator running this build, against our production server.
+We tested these steps on an iPad Air 11-inch, signed in against our production server.
 
 GUIDELINE 2.1(b) - BUSINESS MODEL
 
