@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 
 import { configuration } from './config/configuration';
@@ -27,6 +27,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { HealthModule } from './modules/health/health.module';
 import { SbcDataModule } from './modules/sbc-data/sbc-data.module';
 import { StatusBoostModule } from './modules/status-boost/status-boost.module';
+import { UserThrottlerGuard } from './common/guards/user-throttler.guard';
 
 const nodeEnv = process.env.NODE_ENV ?? 'development';
 
@@ -106,7 +107,7 @@ const nodeEnv = process.env.NODE_ENV ?? 'development';
     HealthModule,
   ],
   providers: [
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: UserThrottlerGuard },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
   ],
