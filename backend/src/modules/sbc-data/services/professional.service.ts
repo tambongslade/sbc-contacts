@@ -105,7 +105,16 @@ export class ProfessionalService {
     };
   }
 
-  async upsertProfile(userId: string, dto: UpsertProProfileDto): Promise<ProProfileView> {
+  /**
+   * [platform] is the app's X-Client-Platform header. Receiving requests is
+   * free in the iOS app for now (App Store: no paid feature without In-App
+   * Purchase), so a profile saved from iOS is switched on.
+   */
+  async upsertProfile(
+    userId: string,
+    dto: UpsertProProfileDto,
+    platform?: string,
+  ): Promise<ProProfileView> {
     if (dto.priceMin != null && dto.priceMax != null && dto.priceMin > dto.priceMax) {
       throw new BadRequestException('priceMin must not exceed priceMax');
     }
@@ -121,10 +130,12 @@ export class ProfessionalService {
       shopUrl: dto.shopUrl?.trim() || null,
       whatsapp: dto.whatsapp?.trim() || null,
     };
+    const freeOnThisApp = platform?.toLowerCase() === 'ios';
+    const receiving = freeOnThisApp ? { receivingEnabled: true, receivingUntil: null } : {};
     await this.prisma.proProfile.upsert({
       where: { userId },
-      create: { userId, ...data },
-      update: data,
+      create: { userId, ...data, ...receiving },
+      update: { ...data, ...receiving },
     });
     return this.getProfile(userId);
   }

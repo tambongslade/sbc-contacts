@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -46,8 +47,9 @@ export class ProController {
   upsertProfile(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: UpsertProProfileDto,
+    @Headers('x-client-platform') platform?: string,
   ): Promise<ProProfileView> {
-    return this.pros.upsertProfile(user.userId, dto);
+    return this.pros.upsertProfile(user.userId, dto, platform);
   }
 
   @Post('assistant')
