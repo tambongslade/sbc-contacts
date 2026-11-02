@@ -221,7 +221,7 @@ class _ProAssistantScreenState extends ConsumerState<ProAssistantScreen> {
         'availability': p['availability'],
         if (p['priceMin'] != null) 'priceMin': p['priceMin'],
         if (p['priceMax'] != null) 'priceMax': p['priceMax'],
-        'shopUrl': p['shopUrl'],
+        if ((p['shopUrl'] as String?)?.trim().isNotEmpty ?? false) 'shopUrl': p['shopUrl'],
         if (ref.read(proSpaceProvider).value?.profile?.whatsapp != null)
           'whatsapp': ref.read(proSpaceProvider).value!.profile!.whatsapp,
       });
