@@ -26,7 +26,13 @@ struct ProProfileFormView: View {
     private var valid: Bool {
         profession.nilIfBlank != nil && description.trimmingCharacters(in: .whitespaces).count >= 10
             && city.nilIfBlank != nil && !modes.isEmpty && availability.nilIfBlank != nil
-            && URL(string: shopUrl.trimmingCharacters(in: .whitespaces))?.scheme?.hasPrefix("http") == true
+            && shopLinkValid
+    }
+
+    /// The SBC Shop link is optional; when one is typed it must be a real link.
+    private var shopLinkValid: Bool {
+        let link = shopUrl.trimmingCharacters(in: .whitespaces)
+        return link.isEmpty || URL(string: link)?.scheme?.hasPrefix("http") == true
     }
 
     var body: some View {
@@ -64,7 +70,7 @@ struct ProProfileFormView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
             } header: {
-                Text("Boutique SBC Shop")
+                Text("Boutique SBC Shop (facultatif)")
             } footer: {
                 Text("Tes photos et réalisations restent sur ta boutique : les clients l'ouvrent depuis ta réponse.")
             }
@@ -117,7 +123,7 @@ struct ProProfileFormView: View {
                 availability: availability.trimmingCharacters(in: .whitespaces),
                 priceMin: Int(priceMin.filter(\.isNumber)),
                 priceMax: Int(priceMax.filter(\.isNumber)),
-                shopUrl: shopUrl.trimmingCharacters(in: .whitespaces),
+                shopUrl: shopUrl.nilIfBlank,
                 whatsapp: whatsapp.nilIfBlank
             ))
             store.setProSpace(space)
