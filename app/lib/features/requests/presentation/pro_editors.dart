@@ -90,7 +90,8 @@ class _ProProfileFormScreenState extends ConsumerState<ProProfileFormScreen> {
       _city.text.trim().isNotEmpty &&
       _modes.isNotEmpty &&
       _availability.text.trim().isNotEmpty &&
-      isRealLink(_shopUrl.text);
+      // Optional, but a typed link must be a real one.
+      (_shopUrl.text.trim().isEmpty || isRealLink(_shopUrl.text));
 
   Future<void> _save() async {
     setState(() {
@@ -107,7 +108,7 @@ class _ProProfileFormScreenState extends ConsumerState<ProProfileFormScreen> {
         'availability': _availability.text.trim(),
         if (_amount(_priceMin.text) != null) 'priceMin': _amount(_priceMin.text),
         if (_amount(_priceMax.text) != null) 'priceMax': _amount(_priceMax.text),
-        'shopUrl': _shopUrl.text.trim(),
+        if (_shopUrl.text.trim().isNotEmpty) 'shopUrl': _shopUrl.text.trim(),
         if (_whatsapp.text.trim().isNotEmpty) 'whatsapp': _whatsapp.text.trim(),
       });
       ref.read(proSpaceProvider.notifier).set(space);
@@ -165,7 +166,7 @@ class _ProProfileFormScreenState extends ConsumerState<ProProfileFormScreen> {
           field(_priceMin, 'À partir de (FCFA)', keyboard: TextInputType.number),
           field(_priceMax, "Jusqu'à (FCFA)", keyboard: TextInputType.number),
           const Gap(8),
-          const RequestSectionLabel('Boutique SBC Shop'),
+          const RequestSectionLabel('Boutique SBC Shop (facultatif)'),
           const Gap(8),
           field(_shopUrl, 'https://…',
               keyboard: TextInputType.url,

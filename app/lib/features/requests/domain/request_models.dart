@@ -355,8 +355,8 @@ class ProProfile {
       !isPlaceholder(availability) &&
       !isPlaceholder(description) &&
       description.length >= 10 &&
-      modes.isNotEmpty &&
-      isRealLink(shopUrl);
+      // The SBC Shop link is optional: it does not make a profile incomplete.
+      modes.isNotEmpty;
 }
 
 class ProServiceItem {
@@ -409,7 +409,7 @@ class ProServiceItem {
 
 /// What a pro still has to do before requests can reach them.
 enum ProSetupItem {
-  profile('Compléter mon profil (métier, ville, disponibilité, boutique)'),
+  profile('Compléter mon profil (métier, ville, disponibilité)'),
   services('Ajouter au moins un service');
 
   const ProSetupItem(this.todo);

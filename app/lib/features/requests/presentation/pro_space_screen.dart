@@ -345,17 +345,19 @@ class _ProfileBlock extends StatelessWidget {
               FactRow('Prestation', profile.modes.isEmpty ? '—' : profile.modes.map((m) => m.label).join(', ')),
               const Divider(height: 1),
               FactRow('Disponibilité', profile.availability),
-              const Divider(height: 1),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.shopping_bag_outlined, color: SbcColors.primary),
-                title: const Text('Ma boutique SBC Shop',
-                    style: TextStyle(color: SbcColors.primary, fontWeight: FontWeight.w700)),
-                trailing: const Icon(Icons.open_in_new, size: 18, color: SbcColors.primary),
-                onTap: isRealLink(profile.shopUrl)
-                    ? () => launchUrl(Uri.parse(profile.shopUrl), mode: LaunchMode.externalApplication)
-                    : null,
-              ),
+              // The shop link is optional: no link, no row.
+              if (isRealLink(profile.shopUrl)) ...[
+                const Divider(height: 1),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.shopping_bag_outlined, color: SbcColors.primary),
+                  title: const Text('Ma boutique SBC Shop',
+                      style: TextStyle(color: SbcColors.primary, fontWeight: FontWeight.w700)),
+                  trailing: const Icon(Icons.open_in_new, size: 18, color: SbcColors.primary),
+                  onTap: () =>
+                      launchUrl(Uri.parse(profile.shopUrl), mode: LaunchMode.externalApplication),
+                ),
+              ],
             ],
           ),
         ),
