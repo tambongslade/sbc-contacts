@@ -59,11 +59,20 @@ class SavedMeScreen extends ConsumerWidget {
           return RefreshIndicator(
             onRefresh: () async => ref.invalidate(savedMeProvider),
             child: ListView.separated(
-              itemCount: page.items.length + 1,
+              // Header, rows, then a spinner row while more pages remain.
+              itemCount: page.items.length + 1 + (page.hasMore ? 1 : 0),
               separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, i) => i == 0
-                  ? _CountHeader(total: page.total)
-                  : _SavedMeTile(entry: page.items[i - 1]),
+              itemBuilder: (context, i) {
+                if (i == 0) return _CountHeader(total: page.total);
+                if (i > page.items.length) {
+                  ref.read(savedMeProvider.notifier).loadMore();
+                  return const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                return _SavedMeTile(entry: page.items[i - 1]);
+              },
             ),
           );
         },
