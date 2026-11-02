@@ -1,30 +1,34 @@
 Hello,
 
-Thank you for the review. We've uploaded a new build (1.0.0 build 20) and answer each point below.
+Thank you for your patience, and for the screenshot of the sign-in attempt. We've uploaded a new build (1.0.0 build 21) and answer each point below.
 
 GUIDELINE 2.1 - DEMO ACCOUNT
-The account we provided before wasn't valid on the SBC sign-in page. We're sorry about that. We've replaced it in App Review Information with a real SBC member account that has an active membership, and it signs in without any verification code. On the first screen, tap "J'ai un compte SBC Network", leave the country on Cameroun, and enter the phone number and password from App Review Information. You go straight to the app's home screen with full access. We tested it ourselves on an iPhone and an iPad running this build.
+Your screenshot shows the sign-in page of the SBC website, which opens from the main button "Se connecter avec SBC". The demo account is an SBC Network account, and it signs in from a different button. We're sorry this wasn't clear. To sign in:
+1. On the first screen, tap "J'ai un compte SBC Network", the link under "Créer un compte SBC Network". Don't use the blue "Se connecter avec SBC" button.
+2. Leave the country on "Cameroun". Enter 690000001 as the phone number ("+237" is already filled in), and SbcReview2026 as the password.
+3. Tap "Se connecter". You go straight to the app's home screen with full access: member directory, filters, contact sync, requests, alerts and the professional space. No verification code is sent or asked for.
+We tested these exact steps on an iPad Air 11-inch simulator running this build, against our production server.
 
-GUIDELINE 2.1 - AUTHORISATION CODE
-Users never need an authorisation code. The "J'ai un code d'autorisation" button was a leftover from an older sign-in flow, where the code had to be pasted in by hand. Sign-in now returns to the app automatically, and we've removed the button from this build.
+GUIDELINE 2.1(b) - BUSINESS MODEL
 
-GUIDELINE 3.2 - BUSINESS
-SBC Network is intended for a general, public audience:
+1. Who are the users that will use the paid subscriptions in the app?
+Members of Sniper Business Center (SBC), an open business network of entrepreneurs, freelancers and small business owners in French-speaking Africa (Cameroon, Côte d'Ivoire, Togo, Benin…). Each membership is bought by an individual for their own business activity.
 
-1. Is the app restricted to users who are part of a single company or organization?
-No. Sniper Business Center (SBC) is an open business network, not a company with employees or contractors. Anyone can download the app and use it.
+2. Where can users purchase the subscriptions that can be accessed in the app?
+Only from SBC, on its website (sniperbuisnesscenter.com), outside the app. The app doesn't sell memberships, show their prices, or link to a page where they are bought.
 
-2. Is the app designed for use by a limited or specific group of companies or organizations?
-No. It isn't built for any particular company. Anyone can create an account, and any professional or business can become an SBC member.
+3. What specific types of previously purchased subscriptions can a user access in the app?
+The SBC membership, in two tiers: CLASSIQUE and CIBLE. The membership is a broader service than this app. It includes business trainings and courses, in-person events and networking meetups, the member tools on the SBC website, and a referral programme. SBC Network is one of the ways members use that membership on their phone. After sign-in, the app reads whether the account has an active membership, and which tier.
 
-3. What features are intended for use by the general public?
-Anyone can create an SBC Network account in the app, with no invitation or pre-approved registration. With that account, they can post a request for a service and compare the professionals who answer, set up their own professional profile and receive requests, and use "Augmenter mes vues WhatsApp" (grow the views of their WhatsApp status). The member directory, contact sync and new-member alerts list the SBC network's members, so these features are for SBC members.
+4. What paid content, subscriptions, or features are unlocked within the app that do not use In-App Purchase?
+An active SBC membership unlocks the SBC member directory and the features built on it:
+- searching members (CLASSIQUE: filter by country; CIBLE: filter by region, profession, age and interests),
+- contacting members on WhatsApp and saving them to the phone's contacts,
+- contact sync by criteria, and alerts when a new member matches.
+Everything else is free and needs no membership. That includes creating an SBC Network account in the app, posting a request for a service and comparing the professionals who answer, setting up a professional profile and receiving client requests, and "Augmenter mes vues WhatsApp". In this build, receiving client requests is free in the iOS app, and the app no longer shows any price or tells users to pay for anything outside the app. There are no in-app purchases.
 
-4. How do users obtain an account?
-In the app, by tapping "Créer un compte SBC Network" on the first screen (name, country, phone number and password). Anyone who wants to join the SBC network can also create an SBC account from the app ("Créer mon compte sur SBC"), and then sign in with "Se connecter avec SBC".
-
-5. Is there any paid content in the app, and who pays for it?
-The app is free and has no in-app purchases. Opening an SBC Network account is free. SBC membership is bought from SBC on its own website, outside the app, and isn't sold or promoted in the app. The app only checks whether an account has an active membership before showing the member directory.
+5. Are the enterprise services in your app sold to single users, consumers, or for family use?
+To single users. SBC memberships are bought by individual entrepreneurs and professionals for their own use. They aren't sold to companies for their employees, and there are no family plans.
 
 Best regards,
 Rufus Herma Feussi Ngossoko

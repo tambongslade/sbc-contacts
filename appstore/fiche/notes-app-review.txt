@@ -1,10 +1,10 @@
 SBC Network is a free app for the Sniper Business Center (SBC) business network. Anyone can download it and create an account in the app, with no invitation or approval needed. The member directory lists the SBC network's members.
 
 DEMO ACCOUNT (full access, no code needed)
-The demo account is an SBC member with an active SBC membership, so the whole app is unlocked, including the member directory. Sign in with its phone number:
-1. On the first screen, tap "J'ai un compte SBC Network" (I have an SBC Network account).
-2. Leave the country on Cameroun, enter the phone number given as the user name above, and the password.
-3. Tap "Se connecter". You go straight to the app's home screen. No verification code is sent or asked for.
+Use the link "J'ai un compte SBC Network". Do NOT use the blue "Se connecter avec SBC" button: it opens the SBC website, where the demo account does not exist.
+1. On the first screen, tap "J'ai un compte SBC Network" (under "Créer un compte SBC Network").
+2. Leave the country on Cameroun. Enter 690000001 as the phone number ("+237" is already filled in) and SbcReview2026 as the password.
+3. Tap "Se connecter". You go straight to the app's home screen with full access. No verification code is sent or asked for.
 
 CREATING AN ACCOUNT WITHOUT AN INVITATION
 On the first screen, tap "Créer un compte SBC Network" (Create an SBC Network account). Enter a name, a country, a phone number and a password, and the account is created immediately. This kind of account can post a request for a service ("Demandes"), get answers from professionals, set up a professional profile, and use "Augmenter mes vues WhatsApp". The member directory lists only SBC members, so it is not shown to this kind of account.
@@ -18,7 +18,7 @@ WHAT TO TRY WITH THE DEMO ACCOUNT
 - Favoris and Profil.
 
 PAYMENTS
-The app is free and has no in-app purchases. Joining SBC and paying for an SBC membership happen on SBC's website, outside the app. The app only reads whether an account has an active membership.
+The app is free and has no in-app purchases. It shows no prices and never tells users to pay outside the app. An SBC membership, bought from SBC on its website, unlocks the member directory; receiving client requests as a professional is free in the iOS app. The app only reads whether an account has an active membership.
 
 CONTACTS PERMISSION
 Contacts access is used only to save the members the user chooses and to avoid creating duplicates. The address book is read on the device and never uploaded. The server only receives the IDs of the SBC members that were saved.
