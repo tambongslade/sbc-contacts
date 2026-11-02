@@ -33,6 +33,11 @@ export class GeminiClient {
     this.embeddingModel = config.get<string>('gemini.embeddingModel') ?? 'gemini-embedding-001';
   }
 
+  /** The generation model in use, for logs and the health check. */
+  get modelName(): string {
+    return this.model;
+  }
+
   get enabled(): boolean {
     return this.apiKey.length > 0;
   }
@@ -59,14 +64,30 @@ export class GeminiClient {
       },
     };
     const res = await this.post<{
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      candidates?: Array<{
+        finishReason?: string;
+        content?: { parts?: Array<{ text?: string; thought?: boolean }> };
+      }>;
     }>(`${this.model}:generateContent`, body);
 
-    const text = res.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) throw new GeminiUnavailableError('Gemini returned no content');
+    // Thinking models can return thought or signature-only parts before the
+    // answer: the JSON is the text of the parts that are not thoughts.
+    const candidate = res.candidates?.[0];
+    const text = (candidate?.content?.parts ?? [])
+      .filter((p) => !p.thought && typeof p.text === 'string')
+      .map((p) => p.text)
+      .join('')
+      .trim();
+    if (!text) {
+      this.logger.warn(
+        `Gemini ${this.model} returned no content (finishReason=${candidate?.finishReason ?? 'none'})`,
+      );
+      throw new GeminiUnavailableError('Gemini returned no content');
+    }
     try {
       return JSON.parse(text) as T;
     } catch {
+      this.logger.warn(`Gemini ${this.model} returned malformed JSON: ${text.slice(0, 200)}`);
       throw new GeminiUnavailableError('Gemini returned malformed JSON');
     }
   }
@@ -104,6 +125,7 @@ export class GeminiClient {
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
     } catch (err) {
+      this.logger.warn(`Gemini ${path} unreachable: ${(err as Error).message}`);
       throw new GeminiUnavailableError(`Gemini unreachable: ${(err as Error).message}`);
     }
     if (!res.ok) {
