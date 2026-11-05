@@ -51,7 +51,9 @@ class SyncScreen extends ConsumerWidget {
               ..invalidate(criteriaControllerProvider);
           },
           child: ListView(
-            padding: EdgeInsets.only(bottom: AppTheme.navInsetOf(context)),
+            // Room for the "Nouveau critère" button too (16 margin + 56 high
+            // + 16 gap), so the last criterion's buttons scroll out from under it.
+            padding: EdgeInsets.only(bottom: AppTheme.navInsetOf(context) + 88),
             children: [
               const ScreenHeader(title: 'Synchro', trailing: _LivePill()),
               summary.when(
