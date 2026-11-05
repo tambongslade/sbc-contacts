@@ -7,9 +7,28 @@ export interface SbcUser {
   phoneNumber: string;
   country: string;
   avatarUrl: string;
+  /** The member's ACTIVE subscriptions, by type: CLASSIQUE, CIBLE, PRO, MISE_EN_AVANT. */
   subscriptionTypes: string[];
+  /**
+   * The same subscriptions with their dates (see docs/paiements-sbc.md). Optional
+   * until SBC sends it; without it a paid feature lasts as long as its type
+   * stays in `subscriptionTypes`.
+   */
+  subscriptions?: SbcSubscription[];
   directReferralCount?: number;
   isActivated: boolean;
+}
+
+/** One paid subscription as SBC reports it. */
+export interface SbcSubscription {
+  /** CLASSIQUE | CIBLE | PRO | MISE_EN_AVANT */
+  type: string;
+  /** active | expired | cancelled */
+  status: string;
+  /** ISO 8601 */
+  startedAt?: string | null;
+  /** ISO 8601 — the end of the paid period. */
+  expiresAt?: string | null;
 }
 
 export interface SbcTokenResponse {

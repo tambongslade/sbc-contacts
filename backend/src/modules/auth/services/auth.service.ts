@@ -1,3 +1,4 @@
+import { PaidFeaturesService } from '../../paid-features/paid-features.service';
 import {
   BadRequestException,
   ConflictException,
@@ -69,6 +70,7 @@ export class AuthService {
     private readonly sbcTokens: SbcTokenService,
     private readonly tokens: TokenService,
     private readonly config: ConfigService,
+    private readonly paid: PaidFeaturesService,
   ) {}
 
   async ssoCallback(code: string, meta: SessionMeta, redirectUri?: string): Promise<AuthResult> {
@@ -266,11 +268,14 @@ export class AuthService {
       isActivated: sbcUser.isActivated,
       lastLoginAt: new Date(),
     };
-    return this.prisma.user.upsert({
+    const user = await this.prisma.user.upsert({
       where: { sbcUserId: sbcUser.id },
       create: { sbcUserId: sbcUser.id, ...snapshot },
       update: snapshot,
     });
+    // What the member paid on SBC (Pro, mise en avant) → the app's own fields.
+    await this.paid.applyFromSbc(user.id, sbcUser);
+    return user;
   }
 
   private toPublic(user: User): PublicUser {

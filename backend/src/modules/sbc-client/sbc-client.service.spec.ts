@@ -94,7 +94,11 @@ describe('SbcClientService', () => {
     const fetchMock = mockFetch(200, { success: true, data: { items: [], total: 0 } });
     global.fetch = fetchMock;
     const svc = new SbcClientService(config);
-    await svc.searchContacts('token', { country: 'CM', profession: 'Maçon', interests: ['a', 'b'] });
+    await svc.searchContacts('token', {
+      country: 'CM',
+      profession: 'Maçon',
+      interests: ['a', 'b'],
+    });
     const calledUrl = fetchMock.mock.calls[0][0] as string;
     expect(calledUrl).toContain('/api/contacts/sso/search?');
     expect(calledUrl).toContain('country=CM');

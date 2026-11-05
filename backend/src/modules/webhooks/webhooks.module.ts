@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MatchingModule } from '../matching/matching.module';
+import { PaidFeaturesModule } from '../paid-features/paid-features.module';
 import { WebhooksController } from './webhooks.controller';
 import { WebhooksProcessor } from './webhooks.processor';
 import { WebhooksService } from './webhooks.service';
@@ -9,7 +10,7 @@ import { WebhooksService } from './webhooks.service';
  * so the matching worker (and its NotificationsService dependency) is wired.
  */
 @Module({
-  imports: [MatchingModule],
+  imports: [MatchingModule, PaidFeaturesModule],
   controllers: [WebhooksController],
   providers: [WebhooksService, WebhooksProcessor],
 })

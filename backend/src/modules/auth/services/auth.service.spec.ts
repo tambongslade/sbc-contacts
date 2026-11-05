@@ -27,6 +27,7 @@ describe('AuthService — SBC Network accounts', () => {
       {} as never,
       tokens as never,
       config as never,
+      { applyFromSbc: jest.fn() } as never,
     );
     return { service, prisma, tx, tokens };
   }

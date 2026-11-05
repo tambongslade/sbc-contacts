@@ -45,9 +45,9 @@ export class SbcClientService {
     this.allowedRedirectUris = [
       this.redirectUri,
       ...(config.get<string>('sbc.extraRedirectUris') ?? '')
-          .split(',')
-          .map((u) => u.trim())
-          .filter((u) => u.length > 0),
+        .split(',')
+        .map((u) => u.trim())
+        .filter((u) => u.length > 0),
     ];
   }
 
@@ -171,7 +171,12 @@ export class SbcClientService {
     // but the contacts search (the first-party controller) returns its own shape.
     // Return `data` when present, otherwise the raw body — the caller normalises it.
     if (res.ok) {
-      if (payload && typeof payload === 'object' && 'data' in payload && payload.success !== false) {
+      if (
+        payload &&
+        typeof payload === 'object' &&
+        'data' in payload &&
+        payload.success !== false
+      ) {
         return payload.data;
       }
       return payload as unknown as T;
@@ -287,8 +292,7 @@ export class SbcClientService {
       // resolves to a country whenever it belongs to just one — a shared name
       // like "Centre" stays empty rather than becoming a guess.
       country:
-        toIsoCountry(pick('country', 'pays') as string | undefined) ??
-        countryForRegion(region),
+        toIsoCountry(pick('country', 'pays') as string | undefined) ?? countryForRegion(region),
       sex: pick('sex', 'sexe', 'gender') as string | undefined,
       age: pick('age') != null ? Number(pick('age')) : undefined,
       interests: asStrArr(pick('interests', 'centresInteret', 'centres_interet')),
