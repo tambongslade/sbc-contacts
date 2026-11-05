@@ -4,6 +4,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsDateString,
   IsInt,
   IsOptional,
   IsString,
@@ -85,4 +86,12 @@ export class StatusBoostOptInDto {
   @ApiProperty({ description: 'Join (true) or leave (false) the list' })
   @IsBoolean()
   optIn!: boolean;
+}
+
+/** Back-office: feature a member until this date; null switches it off. */
+export class SetSpotlightDto {
+  @ApiPropertyOptional({ nullable: true, example: '2026-12-05T00:00:00.000Z' })
+  @IsOptional()
+  @IsDateString()
+  until?: string | null;
 }

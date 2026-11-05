@@ -250,7 +250,7 @@ export class StatusBoostService {
   }
 
   /** Member mirror rows for these users, created from their SBC snapshot when missing. */
-  private async mirror(
+  async mirror(
     users: Array<{
       sbcUserId: string;
       name: string | null;

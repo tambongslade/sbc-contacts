@@ -56,6 +56,11 @@ model User {
   /// other members to save, so both sides see each other's statuses.
   statusBoostOptIn Boolean   @default(false)
   statusBoostSince DateTime?
+
+  /// "Mise en avant": featured at the top of "Qui m'a enregistré" and
+  /// "Augmenter mes vues WhatsApp" until then. Bought on SBC; set by an admin
+  /// while SBC does not report it as a subscription type yet.
+  spotlightUntil DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime? // soft delete
