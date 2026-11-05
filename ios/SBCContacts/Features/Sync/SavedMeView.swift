@@ -17,6 +17,7 @@ struct SavedMeView: View {
 
     @State private var state: LoadState = .loading
     @State private var loadingMore = false
+    @State private var spotlight = SpotlightModel()
 
     var body: some View {
         Group {
@@ -24,7 +25,10 @@ struct SavedMeView: View {
             if auth.user?.isNetworkAccount == true {
                 SubscriptionGate(networkAccount: true)
             } else {
-                content.task { await load() }
+                content.task {
+                    await spotlight.load(services.api)
+                    await load()
+                }
             }
         }
         .navigationTitle("Qui m'a enregistré")
@@ -42,13 +46,22 @@ struct SavedMeView: View {
                     .buttonStyle(.borderedProminent)
             }
         case let .loaded(page) where page.items.isEmpty:
-            EmptyStateView(
-                systemImage: "person.crop.circle.badge.plus",
-                title: "Personne pour le moment",
-                message: "Quand un membre enregistre ton contact dans son téléphone, il apparaît ici — et tu reçois une notification."
-            )
+            List {
+                FeaturedSection(model: spotlight)
+                Section {
+                    EmptyStateView(
+                        systemImage: "person.crop.circle.badge.plus",
+                        title: "Personne pour le moment",
+                        message: "Quand un membre enregistre ton contact dans son téléphone, il apparaît ici — et tu reçois une notification."
+                    )
+                    .listRowBackground(Color.clear)
+                }
+            }
+            .listStyle(.insetGrouped)
+            .refreshable { await spotlight.load(services.api); await load() }
         case let .loaded(page):
             List {
+                FeaturedSection(model: spotlight)
                 Section {
                     ForEach(page.items) { entry in
                         SavedMeRow(entry: entry)
@@ -72,7 +85,7 @@ struct SavedMeView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .refreshable { await load() }
+            .refreshable { await spotlight.load(services.api); await load() }
         }
     }
 

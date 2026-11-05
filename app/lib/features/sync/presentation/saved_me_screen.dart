@@ -50,17 +50,24 @@ class SavedMeScreen extends ConsumerWidget {
         ),
         data: (page) {
           if (page.items.isEmpty) {
-            return ListView(
-              children: const [
-                FeaturedSection(),
-                EmptyState(
-                  icon: Icons.person_add_alt_outlined,
-                  title: 'Personne pour le moment',
-                  message:
-                      "Quand un membre enregistre ton contact dans son téléphone, "
-                      'il apparaît ici — et tu reçois une notification.',
-                ),
-              ],
+            return RefreshIndicator(
+              onRefresh: () async => ref
+                ..invalidate(savedMeProvider)
+                ..invalidate(spotlightFeaturedProvider)
+                ..invalidate(spotlightMeProvider),
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: const [
+                  FeaturedSection(),
+                  EmptyState(
+                    icon: Icons.person_add_alt_outlined,
+                    title: 'Personne pour le moment',
+                    message:
+                        "Quand un membre enregistre ton contact dans son téléphone, "
+                        'il apparaît ici — et tu reçois une notification.',
+                  ),
+                ],
+              ),
             );
           }
           return RefreshIndicator(
@@ -76,7 +83,10 @@ class SavedMeScreen extends ConsumerWidget {
                 if (i == 0) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [const FeaturedSection(), _CountHeader(total: page.total)],
+                    children: [
+                      const FeaturedSection(),
+                      _CountHeader(total: page.total),
+                    ],
                   );
                 }
                 if (i > page.items.length) {
@@ -107,7 +117,11 @@ class _CountHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
       child: Row(
         children: [
-          Icon(Icons.verified_user_outlined, size: 17, color: SbcColors.secondary),
+          Icon(
+            Icons.verified_user_outlined,
+            size: 17,
+            color: SbcColors.secondary,
+          ),
           const Gap(8),
           Expanded(
             child: Text(
@@ -142,9 +156,10 @@ class _SavedMeTileState extends ConsumerState<_SavedMeTile> {
   Widget build(BuildContext context) {
     final entry = widget.entry;
     final theme = Theme.of(context);
-    final subtitle = [entry.profession, entry.location]
-        .where((e) => e != null && e.isNotEmpty)
-        .join(' · ');
+    final subtitle = [
+      entry.profession,
+      entry.location,
+    ].where((e) => e != null && e.isNotEmpty).join(' · ');
 
     return ListTile(
       leading: MemberAvatar(
@@ -156,19 +171,16 @@ class _SavedMeTileState extends ConsumerState<_SavedMeTile> {
         subtitle.isEmpty
             ? _when(entry.savedAt)
             : '$subtitle · ${_when(entry.savedAt)}',
-        style: theme.textTheme.bodySmall
-            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
       ),
       // The reciprocal (§21): they kept you, so the one thing this row is for
       // is keeping them back — it sits before WhatsApp, which is the follow-up.
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _AddBackButton(
-            saved: _saved,
-            saving: _saving,
-            onPressed: _addBack,
-          ),
+          _AddBackButton(saved: _saved, saving: _saving, onPressed: _addBack),
           const Gap(4),
           WhatsAppButton(
             phoneNumber: entry.phoneNumber,
@@ -200,7 +212,9 @@ class _SavedMeTileState extends ConsumerState<_SavedMeTile> {
       // Already in the phone book: nothing to write, but it still belongs in
       // "Mes contacts SBC" — that list reports what is on the device, and it is.
       final present =
-          phone != null && phone.isNotEmpty && await contacts.existsByPhone(phone);
+          phone != null &&
+          phone.isNotEmpty &&
+          await contacts.existsByPhone(phone);
 
       String? deviceContactId;
       if (!present) {
@@ -222,7 +236,9 @@ class _SavedMeTileState extends ConsumerState<_SavedMeTile> {
 
       var recorded = true;
       try {
-        recorded = await ref.read(syncRepositoryProvider).recordSingleContact(
+        recorded = await ref
+            .read(syncRepositoryProvider)
+            .recordSingleContact(
               memberSbcId: entry.actorSbcId,
               deviceContactId: deviceContactId,
             );
@@ -243,8 +259,8 @@ class _SavedMeTileState extends ConsumerState<_SavedMeTile> {
             present
                 ? 'Déjà dans ton répertoire'
                 : recorded
-                    ? 'Contact ajouté — visible dans « Mes contacts SBC »'
-                    : 'Contact ajouté au téléphone (pas encore synchronisé au serveur)',
+                ? 'Contact ajouté — visible dans « Mes contacts SBC »'
+                : 'Contact ajouté au téléphone (pas encore synchronisé au serveur)',
           ),
         ),
       );
@@ -296,12 +312,17 @@ class _AddBackButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.check_rounded, size: 16, color: SbcColors.success),
+              const Icon(
+                Icons.check_rounded,
+                size: 16,
+                color: SbcColors.success,
+              ),
               const Gap(4),
               Text(
                 'Ajouté',
-                style: theme.textTheme.labelMedium
-                    ?.copyWith(color: SbcColors.success),
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: SbcColors.success,
+                ),
               ),
             ],
           ),

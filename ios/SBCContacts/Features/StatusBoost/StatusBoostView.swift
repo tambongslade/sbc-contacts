@@ -127,6 +127,7 @@ struct StatusBoostView: View {
     @State private var filters = CriteriaFilters()
     @State private var draft = CriteriaFilters()
     @State private var editingFilters = false
+    @State private var spotlight = SpotlightModel()
 
     private var countryOnly: Bool { me?.countryOnly ?? true }
 
@@ -143,6 +144,8 @@ struct StatusBoostView: View {
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                     .listRowBackground(Color.clear)
             }
+
+            FeaturedSection(model: spotlight)
 
             Section {
                 FilterBar(labels: filters.labels, countryOnly: countryOnly) {
@@ -207,7 +210,10 @@ struct StatusBoostView: View {
         .searchable(text: $search, prompt: "Nom ou numéro")
         .onSubmit(of: .search) { Task { await reload() } }
         .onChange(of: search) { _, value in if value.isEmpty { Task { await reload() } } }
-        .refreshable { await reload() }
+        .refreshable {
+            await spotlight.load(services.api)
+            await reload()
+        }
         .safeAreaInset(edge: .bottom) {
             if let bulk {
                 HStack(spacing: 10) {
@@ -250,6 +256,7 @@ struct StatusBoostView: View {
         }
         .task {
             me = try? await services.api.statusBoostMe()
+            await spotlight.load(services.api)
             await reload()
         }
     }
@@ -325,6 +332,8 @@ struct StatusBoostView: View {
         defer { saving.remove(entry.sbcId) }
         let ok = await addMemberToPhone(entry.asMember, services: services, toasts: toasts, directory: directory, sync: sync, announce: announce)
         if ok, let i = entries.firstIndex(where: { $0.id == entry.id }) { entries[i].savedByMe = true }
+        // A featured member saved from the list leaves "En vedette" too.
+        if ok, announce { await spotlight.load(services.api) }
         return ok
     }
 
@@ -338,6 +347,7 @@ struct StatusBoostView: View {
             bulk = (bulk!.done + 1, targets.count)
         }
         bulk = nil
+        await spotlight.load(services.api)
         toasts.show("\(added) contact\(added > 1 ? "s" : "") enregistré\(added > 1 ? "s" : "") dans ton téléphone.")
     }
 }

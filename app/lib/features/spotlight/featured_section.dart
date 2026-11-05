@@ -29,7 +29,9 @@ class _FeaturedSectionState extends ConsumerState<FeaturedSection> {
     setState(() => _saving.add(entry.sbcId));
     try {
       if (!await ref.read(contactServiceProvider).requestPermission()) {
-        messenger.showSnackBar(const SnackBar(content: Text('Permission contacts refusée')));
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Permission contacts refusée')),
+        );
         return;
       }
       final ok = await ref.read(sbcContactWriterProvider)(entry);
@@ -44,7 +46,9 @@ class _FeaturedSectionState extends ConsumerState<FeaturedSection> {
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-            ok ? 'Contact ajouté — visible dans « Mes contacts SBC »' : "Impossible d'ajouter ce contact",
+            ok
+                ? 'Contact ajouté — visible dans « Mes contacts SBC »'
+                : "Impossible d'ajouter ce contact",
           ),
         ),
       );
@@ -67,14 +71,25 @@ class _FeaturedSectionState extends ConsumerState<FeaturedSection> {
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
             child: Row(
               children: [
-                const Icon(Icons.star_rounded, size: 18, color: SbcColors.accent),
+                const Icon(
+                  Icons.star_rounded,
+                  size: 18,
+                  color: SbcColors.accent,
+                ),
                 const Gap(6),
-                Text('En vedette', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                Text(
+                  'En vedette',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const Gap(8),
                 Expanded(
                   child: Text(
                     'Enregistre-les, ils te verront aussi',
-                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -86,7 +101,9 @@ class _FeaturedSectionState extends ConsumerState<FeaturedSection> {
             decoration: BoxDecoration(
               color: SbcColors.accent.withValues(alpha: 0.07),
               borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: SbcColors.accent.withValues(alpha: 0.35)),
+              border: Border.all(
+                color: SbcColors.accent.withValues(alpha: 0.35),
+              ),
             ),
             clipBehavior: Clip.antiAlias,
             child: Column(
@@ -110,7 +127,11 @@ class _FeaturedSectionState extends ConsumerState<FeaturedSection> {
 }
 
 class _FeaturedRow extends StatelessWidget {
-  const _FeaturedRow({required this.entry, required this.saving, required this.onSave});
+  const _FeaturedRow({
+    required this.entry,
+    required this.saving,
+    required this.onSave,
+  });
 
   final StatusBoostEntry entry;
   final bool saving;
@@ -123,18 +144,31 @@ class _FeaturedRow extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Row(
         children: [
-          MemberAvatar(initials: entry.initials, avatarUrl: entry.avatarUrl, radius: 22),
+          MemberAvatar(
+            initials: entry.initials,
+            avatarUrl: entry.avatarUrl,
+            radius: 22,
+          ),
           const Gap(12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(entry.name, style: theme.textTheme.titleSmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(
+                  entry.name,
+                  style: theme.textTheme.titleSmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 const Gap(4),
                 Text(
-                  entry.savedMe ? "T'a déjà enregistré — enregistre-le en retour" : 'Membre en vedette',
+                  entry.savedMe
+                      ? "T'a déjà enregistré — enregistre-le en retour"
+                      : 'Membre en vedette',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: entry.savedMe ? SbcColors.whatsapp : theme.colorScheme.onSurfaceVariant,
+                    color: entry.savedMe
+                        ? SbcColors.whatsapp
+                        : theme.colorScheme.onSurfaceVariant,
                     fontWeight: entry.savedMe ? FontWeight.w600 : null,
                   ),
                   maxLines: 1,
@@ -151,7 +185,11 @@ class _FeaturedRow extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 14),
             ),
             child: saving
-                ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SizedBox(
+                    height: 16,
+                    width: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Text('Enregistrer'),
           ),
         ],
@@ -175,12 +213,13 @@ class _OwnSpotlight extends StatelessWidget {
       text = until == null
           ? 'Ton profil est en vedette : les membres te voient en premier ici.'
           : "Ton profil est en vedette jusqu'au ${DateFormat('d MMMM', 'fr').format(until)} : "
-              'les membres te voient en premier ici.';
+                'les membres te voient en premier ici.';
     } else if (Platform.isIOS) {
       return const SizedBox.shrink();
     } else {
       final price = NumberFormat.decimalPattern('fr').format(status.priceFcfa);
-      text = 'Mets ton profil en vedette : les membres te voient en premier ici et t’enregistrent. '
+      text =
+          'Mets ton profil en vedette : les membres te voient en premier ici et t’enregistrent. '
           'Active la mise en avant ($price FCFA/mois) auprès de SBC.';
     }
     return Container(

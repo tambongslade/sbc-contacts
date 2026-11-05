@@ -5,9 +5,14 @@ import 'package:sbc_contacts/features/status_boost/status_boost.dart';
 
 /// "Mise en avant": whether the member's own profile is featured.
 class SpotlightStatus {
-  const SpotlightStatus({required this.active, required this.priceFcfa, this.until});
+  const SpotlightStatus({
+    required this.active,
+    required this.priceFcfa,
+    this.until,
+  });
 
-  factory SpotlightStatus.fromJson(Map<String, dynamic> json) => SpotlightStatus(
+  factory SpotlightStatus.fromJson(Map<String, dynamic> json) =>
+      SpotlightStatus(
         active: json['active'] == true,
         until: DateTime.tryParse(json['until'] as String? ?? '')?.toLocal(),
         priceFcfa: (json['priceFcfa'] as num?)?.toInt() ?? 3000,
@@ -27,20 +32,25 @@ class SpotlightRepository {
   /// Featured members this member has not saved yet (five at most).
   Future<List<StatusBoostEntry>> featured() async {
     final data = await _api.get('/spotlight/featured') as List<dynamic>;
-    return data.whereType<Map<String, dynamic>>().map(StatusBoostEntry.fromJson).toList();
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(StatusBoostEntry.fromJson)
+        .toList();
   }
 
-  Future<SpotlightStatus> me() async =>
-      SpotlightStatus.fromJson(await _api.get('/spotlight/me') as Map<String, dynamic>);
+  Future<SpotlightStatus> me() async => SpotlightStatus.fromJson(
+    await _api.get('/spotlight/me') as Map<String, dynamic>,
+  );
 }
 
 final spotlightRepositoryProvider = Provider<SpotlightRepository>(
   (ref) => SpotlightRepository(ref.watch(apiClientProvider)),
 );
 
-final spotlightFeaturedProvider = FutureProvider.autoDispose<List<StatusBoostEntry>>(
-  (ref) => ref.watch(spotlightRepositoryProvider).featured(),
-);
+final spotlightFeaturedProvider =
+    FutureProvider.autoDispose<List<StatusBoostEntry>>(
+      (ref) => ref.watch(spotlightRepositoryProvider).featured(),
+    );
 
 final spotlightMeProvider = FutureProvider.autoDispose<SpotlightStatus>(
   (ref) => ref.watch(spotlightRepositoryProvider).me(),
@@ -52,7 +62,9 @@ final spotlightMeProvider = FutureProvider.autoDispose<SpotlightStatus>(
 /// a failed recording alone still counts, since the contact IS on the phone.
 Future<bool> writeSbcContact(Ref ref, StatusBoostEntry entry) async {
   final contacts = ref.read(contactServiceProvider);
-  final present = entry.phoneNumber.isNotEmpty && await contacts.existsByPhone(entry.phoneNumber);
+  final present =
+      entry.phoneNumber.isNotEmpty &&
+      await contacts.existsByPhone(entry.phoneNumber);
   String? deviceContactId;
   if (!present) {
     final result = await contacts.addSbcContact(
@@ -64,7 +76,9 @@ Future<bool> writeSbcContact(Ref ref, StatusBoostEntry entry) async {
     deviceContactId = result.deviceContactId;
   }
   try {
-    await ref.read(syncRepositoryProvider).recordSingleContact(
+    await ref
+        .read(syncRepositoryProvider)
+        .recordSingleContact(
           memberSbcId: entry.sbcId,
           deviceContactId: deviceContactId,
         );
@@ -75,6 +89,8 @@ Future<bool> writeSbcContact(Ref ref, StatusBoostEntry entry) async {
 }
 
 /// [writeSbcContact] for widgets.
-final sbcContactWriterProvider = Provider<Future<bool> Function(StatusBoostEntry)>(
-  (ref) => (entry) => writeSbcContact(ref, entry),
-);
+final sbcContactWriterProvider =
+    Provider<Future<bool> Function(StatusBoostEntry)>(
+      (ref) =>
+          (entry) => writeSbcContact(ref, entry),
+    );
