@@ -31,7 +31,11 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   void initState() {
     super.initState();
     _lifecycle = AppLifecycleListener(
-      onResume: () => unawaited(ref.read(proLocationProvider.notifier).report()),
+      onResume: () {
+        // Back from the system settings, maybe with location now allowed.
+        ref.invalidate(locationAccessProvider);
+        unawaited(ref.read(proLocationProvider.notifier).report());
+      },
     );
     // Ask for contacts access once the shell is on screen, so the member sees
     // the app behind the explanation rather than a bare system dialog.

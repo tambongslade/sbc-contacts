@@ -13,6 +13,7 @@ import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
 import 'package:sbc_contacts/features/requests/application/requests_controllers.dart';
 import 'package:sbc_contacts/features/requests/domain/request_models.dart';
 import 'package:sbc_contacts/features/requests/presentation/request_widgets.dart';
+import 'package:sbc_contacts/shared/services/location.dart';
 import 'package:sbc_contacts/shared/widgets/empty_state.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -120,23 +121,91 @@ class _SubscriptionCard extends StatelessWidget {
 }
 
 /// "Partager ma position": requests from people close by reach the pro first.
-class _LocationCard extends ConsumerWidget {
+/// Says what the phone currently allows and offers the one next step; the
+/// system permission is only ever asked from here, never on launch.
+class _LocationCard extends ConsumerStatefulWidget {
   const _LocationCard();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_LocationCard> createState() => _LocationCardState();
+}
+
+class _LocationCardState extends ConsumerState<_LocationCard> {
+  /// Back from the system settings: read what the phone now allows.
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(onResume: () => ref.invalidate(locationAccessProvider));
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final sharing = ref.watch(proLocationProvider).value ?? true;
+    final access = ref.watch(locationAccessProvider).value;
+    final theme = Theme.of(context);
+
+    final String detail;
+    (String, VoidCallback)? action;
+    if (!sharing) {
+      detail = 'Les demandes te parviennent selon ta ville et tes zones uniquement.';
+    } else {
+      switch (access) {
+        case LocationAccess.granted:
+          detail = "Ta position est mise à jour quand tu ouvres l'app. Le client ne voit qu'une distance "
+              'approximative, jamais ta position.';
+        case LocationAccess.blocked:
+          detail = 'La localisation est désactivée sur ton téléphone ou pour SBC Network. Active-la dans les '
+              'réglages pour recevoir en premier les demandes proches.';
+          action = (
+            'Ouvrir les réglages',
+            () => unawaited(ref.read(locationServiceProvider).openSettings()),
+          );
+        case LocationAccess.askable || null:
+          detail = "Tu reçois en premier les demandes des gens proches de toi. Ils ne voient qu'une distance "
+              'approximative, jamais ta position.';
+          action = (
+            'Activer la localisation',
+            () => unawaited(ref.read(proLocationProvider.notifier).activate()),
+          );
+      }
+    }
+
     return RequestPanel(
-      child: SwitchListTile.adaptive(
-        contentPadding: EdgeInsets.zero,
-        secondary: const Icon(Icons.near_me_rounded, color: SbcColors.primary),
-        title: const Text('Partager ma position', style: TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: const Text(
-          "Tu reçois en premier les demandes des gens proches de toi. Ils ne voient qu'une distance "
-          'approximative, jamais ta position.',
-        ),
-        value: sharing,
-        onChanged: (on) => unawaited(ref.read(proLocationProvider.notifier).setSharing(on)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            secondary: const Icon(Icons.near_me_rounded, color: SbcColors.primary),
+            title: const Text('Partager ma position', style: TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(detail),
+            value: sharing,
+            onChanged: (on) async {
+              await ref.read(proLocationProvider.notifier).setSharing(on);
+              ref.invalidate(locationAccessProvider);
+            },
+          ),
+          if (action != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 40),
+              child: TextButton(
+                onPressed: action.$2,
+                style: TextButton.styleFrom(
+                  foregroundColor: SbcColors.primary,
+                  textStyle: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                child: Text(action.$1),
+              ),
+            ),
+        ],
       ),
     );
   }

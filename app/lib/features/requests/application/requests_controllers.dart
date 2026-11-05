@@ -44,6 +44,11 @@ final proSpaceProvider = AsyncNotifierProvider<ProSpaceController, ProSpace>(Pro
 /// "Partager ma position": while on, a pro's app reports where they are each
 /// time it comes to the foreground, so requests close by reach them first.
 /// On unless the pro turned it off; the choice stays on this phone.
+/// What the phone currently allows, for the pro space's location card.
+final locationAccessProvider = FutureProvider.autoDispose<LocationAccess>(
+  (ref) => ref.read(locationServiceProvider).access(),
+);
+
 class ProLocationController extends AsyncNotifier<bool> {
   static const _storage = FlutterSecureStorage();
   static const _key = 'proLocation.sharing';
@@ -59,7 +64,7 @@ class ProLocationController extends AsyncNotifier<bool> {
     state = AsyncValue.data(on);
     await _storage.write(key: _key, value: on ? 'on' : 'off');
     if (on) {
-      await report(force: true);
+      await report(force: true, prompt: true);
     } else {
       _lastSent = null;
       try {
@@ -70,15 +75,24 @@ class ProLocationController extends AsyncNotifier<bool> {
     }
   }
 
-  /// Sends the current position if this member is a pro and shares it.
-  Future<void> report({bool force = false}) async {
+  /// "Activer la localisation" in the pro space: the member asked, so the
+  /// system may ask too.
+  Future<void> activate() async {
+    await report(force: true, prompt: true);
+    ref.invalidate(locationAccessProvider);
+  }
+
+  /// Sends the current position if this member is a pro and shares it. On
+  /// launch and resume this stays silent: without a permission already
+  /// granted it does nothing, and the pro space offers to turn it on.
+  Future<void> report({bool force = false, bool prompt = false}) async {
     try {
       if (!await future) return;
       final last = _lastSent;
       if (!force && last != null && DateTime.now().difference(last) < _every) return;
       final space = await ref.read(proSpaceProvider.future);
       if (!space.isPro) return;
-      final here = await ref.read(locationServiceProvider).current();
+      final here = await ref.read(locationServiceProvider).current(prompt: prompt);
       if (here == null) return;
       await ref.read(requestsRepositoryProvider).updateLocation(here);
       _lastSent = DateTime.now();
