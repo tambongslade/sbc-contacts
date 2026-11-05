@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
+import 'package:sbc_contacts/features/spotlight/featured_section.dart';
+import 'package:sbc_contacts/features/spotlight/spotlight.dart';
 import 'package:sbc_contacts/features/status_boost/status_boost.dart';
 import 'package:sbc_contacts/features/sync/application/sync_controllers.dart';
 import 'package:sbc_contacts/features/sync/presentation/criteria_filters_form.dart';
@@ -267,33 +269,8 @@ class _StatusBoostScreenState extends ConsumerState<StatusBoostScreen> {
 
   bool _isSaved(StatusBoostEntry e) => e.savedByMe || _saved.contains(e.sbcId);
 
-  /// Writes one member into the phone book and records it. Returns false when
-  /// the contact could not be written; a failed recording alone still counts,
-  /// since the contact IS on the phone.
-  Future<bool> _write(StatusBoostEntry entry) async {
-    final contacts = ref.read(contactServiceProvider);
-    final present = entry.phoneNumber.isNotEmpty &&
-        await contacts.existsByPhone(entry.phoneNumber);
-    String? deviceContactId;
-    if (!present) {
-      final result = await contacts.addSbcContact(
-        displayName: entry.name,
-        phone: entry.phoneNumber,
-        country: entry.country,
-      );
-      if (!result.success) return false;
-      deviceContactId = result.deviceContactId;
-    }
-    try {
-      await ref.read(syncRepositoryProvider).recordSingleContact(
-            memberSbcId: entry.sbcId,
-            deviceContactId: deviceContactId,
-          );
-    } catch (_) {
-      // Bookkeeping only — the phone book is right either way.
-    }
-    return true;
-  }
+  /// Writes one member into the phone book and records it (see [writeSbcContact]).
+  Future<bool> _write(StatusBoostEntry entry) => ref.read(sbcContactWriterProvider)(entry);
 
   Future<bool> _askPermission() async {
     if (await ref.read(contactServiceProvider).requestPermission()) return true;
@@ -308,7 +285,9 @@ class _StatusBoostScreenState extends ConsumerState<StatusBoostScreen> {
   void _refreshSyncScreens() {
     ref
       ..invalidate(syncSummaryProvider)
-      ..invalidate(syncedContactsProvider);
+      ..invalidate(syncedContactsProvider)
+      // A featured member saved from the list leaves "En vedette" too.
+      ..invalidate(spotlightFeaturedProvider);
   }
 
   Future<void> _saveOne(StatusBoostEntry entry) async {
@@ -370,7 +349,12 @@ class _StatusBoostScreenState extends ConsumerState<StatusBoostScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Vues WhatsApp')),
       body: RefreshIndicator(
-        onRefresh: () => _reload(withMe: true),
+        onRefresh: () {
+          ref
+            ..invalidate(spotlightFeaturedProvider)
+            ..invalidate(spotlightMeProvider);
+          return _reload(withMe: true);
+        },
         child: ListView(
           controller: _scroll,
           padding: const EdgeInsets.only(bottom: 32),
@@ -393,6 +377,7 @@ class _StatusBoostScreenState extends ConsumerState<StatusBoostScreen> {
               onChanged: (v) => _toggleOptIn(optIn: v),
               onCreateCriteria: _createCriteria,
             ),
+            const FeaturedSection(),
             _FilterBar(
               filters: _filters,
               countryOnly: _me?.countryOnly ?? true,

@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
 import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
+import 'package:sbc_contacts/features/spotlight/featured_section.dart';
+import 'package:sbc_contacts/features/spotlight/spotlight.dart';
 import 'package:sbc_contacts/features/sync/application/sync_controllers.dart';
 import 'package:sbc_contacts/features/sync/domain/sync_models.dart';
 import 'package:sbc_contacts/shared/widgets/empty_state.dart';
@@ -48,22 +50,35 @@ class SavedMeScreen extends ConsumerWidget {
         ),
         data: (page) {
           if (page.items.isEmpty) {
-            return const EmptyState(
-              icon: Icons.person_add_alt_outlined,
-              title: 'Personne pour le moment',
-              message:
-                  "Quand un membre enregistre ton contact dans son téléphone, "
-                  'il apparaît ici — et tu reçois une notification.',
+            return ListView(
+              children: const [
+                FeaturedSection(),
+                EmptyState(
+                  icon: Icons.person_add_alt_outlined,
+                  title: 'Personne pour le moment',
+                  message:
+                      "Quand un membre enregistre ton contact dans son téléphone, "
+                      'il apparaît ici — et tu reçois une notification.',
+                ),
+              ],
             );
           }
           return RefreshIndicator(
-            onRefresh: () async => ref.invalidate(savedMeProvider),
+            onRefresh: () async => ref
+              ..invalidate(savedMeProvider)
+              ..invalidate(spotlightFeaturedProvider)
+              ..invalidate(spotlightMeProvider),
             child: ListView.separated(
               // Header, rows, then a spinner row while more pages remain.
               itemCount: page.items.length + 1 + (page.hasMore ? 1 : 0),
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (context, i) {
-                if (i == 0) return _CountHeader(total: page.total);
+                if (i == 0) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [const FeaturedSection(), _CountHeader(total: page.total)],
+                  );
+                }
                 if (i > page.items.length) {
                   ref.read(savedMeProvider.notifier).loadMore();
                   return const Padding(
