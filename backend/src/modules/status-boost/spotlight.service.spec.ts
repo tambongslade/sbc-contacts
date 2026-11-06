@@ -17,7 +17,7 @@ describe('SpotlightService', () => {
     avatarUrl: null,
     country: 'CM',
     subscriptionTypes: ['CLASSIQUE', 'MISE_EN_AVANT'],
-    spotlightUntil: null,
+    spotlightUntil: null as Date | null,
   });
 
   function build(opts: {
@@ -95,5 +95,18 @@ describe('SpotlightService', () => {
   it('shows at most five at a time', async () => {
     const { svc } = build({ candidates: 'abcdefgh'.split('').map(user) });
     expect(await svc.featured('me', now)).toHaveLength(5);
+  });
+
+  it('lists members for the back-office with where their spotlight comes from', async () => {
+    const admin = { ...user('a'), subscriptionTypes: ['CLASSIQUE'], spotlightUntil: later, email: null };
+    const none = { ...user('b'), subscriptionTypes: [], spotlightUntil: earlier, email: null };
+    const { svc, prisma } = build({ candidates: [admin, none] });
+    Object.assign(prisma.user, { count: jest.fn().mockResolvedValue(2) });
+    const page = await svc.adminList({ search: 'a', featured: undefined, page: 1, limit: 20 }, now);
+    expect(page.total).toBe(2);
+    expect(page.items.map((r) => [r.userId, r.active, r.source])).toEqual([
+      ['a', true, 'admin'],
+      ['b', false, null],
+    ]);
   });
 });

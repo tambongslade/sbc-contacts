@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Put } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { SetSpotlightDto } from './status-boost.dto';
+import { SetSpotlightDto, SpotlightAdminQueryDto } from './status-boost.dto';
 import { SpotlightEntry, SpotlightService, SpotlightStatus } from './spotlight.service';
 
 /** "Mise en avant": featured members in "Qui m'a enregistré" and "Augmenter mes vues WhatsApp". */
@@ -23,6 +23,13 @@ export class SpotlightController {
   @ApiOperation({ summary: "Whether the caller's own profile is featured" })
   me(@CurrentUser() user: AuthenticatedUser): Promise<SpotlightStatus> {
     return this.spotlight.me(user.userId);
+  }
+
+  @Get('admin')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Back-office: members to feature, featured ones first' })
+  list(@Query() query: SpotlightAdminQueryDto) {
+    return this.spotlight.adminList(query);
   }
 
   @Put('admin/:userId')

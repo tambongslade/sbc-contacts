@@ -5,6 +5,7 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -94,4 +95,11 @@ export class SetSpotlightDto {
   @IsOptional()
   @IsDateString()
   until?: string | null;
+}
+
+export class SpotlightAdminQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({ enum: ['on', 'off'], description: 'on = featured now, off = not featured' })
+  @IsOptional()
+  @IsIn(['on', 'off'])
+  featured?: 'on' | 'off';
 }

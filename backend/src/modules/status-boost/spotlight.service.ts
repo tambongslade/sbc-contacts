@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, SyncStatus, User } from '@prisma/client';
+import { paginate, PaginatedResult } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { StatusBoostService } from './status-boost.service';
@@ -137,6 +138,59 @@ export class SpotlightService {
       }));
   }
 
+  /** Back-office: members to feature, searchable, featured ones first. */
+  async adminList(
+    query: { search?: string; featured?: 'on' | 'off'; page: number; limit: number },
+    now = new Date(),
+  ): Promise<PaginatedResult<SpotlightAdminRow>> {
+    const featured: Prisma.UserWhereInput = {
+      OR: [
+        { subscriptionTypes: { hasSome: spotlightTypeVariants() } },
+        { spotlightUntil: { gt: now } },
+      ],
+    };
+    const search = query.search?.trim();
+    const where: Prisma.UserWhereInput = {
+      deletedAt: null,
+      AND: [
+        search
+          ? {
+              OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                { email: { contains: search, mode: 'insensitive' } },
+                { phoneNumber: { contains: search.replace(/\s+/g, '') } },
+              ],
+            }
+          : {},
+        query.featured === 'on' ? featured : query.featured === 'off' ? { NOT: featured } : {},
+      ],
+    };
+    const [users, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        orderBy: [{ spotlightUntil: { sort: 'desc', nulls: 'last' } }, { name: 'asc' }],
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+    const items = users.map((u) => {
+      const source = spotlightSource(u, now);
+      return {
+        userId: u.id,
+        name: u.name,
+        phoneNumber: u.phoneNumber,
+        email: u.email,
+        country: u.country,
+        avatarUrl: u.avatarUrl,
+        spotlightUntil: u.spotlightUntil,
+        active: source !== null,
+        source,
+      };
+    });
+    return paginate(items, total, query.page, query.limit);
+  }
+
   /** Back-office: switch a member's spotlight on until a date, or off (null). */
   async setUntil(adminId: string, userId: string, until: Date | null) {
     const before = await this.prisma.user.findUnique({
@@ -158,6 +212,19 @@ export class SpotlightService {
     });
     return after;
   }
+}
+
+/** One member as the back-office's "Mise en avant" page lists them. */
+export interface SpotlightAdminRow {
+  userId: string;
+  name: string | null;
+  phoneNumber: string | null;
+  email: string | null;
+  country: string | null;
+  avatarUrl: string | null;
+  spotlightUntil: Date | null;
+  active: boolean;
+  source: SpotlightSource | null;
 }
 
 /** `hasSome` is case-sensitive; SBC has sent both cases before. */

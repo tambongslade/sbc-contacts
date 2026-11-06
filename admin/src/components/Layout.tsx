@@ -1,4 +1,4 @@
-import { ClipboardList, Flag, LayoutDashboard, LogOut, SearchX, Tags, Users } from 'lucide-react';
+import { ClipboardList, Flag, LayoutDashboard, LogOut, SearchX, Star, Tags, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { AdminUser } from '../lib/auth';
 import { cn } from '../lib/utils';
@@ -7,6 +7,7 @@ const NAV = [
   { path: '', label: 'Tableau de bord', icon: LayoutDashboard },
   { path: 'requests', label: 'Demandes', icon: ClipboardList },
   { path: 'pros', label: 'Professionnels', icon: Users },
+  { path: 'spotlight', label: 'Mise en avant', icon: Star },
   { path: 'services', label: 'Services', icon: Tags },
   { path: 'gaps', label: 'Besoins non couverts', icon: SearchX },
   { path: 'reports', label: 'Signalements', icon: Flag },
