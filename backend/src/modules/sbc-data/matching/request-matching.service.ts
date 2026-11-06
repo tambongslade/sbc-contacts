@@ -23,8 +23,14 @@ const MIN_RELEVANCE = 0.5;
 export const NEARBY_KM = 15;
 /** With no city named, a pro further than this is in another town. */
 export const FAR_KM = 50;
-/** A pro's position older than this is no longer where they are. */
-export const PRO_LOCATION_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+/**
+ * A pro's position older than this no longer counts as where they are. Pros are
+ * mostly stationary — a shop, a usual working area — and many open the app only
+ * every few days, so a 3-day window needlessly dropped them from "près de toi"
+ * and could exclude them when a city was named. Two weeks keeps a recent fix
+ * useful without pinning a pro to a place they may have left.
+ */
+export const PRO_LOCATION_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 
 type ServiceWithPro = ProService & { pro: ProProfile };
 
@@ -93,11 +99,15 @@ export class RequestMatchingService {
       include: { pro: true },
     });
 
-    const shortlist = bestPerPro(
-      services
-        .map((s) => scoreService(request, s, now))
-        .filter((c): c is MatchCandidate => c !== null && c.reasons.retrieval >= MIN_RETRIEVAL),
-    )
+    // Local pros first. When the request's town has none — a thin market, not a
+    // bad fit — widening the net beats answering NO_MATCH: the requester still
+    // reaches the pros whose service matches, wherever they are. The AI judge
+    // still drops irrelevant services and the proximity ranking keeps the far
+    // ones from topping the list, so this rescues, it does not spam.
+    let scored = retrieve(request, services, now, false);
+    if (scored.length === 0) scored = retrieve(request, services, now, true);
+
+    const shortlist = bestPerPro(scored)
       .sort((a, b) => b.score - a.score)
       .slice(0, SHORTLIST);
 
@@ -125,6 +135,7 @@ export function scoreService(
   request: RequestForMatching,
   service: ServiceWithPro,
   now = new Date(),
+  relaxLocation = false,
 ): MatchCandidate | null {
   const modes = service.modes.length ? service.modes : service.pro.modes;
   const zones = service.zones.length ? service.zones : service.pro.zones;
@@ -147,10 +158,12 @@ export function scoreService(
     const place = [service.pro.city, ...zones].find(
       (z) => samePlace(z, request.city) || (request.district && samePlace(z, request.district)),
     );
-    if (!place) return null;
-    location = place;
+    if (place) location = place;
+    else if (!relaxLocation) return null;
+    else location = 'autre zone';
   } else if (distance !== null && distance > FAR_KM) {
-    return null;
+    if (!relaxLocation) return null;
+    location = 'autre zone';
   }
 
   const need = tokens(
@@ -220,6 +233,18 @@ export function budgetScore(budget: number | null, priceFrom: number | null | un
   if (!budget || !priceFrom) return 1;
   if (priceFrom <= budget) return 1;
   return Math.max(0, 1 - (priceFrom - budget) / budget);
+}
+
+/** Stage 1 + 2 over every service, keeping only the real candidates. */
+function retrieve(
+  request: RequestForMatching,
+  services: ServiceWithPro[],
+  now: Date,
+  relaxLocation: boolean,
+): MatchCandidate[] {
+  return services
+    .map((s) => scoreService(request, s, now, relaxLocation))
+    .filter((c): c is MatchCandidate => c !== null && c.reasons.retrieval >= MIN_RETRIEVAL);
 }
 
 /** A pro receives a request once, for their best-fitting service. */

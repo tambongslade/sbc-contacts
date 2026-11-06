@@ -246,6 +246,32 @@ export class ProfessionalService {
     return this.getProfile(userId);
   }
 
+  /**
+   * Heals services left without an embedding. A Gemini outage during add or
+   * update stores an empty vector ([SbcDataAiService.embed] degrades instead of
+   * failing the request), and that service then matches on keywords alone until
+   * its owner happens to edit it again. The queue runs this on a schedule, so a
+   * service re-indexes itself once Gemini is back. Services Gemini still cannot
+   * embed keep an empty vector and are simply retried next time.
+   */
+  async reembedMissing(limit = 100): Promise<number> {
+    const stale = await this.prisma.proService.findMany({
+      where: { isActive: true, embedding: { isEmpty: true } },
+      take: limit,
+    });
+    if (stale.length === 0) return 0;
+
+    const embeddings = await this.ai.embed(stale.map(serviceDocument), 'RETRIEVAL_DOCUMENT');
+    const updates = stale.flatMap((s, i) => {
+      const embedding = embeddings[i];
+      return embedding?.length
+        ? [this.prisma.proService.update({ where: { id: s.id }, data: { embedding } })]
+        : [];
+    });
+    await this.prisma.$transaction(updates);
+    return updates.length;
+  }
+
   // ── Inbox ─────────────────────────────────────────────────────────────────
 
   async inbox(userId: string, query: InboxQueryDto): Promise<PaginatedResult<InboxItemView>> {

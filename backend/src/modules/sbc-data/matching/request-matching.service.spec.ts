@@ -77,6 +77,12 @@ describe('SBC Data matching', () => {
     expect(scoreService(request(), service({}, { city: 'Douala' }))).toBeNull();
   });
 
+  it('widens to a pro in another city when relaxed (the town has nobody)', () => {
+    const c = scoreService(request(), service({}, { city: 'Douala' }), undefined, true);
+    expect(c).not.toBeNull();
+    expect(c!.reasons.location).toBe('autre zone');
+  });
+
   it('keeps a pro in another city when one of their zones covers the request', () => {
     expect(
       scoreService(request(), service({}, { city: 'Douala', zones: ['Yaoundé'] })),
@@ -131,6 +137,15 @@ describe('SBC Data matching', () => {
     it('with no city named, leaves out a pro in another town', () => {
       const c = scoreService(request({ ...here, city: null }), service({}, yaounde), now);
       expect(c).toBeNull();
+    });
+
+    it('with no city named, widens to the far pro when relaxed', () => {
+      const r = request({ ...here, city: null });
+      expect(scoreService(r, service({}, yaounde), now)).toBeNull();
+      const relaxed = scoreService(r, service({}, yaounde), now, true)!;
+      expect(relaxed).not.toBeNull();
+      expect(relaxed.reasons.location).toBe('autre zone');
+      expect(relaxed.reasons.distanceKm).toBeGreaterThan(50);
     });
 
     it('ignores a position the pro has not refreshed in days', () => {

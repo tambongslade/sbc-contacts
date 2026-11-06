@@ -2,10 +2,13 @@ import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger, OnModuleInit } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
 import { QUEUE_NAMES } from '../../infrastructure/queue/queue.module';
+import { ProfessionalService } from './services/professional.service';
 import { RequestsService } from './services/requests.service';
 
 /** How often routed-but-unanswered requests are swept and closed (Data §16). */
 const SWEEP_EVERY_MS = 30 * 60 * 1000; // 30 min
+/** How often services left without an embedding (a Gemini outage) are retried. */
+const REEMBED_EVERY_MS = 15 * 60 * 1000; // 15 min
 
 /**
  * Matches a sent request and routes it to pros off the request path: embedding
@@ -22,6 +25,7 @@ export class SbcDataProcessor extends WorkerHost implements OnModuleInit {
 
   constructor(
     private readonly requests: RequestsService,
+    private readonly professionals: ProfessionalService,
     @InjectQueue(QUEUE_NAMES.SBC_DATA) private readonly queue: Queue,
   ) {
     super();
@@ -38,11 +42,28 @@ export class SbcDataProcessor extends WorkerHost implements OnModuleInit {
         removeOnComplete: { count: 50 },
       },
     );
-    this.logger.log(`Stale-request sweep scheduled every ${SWEEP_EVERY_MS / 60000} min`);
+    await this.queue.add(
+      'reembed-services',
+      {},
+      {
+        jobId: 'sbc-data-reembed-services',
+        repeat: { every: REEMBED_EVERY_MS },
+        attempts: 1,
+        removeOnComplete: { count: 50 },
+      },
+    );
+    this.logger.log(
+      `Stale-request sweep every ${SWEEP_EVERY_MS / 60000} min, ` +
+        `embedding retry every ${REEMBED_EVERY_MS / 60000} min`,
+    );
   }
 
   async process(job: Job<{ requestId: string }>): Promise<void> {
     if (job.name === 'match') await this.requests.runMatching(job.data.requestId);
     else if (job.name === 'sweep-stale') await this.requests.closeStale();
+    else if (job.name === 'reembed-services') {
+      const healed = await this.professionals.reembedMissing();
+      if (healed) this.logger.log(`Re-embedded ${healed} service(s) that had no vector`);
+    }
   }
 }
