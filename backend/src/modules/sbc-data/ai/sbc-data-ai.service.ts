@@ -159,6 +159,11 @@ export class SbcDataAiService {
     return this.deepseek.enabled;
   }
 
+  /** Whether semantic embeddings are in use (off by default — DeepSeek only). */
+  get embeddingsEnabled(): boolean {
+    return this.gemini.enabled;
+  }
+
   /**
    * Which provider backs each AI job and whether it is configured. Neither is
    * required — both degrade to keyword matching — so this is reported for
@@ -329,6 +334,10 @@ export class SbcDataAiService {
     texts: string[],
     task: 'RETRIEVAL_QUERY' | 'RETRIEVAL_DOCUMENT',
   ): Promise<number[][]> {
+    // Off by default: skip silently so saving a profile or matching a request
+    // never calls Gemini (and never logs a failure for a feature we chose to
+    // turn off). Matching then runs on keywords + the DeepSeek judge.
+    if (!this.gemini.enabled) return texts.map(() => []);
     try {
       return await this.gemini.embed(texts, task);
     } catch (err) {

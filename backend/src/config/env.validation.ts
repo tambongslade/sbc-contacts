@@ -147,6 +147,14 @@ export class EnvironmentVariables {
   @IsOptional()
   GEMINI_EMBEDDING_MODEL = 'gemini-embedding-001';
 
+  // Semantic embeddings are off by default: matching runs on keyword coverage
+  // + the DeepSeek relevance judge alone, with no Gemini dependency. Flip this
+  // on (with a funded GEMINI_API_KEY) to add the semantic signal back; the
+  // embedding-backfill job then re-indexes the services stored without a vector.
+  @IsBoolean()
+  @Transform(toBool)
+  GEMINI_EMBEDDINGS_ENABLED = false;
+
   // --- DeepSeek (SBC Data: request analysis, service structuring, matching) ---
   // Text reasoning runs on DeepSeek; embeddings stay on Gemini (DeepSeek has no
   // embeddings endpoint). Optional like Gemini: without it SBC Data falls back

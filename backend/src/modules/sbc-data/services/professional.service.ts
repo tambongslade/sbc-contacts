@@ -255,6 +255,11 @@ export class ProfessionalService {
    * embed keep an empty vector and are simply retried next time.
    */
   async reembedMissing(limit = 100): Promise<number> {
+    // Nothing to heal while embeddings are off — the "no vector" state is then
+    // the norm, not a Gemini outage. Turning GEMINI_EMBEDDINGS_ENABLED back on
+    // revives this backfill on its next run.
+    if (!this.ai.embeddingsEnabled) return 0;
+
     const stale = await this.prisma.proService.findMany({
       where: { isActive: true, embedding: { isEmpty: true } },
       take: limit,

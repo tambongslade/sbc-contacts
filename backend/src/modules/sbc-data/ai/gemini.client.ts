@@ -24,19 +24,25 @@ export class GeminiClient {
   private readonly logger = new Logger(GeminiClient.name);
   private readonly apiKey: string;
   private readonly embeddingModel: string;
+  private readonly embeddingsEnabled: boolean;
 
   constructor(config: ConfigService) {
     this.apiKey = config.get<string>('gemini.apiKey') ?? '';
     this.embeddingModel = config.get<string>('gemini.embeddingModel') ?? 'gemini-embedding-001';
+    this.embeddingsEnabled = config.get<boolean>('gemini.embeddingsEnabled') ?? false;
   }
 
+  /** Ready to embed: the feature is switched on and a key is configured. */
   get enabled(): boolean {
-    return this.apiKey.length > 0;
+    return this.embeddingsEnabled && this.apiKey.length > 0;
   }
 
   /** Embed [texts] in one call; the result is index-aligned with the input. */
   async embed(texts: string[], task: EmbeddingTask): Promise<number[][]> {
     if (texts.length === 0) return [];
+    if (!this.enabled) {
+      throw new AiUnavailableError('embeddings are off (GEMINI_EMBEDDINGS_ENABLED=false)');
+    }
     const model = `models/${this.embeddingModel}`;
     const res = await this.post<{ embeddings?: Array<{ values: number[] }> }>(
       `${this.embeddingModel}:batchEmbedContents`,

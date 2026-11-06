@@ -55,6 +55,7 @@ export const configuration = (env: EnvironmentVariables) => ({
     apiKey: env.GEMINI_API_KEY,
     model: env.GEMINI_MODEL,
     embeddingModel: env.GEMINI_EMBEDDING_MODEL,
+    embeddingsEnabled: env.GEMINI_EMBEDDINGS_ENABLED,
   },
   deepseek: {
     apiKey: env.DEEPSEEK_API_KEY,
