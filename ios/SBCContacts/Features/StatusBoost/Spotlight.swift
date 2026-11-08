@@ -119,9 +119,9 @@ private struct FeaturedRow: View {
                         .foregroundStyle(SBCColors.primary)
                         .lineLimit(1)
                 } else {
-                    Text("Membre en vedette")
-                        .font(.sbc(.labelSmall))
-                        .foregroundStyle(SBCColors.onSurfaceVariant)
+                    Text("T'a déjà enregistré")
+                        .font(.sbc(.labelSmall, weight: .semibold))
+                        .foregroundStyle(SBCColors.primary)
                 }
             }
             Spacer(minLength: 8)

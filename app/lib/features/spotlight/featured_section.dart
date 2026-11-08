@@ -164,12 +164,10 @@ class _FeaturedRow extends StatelessWidget {
                 Text(
                   entry.savedMe
                       ? "T'a déjà enregistré — enregistre-le en retour"
-                      : 'Membre en vedette',
+                      : "T'a déjà enregistré",
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: entry.savedMe
-                        ? SbcColors.whatsapp
-                        : theme.colorScheme.onSurfaceVariant,
-                    fontWeight: entry.savedMe ? FontWeight.w600 : null,
+                    color: SbcColors.whatsapp,
+                    fontWeight: FontWeight.w600,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
