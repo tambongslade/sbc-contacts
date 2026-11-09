@@ -3,6 +3,7 @@ import { ServiceMode } from '@prisma/client';
 import { AiUnavailableError } from './ai-unavailable.error';
 import { DeepseekClient } from './deepseek.client';
 import { GeminiClient } from './gemini.client';
+import { VoyageClient } from './voyage.client';
 
 /** One service as the AI proposes it; the pro accepts, edits or drops it (Data §4). */
 export interface ServiceProposal {
@@ -152,6 +153,7 @@ export class SbcDataAiService {
   constructor(
     private readonly deepseek: DeepseekClient,
     private readonly gemini: GeminiClient,
+    private readonly voyage: VoyageClient,
   ) {}
 
   /** Whether the text jobs (structuring, analysis, judging) have an AI. */
@@ -159,9 +161,20 @@ export class SbcDataAiService {
     return this.deepseek.enabled;
   }
 
+  /**
+   * The embedder in use, or null when embeddings are off. Voyage is preferred
+   * when both are enabled; neither is required — matching degrades to keywords
+   * + the DeepSeek judge.
+   */
+  private get embedder(): VoyageClient | GeminiClient | null {
+    if (this.voyage.enabled) return this.voyage;
+    if (this.gemini.enabled) return this.gemini;
+    return null;
+  }
+
   /** Whether semantic embeddings are in use (off by default — DeepSeek only). */
   get embeddingsEnabled(): boolean {
-    return this.gemini.enabled;
+    return this.embedder !== null;
   }
 
   /**
@@ -175,7 +188,10 @@ export class SbcDataAiService {
   } {
     return {
       text: { provider: 'deepseek', model: this.deepseek.modelName, enabled: this.deepseek.enabled },
-      embeddings: { provider: 'gemini', enabled: this.gemini.enabled },
+      embeddings: {
+        provider: this.voyage.enabled ? 'voyage' : 'gemini',
+        enabled: this.embeddingsEnabled,
+      },
     };
   }
 
@@ -335,11 +351,12 @@ export class SbcDataAiService {
     task: 'RETRIEVAL_QUERY' | 'RETRIEVAL_DOCUMENT',
   ): Promise<number[][]> {
     // Off by default: skip silently so saving a profile or matching a request
-    // never calls Gemini (and never logs a failure for a feature we chose to
-    // turn off). Matching then runs on keywords + the DeepSeek judge.
-    if (!this.gemini.enabled) return texts.map(() => []);
+    // never calls an embedder (and never logs a failure for a feature we chose
+    // to turn off). Matching then runs on keywords + the DeepSeek judge.
+    const embedder = this.embedder;
+    if (!embedder) return texts.map(() => []);
     try {
-      return await this.gemini.embed(texts, task);
+      return await embedder.embed(texts, task);
     } catch (err) {
       if (!(err instanceof AiUnavailableError)) throw err;
       this.logger.warn(`Embedding skipped: ${err.message}`);

@@ -5,6 +5,7 @@ import { DeepseekClient } from './ai/deepseek.client';
 import { GeminiClient } from './ai/gemini.client';
 import { ProSetupAssistant } from './ai/pro-setup-assistant';
 import { SbcDataAiService } from './ai/sbc-data-ai.service';
+import { VoyageClient } from './ai/voyage.client';
 import { SbcDataAdminController } from './controllers/admin.controller';
 import { ProController } from './controllers/pro.controller';
 import { RequestsController } from './controllers/requests.controller';
@@ -25,6 +26,7 @@ import { RequestsService } from './services/requests.service';
   providers: [
     DeepseekClient,
     GeminiClient,
+    VoyageClient,
     ProSetupAssistant,
     SbcDataAiService,
     RequestMatchingService,

@@ -38,7 +38,7 @@ export interface AssistantTurn {
   /** What is still needed — computed here, never taken from the model. */
   missing: DraftField[];
   complete: boolean;
-  /** False when Gemini could not answer; the app then offers the form. */
+  /** False when the AI could not answer; the app then offers the form. */
   available: boolean;
 }
 

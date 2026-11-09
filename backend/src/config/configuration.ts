@@ -62,6 +62,11 @@ export const configuration = (env: EnvironmentVariables) => ({
     model: env.DEEPSEEK_MODEL,
     baseUrl: env.DEEPSEEK_BASE_URL,
   },
+  voyage: {
+    apiKey: env.VOYAGE_API_KEY,
+    embeddingModel: env.VOYAGE_EMBEDDING_MODEL,
+    embeddingsEnabled: env.VOYAGE_EMBEDDINGS_ENABLED,
+  },
   throttle: {
     ttl: env.THROTTLE_TTL,
     limit: env.THROTTLE_LIMIT,
