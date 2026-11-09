@@ -3,6 +3,14 @@ import { ConfigService } from '@nestjs/config';
 import { AiUnavailableError } from './ai-unavailable.error';
 
 const TIMEOUT_MS = 25_000;
+/** deepseek-chat's own ceiling; without it a long answer can be cut mid-JSON. */
+const MAX_TOKENS = 8192;
+
+export interface ChatOptions {
+  temperature?: number;
+  /** Per-call limit; the pro assistant writes long answers and needs more. */
+  timeoutMs?: number;
+}
 
 /**
  * Thin REST client for the one DeepSeek call SBC Data needs: JSON generation
@@ -45,7 +53,27 @@ export class DeepseekClient {
     system: string,
     turns: Array<{ role: 'user' | 'model'; text: string }>,
     schema: object,
-    temperature = 0.1,
+    options: ChatOptions = {},
+  ): Promise<T> {
+    const timeoutMs = options.timeoutMs ?? TIMEOUT_MS;
+    const started = Date.now();
+    try {
+      return await this.chatOnce<T>(system, turns, schema, options.temperature ?? 0.1, timeoutMs);
+    } catch (err) {
+      // A cut or empty answer is usually a one-off: ask once more if there is time.
+      const left = timeoutMs - (Date.now() - started);
+      if (!(err instanceof AiUnavailableError) || !err.retryable || left < 10_000) throw err;
+      this.logger.warn(`DeepSeek ${this.model}: retrying after "${err.message}"`);
+      return this.chatOnce<T>(system, turns, schema, options.temperature ?? 0.1, left);
+    }
+  }
+
+  private async chatOnce<T>(
+    system: string,
+    turns: Array<{ role: 'user' | 'model'; text: string }>,
+    schema: object,
+    temperature: number,
+    timeoutMs: number,
   ): Promise<T> {
     const body = {
       model: this.model,
@@ -58,11 +86,12 @@ export class DeepseekClient {
         })),
       ],
       temperature,
+      max_tokens: MAX_TOKENS,
       response_format: { type: 'json_object' },
     };
     const res = await this.post<{
       choices?: Array<{ finish_reason?: string; message?: { content?: string } }>;
-    }>('/chat/completions', body);
+    }>('/chat/completions', body, timeoutMs);
 
     const choice = res.choices?.[0];
     const text = choice?.message?.content?.trim() ?? '';
@@ -70,17 +99,20 @@ export class DeepseekClient {
       this.logger.warn(
         `DeepSeek ${this.model} returned no content (finish_reason=${choice?.finish_reason ?? 'none'})`,
       );
-      throw new AiUnavailableError('DeepSeek returned no content');
+      throw new AiUnavailableError('DeepSeek returned no content', true);
     }
     try {
       return JSON.parse(text) as T;
     } catch {
-      this.logger.warn(`DeepSeek ${this.model} returned malformed JSON: ${text.slice(0, 200)}`);
-      throw new AiUnavailableError('DeepSeek returned malformed JSON');
+      this.logger.warn(
+        `DeepSeek ${this.model} returned malformed JSON (finish_reason=${choice?.finish_reason ?? 'none'}, ` +
+          `${text.length} chars): ${text.slice(0, 200)}`,
+      );
+      throw new AiUnavailableError('DeepSeek returned malformed JSON', true);
     }
   }
 
-  private async post<T>(path: string, body: unknown): Promise<T> {
+  private async post<T>(path: string, body: unknown, timeoutMs: number): Promise<T> {
     if (!this.enabled) throw new AiUnavailableError('DEEPSEEK_API_KEY is not set');
     let res: Response;
     try {
@@ -88,7 +120,7 @@ export class DeepseekClient {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (err) {
       this.logger.warn(`DeepSeek ${path} unreachable: ${(err as Error).message}`);

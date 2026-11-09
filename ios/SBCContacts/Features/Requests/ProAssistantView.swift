@@ -53,7 +53,7 @@ extension RequestsRepository {
     }
 
     func assistantTurn(messages: [AssistantMessage], draft: ProDraft?) async throws -> AssistantTurn {
-        try await api.post("/data/pro/assistant", body: TurnBody(messages: messages, draft: draft))
+        try await api.post("/data/pro/assistant", body: TurnBody(messages: messages, draft: draft), timeout: 70)
     }
 }
 

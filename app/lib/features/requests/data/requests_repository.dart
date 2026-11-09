@@ -143,5 +143,5 @@ class RequestsRepository {
       AssistantTurn.fromJson(await _api.post('/data/pro/assistant', body: {
         'messages': messages,
         if (draft != null) 'draft': draft.json,
-      }) as Map<String, dynamic>);
+      }, timeout: const Duration(seconds: 70)) as Map<String, dynamic>);
 }

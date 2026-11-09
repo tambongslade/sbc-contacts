@@ -29,8 +29,13 @@ actor APIClient {
         try decode(try await send(.get, path, query: query))
     }
 
-    func post<T: Decodable & Sendable>(_ path: String, body: (some Encodable & Sendable)? = Empty?.none) async throws -> T {
-        try decode(try await send(.post, path, body: encode(body)))
+    /// [timeout] overrides the 20 s wait for a call known to be slow (the AI assistant).
+    func post<T: Decodable & Sendable>(
+        _ path: String,
+        body: (some Encodable & Sendable)? = Empty?.none,
+        timeout: TimeInterval = 20
+    ) async throws -> T {
+        try decode(try await send(.post, path, body: encode(body), timeout: timeout))
     }
 
     func patch<T: Decodable & Sendable>(_ path: String, body: some Encodable & Sendable) async throws -> T {
@@ -66,11 +71,12 @@ actor APIClient {
         _ path: String,
         query: [URLQueryItem] = [],
         body: Data? = nil,
+        timeout: TimeInterval = 20,
         retried: Bool = false
     ) async throws -> Data {
         var request = URLRequest(url: url(for: path, query: query))
         request.httpMethod = method.rawValue
-        request.timeoutInterval = 20
+        request.timeoutInterval = timeout
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         // Lets the server apply iOS-only rules (receiving requests is free here).
@@ -90,7 +96,7 @@ actor APIClient {
 
         if status == 401, !Self.isAuthPath(path), !retried {
             if await refreshOnce() {
-                return try await send(method, path, query: query, body: body, retried: true)
+                return try await send(method, path, query: query, body: body, timeout: timeout, retried: true)
             }
         }
 

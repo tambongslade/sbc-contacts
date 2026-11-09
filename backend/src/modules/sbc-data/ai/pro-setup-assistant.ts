@@ -38,7 +38,7 @@ export interface AssistantTurn {
   /** What is still needed — computed here, never taken from the model. */
   missing: DraftField[];
   complete: boolean;
-  /** False when Gemini could not answer; the app then offers the form. */
+  /** False when the AI could not answer; the app then offers the form. */
   available: boolean;
 }
 
@@ -50,6 +50,14 @@ export interface AssistantContext {
 }
 
 const MODES = Object.values(ServiceMode);
+
+/**
+ * Once the pro has said what they do and where, each answer carries the whole
+ * draft (description, every service and its synonyms): it takes DeepSeek
+ * longer than a matching call. Kept under the proxy's 60 s, and the apps wait
+ * longer than this for this one call.
+ */
+export const ASSISTANT_TIMEOUT_MS = 50_000;
 
 const SCHEMA = {
   type: 'OBJECT',
@@ -108,7 +116,7 @@ Règles :
 - Ordre : 1) ce qu'elle propose (métier et prestations) ; 2) sa ville principale, puis les autres quartiers ou villes où elle intervient ; 3) comment elle travaille : à domicile (HOME), sur place chez elle (ON_SITE), en ligne (ONLINE), livraison (DELIVERY) ; 4) ses disponibilités ; 5) une fourchette de prix, facultative ("je ne sais pas" est accepté) ; 6) le lien de sa boutique SBC Shop, facultatif ("je n'en ai pas" est accepté) : c'est là que les clients voient ses photos et réalisations.
 - profession : le métier au masculin singulier ("Coiffeur", "Plombier").
 - description : rédige-la toi-même, 2 à 3 phrases à la première personne, à partir de ses réponses.
-- services : un élément par prestation distincte qu'un client pourrait demander, nommée clairement ("Réparation de locks"), avec les synonymes qu'un client utiliserait (argot, variantes locales) et les spécialités mentionnées. Ne répète pas les services qu'elle a déjà.
+- services : un élément par prestation distincte qu'un client pourrait demander, nommée clairement ("Réparation de locks"), avec au plus 6 synonymes qu'un client utiliserait (argot, variantes locales) et au plus 4 spécialités mentionnées. Garde les textes courts. Ne répète pas les services qu'elle a déjà.
 - options : 2 à 4 réponses rapides quand la question en a d'évidentes (ex. pour le mode de travail), sinon [].
 - Quand tout est rempli, dis-lui de vérifier son profil ci-dessous, sans poser de nouvelle question.`;
 
@@ -158,7 +166,10 @@ export class ProSetupAssistant {
         options: string[];
         profile: ProDraft['profile'];
         services: Array<Omit<ProDraft['services'][number], 'profession'>>;
-      }>(`${SYSTEM}\n\n${known}`, turns, SCHEMA, 0.4);
+      }>(`${SYSTEM}\n\n${known}`, turns, SCHEMA, {
+        temperature: 0.4,
+        timeoutMs: ASSISTANT_TIMEOUT_MS,
+      });
 
       const draft = sanitise({
         profile: raw.profile,

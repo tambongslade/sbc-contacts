@@ -53,7 +53,9 @@ class ApiClient {
   Future<dynamic> get(String path, {Map<String, dynamic>? query}) =>
       _send('GET', path, query: query);
 
-  Future<dynamic> post(String path, {Object? body}) => _send('POST', path, body: body);
+  /// [timeout] overrides the 20 s wait for a call known to be slow (the AI assistant).
+  Future<dynamic> post(String path, {Object? body, Duration? timeout}) =>
+      _send('POST', path, body: body, timeout: timeout);
 
   Future<dynamic> put(String path, {Object? body}) => _send('PUT', path, body: body);
 
@@ -66,6 +68,7 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? query,
     Object? body,
+    Duration? timeout,
     bool retried = false,
   }) async {
     Response<dynamic> res;
@@ -74,7 +77,7 @@ class ApiClient {
         path,
         data: body,
         queryParameters: query,
-        options: Options(method: method),
+        options: Options(method: method, receiveTimeout: timeout),
       );
     } on DioException catch (e) {
       throw _toApiException(e);
@@ -84,7 +87,7 @@ class ApiClient {
     if (status == 401 && !_isAuthPath(path) && !retried) {
       final refreshed = await _refreshOnce();
       if (refreshed) {
-        return _send(method, path, query: query, body: body, retried: true);
+        return _send(method, path, query: query, body: body, timeout: timeout, retried: true);
       }
     }
 
