@@ -326,6 +326,14 @@ export class AdminProsQueryDto extends PaginationQueryDto {
   receiving?: 'on' | 'off';
 }
 
+/** Members who paid for a feature on SBC: PRO, "mise en avant", or either. */
+export class SubscribersQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({ enum: ['pro', 'spotlight'], description: 'Filtre par produit payant' })
+  @IsOptional()
+  @IsIn(['pro', 'spotlight'])
+  type?: 'pro' | 'spotlight';
+}
+
 export class AdminRequestsQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({ enum: RequestStatus })
   @IsOptional()

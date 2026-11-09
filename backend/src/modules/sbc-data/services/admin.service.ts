@@ -11,8 +11,10 @@ import {
   AdminRequestsQueryDto,
   AdminServiceUpdateDto,
   SetReceivingDto,
+  SubscribersQueryDto,
   UnfulfilledAnalyticsQueryDto,
 } from '../dto/sbc-data.dto';
+import { PAID_FEATURE_TYPES } from '../../paid-features/paid-features';
 import { serviceDocument } from '../matching/request-matching.service';
 import { isReceivingActive } from '../sbc-data.views';
 
@@ -25,6 +27,15 @@ const OPEN_DISPATCH: DispatchStatus[] = [
 
 /** The audit action a requester's "prestation non réalisée" is filed under. */
 export const REPORT_ACTION = 'sbc-data.request.reported';
+
+/**
+ * The SBC subscription type strings that each paid product pays for, as SBC
+ * reports them in User.subscriptionTypes (docs/paiements-sbc.md). "Subscribed"
+ * in the back-office means: paid for PRO and/or the mise en avant on SBC.
+ */
+const PRO_TYPES = PAID_FEATURE_TYPES.PRO;
+const SPOTLIGHT_TYPES = PAID_FEATURE_TYPES.SPOTLIGHT;
+const PAID_TYPES = [...new Set([...PRO_TYPES, ...SPOTLIGHT_TYPES])];
 
 /**
  * The SBC back-office (Data §21): supervise requests and pros, correct the
@@ -54,6 +65,9 @@ export class SbcDataAdminService {
       reports,
       topServices,
       topCities,
+      subPro,
+      subSpotlight,
+      subTotal,
     ] = await this.prisma.$transaction([
       this.prisma.serviceRequest.groupBy({
         by: ['status'],
@@ -89,6 +103,15 @@ export class SbcDataAdminService {
         orderBy: { _count: { city: 'desc' } },
         take: 8,
       }),
+      this.prisma.user.count({
+        where: { deletedAt: null, subscriptionTypes: { hasSome: PRO_TYPES } },
+      }),
+      this.prisma.user.count({
+        where: { deletedAt: null, subscriptionTypes: { hasSome: SPOTLIGHT_TYPES } },
+      }),
+      this.prisma.user.count({
+        where: { deletedAt: null, subscriptionTypes: { hasSome: PAID_TYPES } },
+      }),
     ]);
 
     const n = (rows: Array<{ _count: unknown }>, pick: (r: never) => boolean) =>
@@ -114,6 +137,7 @@ export class SbcDataAdminService {
         byStatus: Object.fromEntries(Object.values(RequestStatus).map((s) => [s, byReq(s)])),
       },
       pros: { total: pros, receiving, services },
+      subscribers: { pro: subPro, spotlight: subSpotlight, total: subTotal },
       dispatches: {
         total: dispatched,
         answered,
@@ -131,6 +155,79 @@ export class SbcDataAdminService {
         count: (r._count as { _all: number })._all,
       })),
     };
+  }
+
+  // ── Subscribers ───────────────────────────────────────────────────────────
+
+  /**
+   * The members who paid for a feature on SBC (docs/paiements-sbc.md). The
+   * membership is read from User.subscriptionTypes — SBC's own truth, kept
+   * fresh at login and on each subscription webhook. The end dates come from
+   * the fields the app actually runs on (receivingUntil, spotlightUntil).
+   */
+  async subscribers(q: SubscribersQueryDto): Promise<PaginatedResult<unknown>> {
+    const term = q.search?.trim();
+    const now = new Date();
+    const types =
+      q.type === 'pro' ? PRO_TYPES : q.type === 'spotlight' ? SPOTLIGHT_TYPES : PAID_TYPES;
+    const where: Prisma.UserWhereInput = {
+      deletedAt: null,
+      subscriptionTypes: { hasSome: types },
+      ...(term
+        ? {
+            OR: [
+              { name: { contains: term, mode: 'insensitive' } },
+              { phoneNumber: { contains: term } },
+              { email: { contains: term, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.user.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: q.skip,
+        take: q.limit,
+        select: {
+          id: true,
+          name: true,
+          phoneNumber: true,
+          country: true,
+          subscriptionTypes: true,
+          spotlightUntil: true,
+          createdAt: true,
+          lastLoginAt: true,
+          proProfile: { select: { receivingEnabled: true, receivingUntil: true } },
+        },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+    const items = rows.map((u) => {
+      const hasPro = u.subscriptionTypes.some((t) => PRO_TYPES.includes(t));
+      const hasSpotlight = u.subscriptionTypes.some((t) => SPOTLIGHT_TYPES.includes(t));
+      const proUntil = u.proProfile?.receivingUntil ?? null;
+      return {
+        userId: u.id,
+        name: u.name,
+        phoneNumber: u.phoneNumber,
+        country: u.country,
+        subscriptionTypes: u.subscriptionTypes,
+        hasProProfile: !!u.proProfile,
+        pro: hasPro
+          ? {
+              until: proUntil,
+              active: !!u.proProfile?.receivingEnabled && (proUntil === null || proUntil > now),
+            }
+          : null,
+        spotlight: hasSpotlight
+          ? { until: u.spotlightUntil, active: u.spotlightUntil !== null && u.spotlightUntil > now }
+          : null,
+        createdAt: u.createdAt,
+        lastLoginAt: u.lastLoginAt,
+      };
+    });
+    return paginate(items, total, q.page, q.limit);
   }
 
   // ── Requests ──────────────────────────────────────────────────────────────

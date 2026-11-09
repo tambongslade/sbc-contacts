@@ -21,6 +21,7 @@ import {
   AdminServiceUpdateDto,
   MergeServiceDto,
   SetReceivingDto,
+  SubscribersQueryDto,
   UnfulfilledAnalyticsQueryDto,
 } from '../dto/sbc-data.dto';
 import { SbcDataAdminService } from '../services/admin.service';
@@ -37,6 +38,12 @@ export class SbcDataAdminController {
   @ApiOperation({ summary: 'Dashboard: requests, pros, responses, conversions' })
   stats() {
     return this.admin.stats();
+  }
+
+  @Get('subscribers')
+  @ApiOperation({ summary: 'Members with a paid SBC subscription (PRO, mise en avant)' })
+  subscribers(@Query() q: SubscribersQueryDto) {
+    return this.admin.subscribers(q);
   }
 
   @Get('requests')
