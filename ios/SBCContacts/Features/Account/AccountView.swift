@@ -19,8 +19,11 @@ struct AccountView: View {
                         SubscriptionBlock(user: user)
                             .appearAnimation(delay: 0.06)
                     }
-                    ShortcutsBlock()
-                        .appearAnimation(delay: 0.09)
+                    // Espace pro and Favoris both take an SBC account.
+                    if AppConfig.sbcLoginEnabled {
+                        ShortcutsBlock()
+                            .appearAnimation(delay: 0.09)
+                    }
                     InfoBlock(user: user)
                         .appearAnimation(delay: 0.12)
                     LogoutButton()

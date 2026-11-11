@@ -14,10 +14,11 @@ struct HomeShell: View {
             case "demandes", "requests": return .requests
             case "alertes", "notifications": return .notifications
             case "profil", "account": return .account
-            default: return .search
+            default: return AppConfig.sbcLoginEnabled ? .search : .sync
             }
             #else
-            return .search
+            // Without SBC sign-in there is no directory: Synchro opens first.
+            return AppConfig.sbcLoginEnabled ? .search : .sync
             #endif
         }
     }
@@ -58,9 +59,12 @@ struct HomeShell: View {
 
     var body: some View {
         TabView(selection: $tab) {
-            NavigationStack(path: $searchPath) { SearchView().appRoutes() }
-                .tabItem { Label("Recherche", systemImage: "magnifyingglass") }
-                .tag(Tab.search)
+            // The directory is SBC's: only an SBC account can search it.
+            if AppConfig.sbcLoginEnabled {
+                NavigationStack(path: $searchPath) { SearchView().appRoutes() }
+                    .tabItem { Label("Recherche", systemImage: "magnifyingglass") }
+                    .tag(Tab.search)
+            }
 
             NavigationStack(path: $syncPath) { SyncView().appRoutes() }
                 .tabItem { Label("Synchro", systemImage: "arrow.triangle.2.circlepath") }
@@ -122,7 +126,8 @@ struct HomeShell: View {
     /// the profile to know which prompt applies, the contacts prompt because
     /// iOS would drop a sheet raised on top of an alert.
     private func inviteToBecomeProIfDue() {
-        guard contactsSettled, proPrompt == nil, let user = auth.user,
+        // Becoming a pro takes an SBC account.
+        guard AppConfig.sbcLoginEnabled, contactsSettled, proPrompt == nil, let user = auth.user,
               let space = requests.proSpace, let kind = ProInvite.kind(for: space),
               kind.isDue(userId: user.id)
         else { return }

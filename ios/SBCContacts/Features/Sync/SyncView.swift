@@ -24,8 +24,10 @@ struct SyncView: View {
                     Divider().padding(.leading, 62)
                     // The counterpart: that screen says who you kept, this one
                     // says who kept you (§21).
-                    ShortcutRow(route: .savedMe, systemImage: "person.crop.circle.badge.checkmark", label: "Qui m'a enregistré", tint: SBCColors.secondaryDark)
-                    Divider().padding(.leading, 62)
+                    if AppConfig.sbcLoginEnabled {
+                        ShortcutRow(route: .savedMe, systemImage: "person.crop.circle.badge.checkmark", label: "Qui m'a enregistré", tint: SBCColors.secondaryDark)
+                        Divider().padding(.leading, 62)
+                    }
                     // Moved out of the toolbar: that slot now carries the live
                     // state, and the history is a destination like the two above.
                     ShortcutRow(route: .syncHistory, systemImage: "clock.arrow.circlepath", label: "Historique", tint: SBCColors.accent)

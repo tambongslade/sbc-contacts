@@ -31,6 +31,50 @@ struct LoginView: View {
                     .frame(width: 120, height: 4)
                     .padding(.top, 16)
 
+                if AppConfig.sbcLoginEnabled {
+                    sbcSignIn
+                } else {
+                    networkOnlySignIn
+                }
+            }
+            .padding(28)
+            .frame(maxWidth: 480)
+            .frame(maxWidth: .infinity)
+            .containerRelativeFrame(.vertical, alignment: .center) { length, _ in length }
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .background(SBCColors.background)
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationDestination(item: $networkAccount) { route in
+            NetworkAccountView(create: route == .create)
+        }
+        }
+    }
+
+    /// This release: SBC Network accounts only, no SBC sign-in.
+    private var networkOnlySignIn: some View {
+        VStack(spacing: 0) {
+            Button {
+                networkAccount = .signIn
+            } label: {
+                Label("Se connecter", systemImage: "arrow.right.to.line")
+            }
+            .buttonStyle(FilledButtonStyle(minHeight: 52))
+            .padding(.top, 36)
+
+            Button {
+                networkAccount = .create
+            } label: {
+                Label("Créer un compte", systemImage: "person.badge.plus")
+            }
+            .buttonStyle(.outlined)
+            .padding(.top, 12)
+        }
+    }
+
+    /// SBC sign-in first, SBC Network accounts below it.
+    private var sbcSignIn: some View {
+        VStack(spacing: 0) {
                 Group {
                     if auth.isExchangingCode || busy {
                         ProgressView()
@@ -85,18 +129,6 @@ struct LoginView: View {
                     Button("Créer mon compte sur SBC") { Task { await signUpOnSBC() } }
                         .buttonStyle(.text)
                 }
-            }
-            .padding(28)
-            .frame(maxWidth: 480)
-            .frame(maxWidth: .infinity)
-            .containerRelativeFrame(.vertical, alignment: .center) { length, _ in length }
-        }
-        .scrollBounceBehavior(.basedOnSize)
-        .background(SBCColors.background)
-        .toolbar(.hidden, for: .navigationBar)
-        .navigationDestination(item: $networkAccount) { route in
-            NetworkAccountView(create: route == .create)
-        }
         }
     }
 

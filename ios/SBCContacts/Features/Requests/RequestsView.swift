@@ -11,11 +11,14 @@ struct RequestsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Picker("Côté", selection: $side) {
-                    Text("Mes demandes").tag(Side.mine)
-                    Text("Reçues").tag(Side.received)
+                // "Reçues" is the pro side, and becoming a pro takes an SBC account.
+                if AppConfig.sbcLoginEnabled {
+                    Picker("Côté", selection: $side) {
+                        Text("Mes demandes").tag(Side.mine)
+                        Text("Reçues").tag(Side.received)
+                    }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
 
                 switch side {
                 case .mine: MineList()
