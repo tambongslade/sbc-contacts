@@ -31,10 +31,11 @@ struct LoginView: View {
                     .frame(width: 120, height: 4)
                     .padding(.top, 16)
 
+                networkSignIn
+
+                // SBC sign-in comes back, under the SBC Network accounts.
                 if AppConfig.sbcLoginEnabled {
                     sbcSignIn
-                } else {
-                    networkOnlySignIn
                 }
             }
             .padding(28)
@@ -51,8 +52,8 @@ struct LoginView: View {
         }
     }
 
-    /// This release: SBC Network accounts only, no SBC sign-in.
-    private var networkOnlySignIn: some View {
+    /// SBC Network accounts, the main way in.
+    private var networkSignIn: some View {
         VStack(spacing: 0) {
             Button {
                 networkAccount = .signIn
@@ -61,6 +62,7 @@ struct LoginView: View {
             }
             .buttonStyle(FilledButtonStyle(minHeight: 52))
             .padding(.top, 36)
+            .disabled(auth.isExchangingCode || busy)
 
             Button {
                 networkAccount = .create
@@ -69,66 +71,52 @@ struct LoginView: View {
             }
             .buttonStyle(.outlined)
             .padding(.top, 12)
+            .disabled(auth.isExchangingCode || busy)
         }
     }
 
-    /// SBC sign-in first, SBC Network accounts below it.
+    /// "Se connecter avec SBC", below the SBC Network buttons.
     private var sbcSignIn: some View {
         VStack(spacing: 0) {
-                Group {
-                    if auth.isExchangingCode || busy {
-                        ProgressView()
-                            .controlSize(.large)
-                            .frame(height: 52)
-                    } else {
-                        Button {
-                            Task { await startSSO() }
-                        } label: {
-                            Label("Se connecter avec SBC", systemImage: "arrow.right.to.line")
-                        }
-                        .buttonStyle(FilledButtonStyle(minHeight: 52))
-                    }
-                }
-                .padding(.top, 36)
+            HStack(spacing: 12) {
+                Rectangle().fill(SBCColors.outlineVariant).frame(height: 1)
+                Text("ou avec SBC")
+                    .font(.sbc(.bodySmall))
+                    .foregroundStyle(SBCColors.onSurfaceVariant)
+                    .fixedSize()
+                Rectangle().fill(SBCColors.outlineVariant).frame(height: 1)
+            }
+            .padding(.top, 24)
 
-                if let error = auth.loginError {
-                    Text(loginErrorMessage(error))
-                        .font(.sbc(.bodyMedium))
-                        .foregroundStyle(SBCColors.error)
-                        .multilineTextAlignment(.center)
-                        .padding(.top, 12)
-                }
-
-                if !(auth.isExchangingCode || busy) {
-                    HStack(spacing: 12) {
-                        Rectangle().fill(SBCColors.outlineVariant).frame(height: 1)
-                        Text("ou avec SBC Network")
-                            .font(.sbc(.bodySmall))
-                            .foregroundStyle(SBCColors.onSurfaceVariant)
-                            .fixedSize()
-                        Rectangle().fill(SBCColors.outlineVariant).frame(height: 1)
-                    }
-                    .padding(.top, 24)
-
+            Group {
+                if auth.isExchangingCode || busy {
+                    ProgressView()
+                        .controlSize(.large)
+                        .frame(height: 52)
+                } else {
                     Button {
-                        networkAccount = .create
+                        Task { await startSSO() }
                     } label: {
-                        Label("Créer un compte SBC Network", systemImage: "person.badge.plus")
+                        Label("Se connecter avec SBC", systemImage: "arrow.right.to.line")
                     }
                     .buttonStyle(.outlined)
-                    .padding(.top, 16)
-
-                    Button("J'ai un compte SBC Network") { networkAccount = .signIn }
-                        .buttonStyle(.text)
-                        .padding(.top, 4)
-
-                    Text("Tu veux plutôt un compte SBC ?")
-                        .font(.sbc(.bodySmall))
-                        .foregroundStyle(SBCColors.onSurfaceVariant)
-                        .padding(.top, 12)
-                    Button("Créer mon compte sur SBC") { Task { await signUpOnSBC() } }
-                        .buttonStyle(.text)
                 }
+            }
+            .padding(.top, 16)
+
+            if let error = auth.loginError {
+                Text(loginErrorMessage(error))
+                    .font(.sbc(.bodyMedium))
+                    .foregroundStyle(SBCColors.error)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 12)
+            }
+
+            if !(auth.isExchangingCode || busy) {
+                Button("Créer mon compte sur SBC") { Task { await signUpOnSBC() } }
+                    .buttonStyle(.text)
+                    .padding(.top, 4)
+            }
         }
     }
 

@@ -18,11 +18,10 @@ enum AppConfig {
         return URL(string: defaultAPIBaseURL)!
     }
 
-    /// Off for this release: sign-in is SBC Network only, and every screen
-    /// that only an SBC account unlocks (directory, favourites, "Qui m'a
-    /// enregistré", becoming a pro) is hidden instead of showing a paywall.
-    /// Turn back on to restore "Se connecter avec SBC" and those screens.
-    static let sbcLoginEnabled = false
+    /// "Se connecter avec SBC" (shown under the SBC Network buttons) and every
+    /// screen only an SBC account unlocks: directory, favourites, "Qui m'a
+    /// enregistré", becoming a pro. Off hides them all.
+    static let sbcLoginEnabled = true
 
     /// SBC "Log in with SBC" authorize URL + client params (frontend side).
     static let ssoAuthorizeURL = URL(string: "https://sniperbuisnesscenter.com/sso/authorize")!
