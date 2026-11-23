@@ -26,3 +26,6 @@ coverage/
 
 # prisma
 prisma/*.db
+
+# Push notification keys (APNs .p8, Firebase service account): never commit
+keys/
