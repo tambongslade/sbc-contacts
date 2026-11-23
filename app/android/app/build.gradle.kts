@@ -16,6 +16,15 @@ val keystoreProperties = Properties().apply {
 }
 val hasUploadKey = keystoreProperties.getProperty("storeFile") != null
 
+// Push notifications need the Firebase project's google-services.json. Without
+// it the app still builds and runs, with push switched off (Dart side catches
+// the failed Firebase init).
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+} else {
+    logger.warn("google-services.json missing: building without push notifications")
+}
+
 android {
     namespace = "com.sbc.sbc_contacts"
     compileSdk = 37

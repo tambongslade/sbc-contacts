@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- SBC blue (SbcColors.primary), tints the push icon and app name. -->
+    <color name="notification_accent">#FF1862F0</color>
+</resources>

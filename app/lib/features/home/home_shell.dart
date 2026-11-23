@@ -7,6 +7,7 @@ import 'package:sbc_contacts/features/auth/presentation/account_screen.dart';
 import 'package:sbc_contacts/features/contacts/contacts_permission_gate.dart';
 import 'package:sbc_contacts/features/directory/presentation/search_screen.dart';
 import 'package:sbc_contacts/features/notifications/application/notifications_controller.dart';
+import 'package:sbc_contacts/features/notifications/application/push_service.dart';
 import 'package:sbc_contacts/features/notifications/presentation/notifications_screen.dart';
 import 'package:sbc_contacts/features/auth/application/auth_controller.dart';
 import 'package:sbc_contacts/features/requests/application/requests_controllers.dart';
@@ -22,8 +23,6 @@ class HomeShell extends ConsumerStatefulWidget {
 }
 
 class _HomeShellState extends ConsumerState<HomeShell> {
-  int _index = 0;
-
   /// A pro's position follows the phone while the app is in use (foreground only).
   late final AppLifecycleListener _lifecycle;
 
@@ -42,6 +41,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       await ContactsPermissionGate.ensure(context, ref);
+      // Then notifications, one system dialog at a time.
+      await ref.read(pushServiceProvider).start();
+      if (!mounted) return;
       // After login, and once the contacts prompt is out of the way: invite a
       // member who is not a pro, or tell a pro what is missing.
       await _promptProIfDue();
@@ -80,18 +82,19 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    final index = ref.watch(homeTabProvider);
     final unread = ref.watch(unreadCountProvider).value ?? 0;
     final unopened = ref.watch(unopenedCountProvider);
     return Scaffold(
       // The bar floats over the content rather than sitting in a docked strip,
       // so the list visibly continues underneath it.
       extendBody: true,
-      body: IndexedStack(index: _index, children: _screens),
+      body: IndexedStack(index: index, children: _screens),
       bottomNavigationBar: _FloatingNavBar(
-        index: _index,
+        index: index,
         unread: unread,
         unopened: unopened,
-        onSelect: (i) => setState(() => _index = i),
+        onSelect: ref.read(homeTabProvider.notifier).select,
       ),
     );
   }
@@ -216,11 +219,7 @@ class _NavItem extends StatelessWidget {
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Icon(
-                    icon,
-                    size: 23,
-                    color: selected ? active : muted,
-                  ),
+                  child: Icon(icon, size: 23, color: selected ? active : muted),
                 ),
                 if (dot)
                   Positioned(

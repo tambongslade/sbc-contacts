@@ -71,6 +71,8 @@ final class AuthStore {
     }
 
     func logout() async {
+        // While the session still authorizes the call: stop this phone's pushes.
+        await PushCenter.shared.signOut()
         await repo.logout()
         loginError = nil
         phase = .signedOut

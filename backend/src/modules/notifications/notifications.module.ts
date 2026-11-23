@@ -4,6 +4,7 @@ import { NotificationsController } from './notifications.controller';
 import { NotificationsProcessor } from './notifications.processor';
 import { NotificationsService } from './notifications.service';
 import { NOTIFICATION_PROVIDERS } from './providers/notification-provider.interface';
+import { ApnsProvider } from './providers/apns.provider';
 import { PushProvider } from './providers/push.provider';
 
 /**
@@ -18,10 +19,11 @@ import { PushProvider } from './providers/push.provider';
     DevicesService,
     NotificationsProcessor,
     PushProvider,
+    ApnsProvider,
     {
       provide: NOTIFICATION_PROVIDERS,
-      useFactory: (push: PushProvider) => [push],
-      inject: [PushProvider],
+      useFactory: (push: PushProvider, apns: ApnsProvider) => [push, apns],
+      inject: [PushProvider, ApnsProvider],
     },
   ],
   exports: [NotificationsService],

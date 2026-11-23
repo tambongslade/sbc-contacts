@@ -8,17 +8,25 @@ class AppNotification {
     required this.createdAt,
     this.readAt,
     this.data = const {},
+    this.link,
   });
 
-  factory AppNotification.fromJson(Map<String, dynamic> json) => AppNotification(
+  factory AppNotification.fromJson(Map<String, dynamic> json) =>
+      AppNotification(
         id: (json['id'] ?? '').toString(),
         type: (json['type'] ?? '').toString(),
         title: (json['title'] ?? '').toString(),
         body: (json['body'] ?? '').toString(),
         createdAt:
-            DateTime.tryParse((json['createdAt'] ?? '').toString()) ?? DateTime(2020),
-        readAt: json['readAt'] == null ? null : DateTime.tryParse(json['readAt'].toString()),
+            DateTime.tryParse((json['createdAt'] ?? '').toString()) ??
+            DateTime(2020),
+        readAt: json['readAt'] == null
+            ? null
+            : DateTime.tryParse(json['readAt'].toString()),
         data: (json['data'] as Map<String, dynamic>?) ?? const {},
+        link: (json['link'] as String?)?.trim().isEmpty ?? true
+            ? null
+            : (json['link'] as String).trim(),
       );
 
   final String id;
@@ -28,6 +36,9 @@ class AppNotification {
   final DateTime createdAt;
   final DateTime? readAt;
   final Map<String, dynamic> data;
+
+  /// App path (go_router location) a tap opens; null when there is none.
+  final String? link;
 
   bool get isRead => readAt != null;
 }

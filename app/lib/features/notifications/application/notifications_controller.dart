@@ -26,8 +26,8 @@ class NotificationsController extends AsyncNotifier<List<AppNotification>> {
 
 final notificationsControllerProvider =
     AsyncNotifierProvider<NotificationsController, List<AppNotification>>(
-  NotificationsController.new,
-);
+      NotificationsController.new,
+    );
 
 final unreadCountProvider = FutureProvider<int>(
   (ref) => ref.watch(notificationsRepositoryProvider).unreadCount(),

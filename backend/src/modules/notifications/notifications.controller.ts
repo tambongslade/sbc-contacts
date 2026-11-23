@@ -10,7 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Device, Notification } from '@prisma/client';
+import { Device } from '@prisma/client';
 import {
   AuthenticatedUser,
   CurrentUser,
@@ -18,7 +18,7 @@ import {
 import { PaginatedResult } from '../../common/dto/pagination.dto';
 import { DevicesService } from './devices.service';
 import { NotificationsQueryDto, RegisterDeviceDto } from './dto/notifications.dto';
-import { NotificationsService } from './notifications.service';
+import { NotificationView, NotificationsService } from './notifications.service';
 
 @ApiTags('notifications')
 @ApiBearerAuth()
@@ -34,7 +34,7 @@ export class NotificationsController {
   list(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: NotificationsQueryDto,
-  ): Promise<PaginatedResult<Notification>> {
+  ): Promise<PaginatedResult<NotificationView>> {
     return this.notifications.list(user.userId, query, query.unreadOnly ?? false);
   }
 

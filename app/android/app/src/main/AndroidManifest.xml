@@ -17,10 +17,23 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
 
+    <!-- Push notifications (Android 13+ asks for this at runtime). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
     <application
         android:label="SBC Network"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- Pushes land in the "Alertes" channel MainActivity creates. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="sbc_alerts"/>
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification"/>
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_accent"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"

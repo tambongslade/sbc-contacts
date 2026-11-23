@@ -45,6 +45,15 @@ enum DemoMode {
         return args[i + 1].lowercased()
     }
 
+    /// `-push-link /inbox/r1`: behave as if a notification with that link had
+    /// just been tapped, so the routing can be checked without a real push
+    /// (the simulator's banners cannot be tapped from a script).
+    static var pushLink: String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-push-link"), args.indices.contains(i + 1) else { return nil }
+        return args[i + 1]
+    }
+
     /// The `-route` value as a navigation path, empty when none was given.
     static func initialPath() -> NavigationPath {
         var path = NavigationPath()

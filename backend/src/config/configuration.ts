@@ -72,6 +72,14 @@ export const configuration = (env: EnvironmentVariables) => ({
     // Private keys are usually stored with literal "\n" — unescape them here.
     privateKey: env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
   },
+  apns: {
+    keyId: env.APNS_KEY_ID,
+    teamId: env.APNS_TEAM_ID,
+    key: env.APNS_KEY.replace(/\\n/g, '\n'),
+    keyPath: env.APNS_KEY_PATH,
+    bundleId: env.APNS_BUNDLE_ID,
+    production: env.APNS_PRODUCTION,
+  },
 });
 
 export type AppConfiguration = ReturnType<typeof configuration>;

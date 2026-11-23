@@ -28,6 +28,8 @@ struct HomeShell: View {
     /// screen be opened straight from the command line.
     @State private var searchPath = NavigationPath()
     @State private var syncPath = NavigationPath()
+    /// Where a tapped notification opens its screen, above the list of alerts.
+    @State private var alertsPath = NavigationPath()
     @State private var directory: DirectoryStore
     @State private var favorites: FavoritesStore
     @State private var sync: SyncStore
@@ -39,8 +41,11 @@ struct HomeShell: View {
     @State private var proLocation: ProLocationReporter
     @Environment(AuthStore.self) private var auth
     @Environment(\.scenePhase) private var scenePhase
+    private let push = PushCenter.shared
+    private let notificationsRepo: NotificationsRepository
 
     init(services: AppServices) {
+        notificationsRepo = services.notifications
         _directory = State(initialValue: DirectoryStore(repo: services.directory))
         _favorites = State(initialValue: FavoritesStore(repo: services.favorites))
         _sync = State(initialValue: SyncStore(repo: services.sync))
@@ -78,7 +83,9 @@ struct HomeShell: View {
                 .badge(requests.unopenedCount)
                 .tag(Tab.requests)
 
-            NavigationStack { NotificationsView(store: notifications).appRoutes() }
+            NavigationStack(path: $alertsPath) {
+                NotificationsView(store: notifications) { alertsPath.append($0) }.appRoutes()
+            }
                 .tabItem { Label("Alertes", systemImage: "bell") }
                 .badge(notifications.unreadCount)
                 .tag(Tab.notifications)
@@ -95,9 +102,13 @@ struct HomeShell: View {
         .environment(proLocation)
         // Ask for contacts access once the shell is on screen, so the member
         // sees the app behind the explanation rather than a bare system dialog.
+        // Then for notifications, one system dialog at a time.
         .contactsPermissionGate {
-            contactsSettled = true
-            inviteToBecomeProIfDue()
+            Task {
+                await push.start(repo: notificationsRepo)
+                contactsSettled = true
+                inviteToBecomeProIfDue()
+            }
         }
         // After login: a member who is not a pro is invited to become one, a
         // pro with an incomplete setup is told what is missing.
@@ -105,6 +116,17 @@ struct HomeShell: View {
             ProOnboardingFlow(kind: kind).environment(requests).environment(auth)
         }
         .task { await notifications.refreshUnreadCount() }
+        // A tapped notification, including the one that launched the app.
+        .task { openTappedNotification() }
+        .onChange(of: push.pendingTap) { openTappedNotification() }
+        // A push while the app is open: the badge and the list catch up.
+        .onChange(of: push.arrivals) {
+            Task {
+                await notifications.refreshUnreadCount()
+                await notifications.load()
+            }
+        }
+        .onChange(of: notifications.unreadCount) { _, count in push.setBadge(count) }
         .task { await regions.loadIfNeeded() }
         .task {
             await requests.load()
@@ -112,8 +134,22 @@ struct HomeShell: View {
             await reportProLocation()
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await reportProLocation() } }
+            if phase == .active {
+                Task { await reportProLocation() }
+                Task { await notifications.refreshUnreadCount() }
+            }
         }
+    }
+
+    /// Opens the screen a tapped notification points to, on the Alertes tab so
+    /// Back lands on the list of alerts.
+    private func openTappedNotification() {
+        guard let tap = push.consumeTap() else { return }
+        var path = NavigationPath()
+        if let route = PushCenter.route(for: tap.link) { path.append(route) }
+        tab = .notifications
+        alertsPath = path
+        Task { await notifications.load() }
     }
 
     /// A pro's position, so requests close by reach them first.

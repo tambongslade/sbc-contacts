@@ -4,6 +4,7 @@ import { Job } from 'bullmq';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { QUEUE_NAMES } from '../../infrastructure/queue/queue.module';
 import { DevicesService } from './devices.service';
+import { notificationLink } from './routing/notification-link';
 import {
   NOTIFICATION_PROVIDERS,
   NotificationProvider,
@@ -32,14 +33,22 @@ export class NotificationsProcessor extends WorkerHost {
     });
     if (!notification) return;
 
-    const deviceTokens = await this.devices.pushTokens(notification.userId);
+    const [targets, badge] = await Promise.all([
+      this.devices.pushTargets(notification.userId),
+      this.prisma.notification.count({ where: { userId: notification.userId, readAt: null } }),
+    ]);
+    const data = (notification.data as Record<string, unknown>) ?? undefined;
     const payload = {
       userId: notification.userId,
+      notificationId: notification.id,
       type: notification.type,
       title: notification.title,
       body: notification.body,
-      data: (notification.data as Record<string, unknown>) ?? undefined,
-      deviceTokens,
+      data,
+      link: notificationLink(notification.type, data),
+      badge,
+      deviceTokens: targets.fcm,
+      apnsTokens: targets.apns,
     };
 
     await Promise.all(

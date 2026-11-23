@@ -186,6 +186,36 @@ export class EnvironmentVariables {
   @IsOptional()
   FIREBASE_PRIVATE_KEY = '';
 
+  // --- Apple Push Notification service (native iOS app) ---
+  // Optional like FCM: without a key the APNs provider logs instead of sending.
+  // The key is the .p8 "APNs Auth Key" from developer.apple.com, given either
+  // inline (APNS_KEY, "\n" escaped) or as a file path (APNS_KEY_PATH).
+  @IsString()
+  @IsOptional()
+  APNS_KEY_ID = '';
+
+  @IsString()
+  @IsOptional()
+  APNS_TEAM_ID = '';
+
+  @IsString()
+  @IsOptional()
+  APNS_KEY = '';
+
+  @IsString()
+  @IsOptional()
+  APNS_KEY_PATH = '';
+
+  @IsString()
+  @IsOptional()
+  APNS_BUNDLE_ID = 'com.sbc.sbcContacts';
+
+  // TestFlight and App Store builds use production APNs; only a debug build
+  // run from Xcode needs the sandbox (false).
+  @IsBoolean()
+  @Transform(toBool)
+  APNS_PRODUCTION = true;
+
   // --- Throttling ---
   @IsInt()
   @Transform(({ value }) => parseInt(value as string, 10))

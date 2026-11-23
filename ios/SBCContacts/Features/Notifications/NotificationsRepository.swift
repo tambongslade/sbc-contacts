@@ -14,13 +14,15 @@ struct AppNotification: Identifiable, Sendable, Equatable {
     /// person without first asking the backend who they are.
     var memberSbcId: String?
     var criteriaId: String?
+    /// App path a tap opens (see `PushCenter.route(for:)`); nil = nowhere more specific.
+    var link: String?
 
     var isRead: Bool { readAt != nil }
 }
 
 extension AppNotification: Decodable {
     private enum CodingKeys: String, CodingKey {
-        case id, type, title, body, createdAt, readAt, data
+        case id, type, title, body, createdAt, readAt, data, link
     }
 
     /// Keys inside the free-form `data` object the backend attaches.
@@ -36,6 +38,7 @@ extension AppNotification: Decodable {
         body = c.string(.body) ?? ""
         createdAt = c.date(.createdAt) ?? Date(timeIntervalSince1970: 1_577_836_800)
         readAt = c.date(.readAt)
+        link = c.string(.link)
         // Absent on notification types that carry no member, and absent on
         // older rows written before the payload existed — hence optional, never
         // a decoding failure.
@@ -85,7 +88,19 @@ struct NotificationsRepository: Sendable {
         try await api.post("/notifications/read-all")
     }
 
-    func registerDevice(platform: String, pushToken: String?) async throws {
-        try await api.post("/notifications/devices", body: DeviceBody(platform: platform, pushToken: pushToken))
+    private struct Device: Decodable, Sendable {
+        let id: String?
+    }
+
+    /// Returns the backend's device id, needed to unregister on sign-out.
+    func registerDevice(platform: String, pushToken: String?) async throws -> String? {
+        let device: Device = try await api.post(
+            "/notifications/devices", body: DeviceBody(platform: platform, pushToken: pushToken)
+        )
+        return device.id
+    }
+
+    func removeDevice(id: String) async throws {
+        try await api.delete("/notifications/devices/\(id)")
     }
 }

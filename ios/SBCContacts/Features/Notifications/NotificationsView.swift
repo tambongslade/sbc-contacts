@@ -2,6 +2,8 @@ import SwiftUI
 
 struct NotificationsView: View {
     let store: NotificationsStore
+    /// Pushes the screen an alert is about.
+    var open: (AppRoute) -> Void = { _ in }
 
     var body: some View {
         content
@@ -36,6 +38,7 @@ struct NotificationsView: View {
             List(items) { item in
                 NotificationRow(notification: item) {
                     Task { await store.markRead(item) }
+                    if let route = PushCenter.route(for: item.link) { open(route) }
                 }
                 .listRowBackground(SBCColors.surface)
             }
@@ -113,7 +116,7 @@ private struct NotificationRow: View {
         .padding(.vertical, 6)
         .contentShape(Rectangle())
         .onTapGesture(perform: onRead)
-        .accessibilityHint(notification.isRead ? "" : "Marquer comme lue")
+        .accessibilityHint(PushCenter.route(for: notification.link) != nil ? "Ouvrir" : notification.isRead ? "" : "Marquer comme lue")
     }
 
     /// Saves the matched member straight from the alert. The notification only

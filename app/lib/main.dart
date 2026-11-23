@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -7,6 +9,7 @@ import 'package:sbc_contacts/core/config/app_config.dart';
 import 'package:sbc_contacts/core/storage/token_storage.dart';
 import 'package:sbc_contacts/core/theme/app_theme.dart';
 import 'package:sbc_contacts/features/auth/application/sso_link_handler.dart';
+import 'package:sbc_contacts/features/notifications/application/push_service.dart';
 import 'package:sbc_contacts/router/app_router.dart';
 
 void main() async {
@@ -35,6 +38,8 @@ class _SbcContactsAppState extends ConsumerState<SbcContactsApp> {
     super.initState();
     // Start listening for the SSO deep-link redirect.
     ref.read(ssoLinkHandlerProvider).init();
+    // Push notifications, early enough to catch the tap that launched the app.
+    unawaited(ref.read(pushServiceProvider).init());
   }
 
   @override
@@ -57,6 +62,7 @@ class _SbcContactsAppState extends ConsumerState<SbcContactsApp> {
         GlobalCupertinoLocalizations.delegate,
       ],
       routerConfig: router,
+      scaffoldMessengerKey: scaffoldMessengerKey,
     );
   }
 }

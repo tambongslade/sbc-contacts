@@ -2,12 +2,14 @@ import SwiftUI
 
 @main
 struct SBCContactsApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     private let services: AppServices
     @State private var auth: AuthStore
     @State private var toasts = ToastCenter()
 
     init() {
         #if DEBUG
+        if let link = DemoMode.pushLink { PushCenter.shared.tapped(link: link) }
         let services = if DemoMode.isEnabled {
             AppServices(storage: InMemoryTokenStorage(access: "demo", refresh: "demo"), session: DemoMode.session())
         } else if let local = DemoMode.localSession {

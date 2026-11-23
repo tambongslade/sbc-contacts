@@ -14,6 +14,8 @@ enum AppRoute: Hashable {
     case requestReview(ServiceRequestItem)
     case request(id: String)
     case inbox(InboxItem)
+    /// A pro's request opened from a notification, which carries only its id.
+    case inboxRequest(id: String)
     case proSpace
     case proProfileForm
     case proAddServices
@@ -58,6 +60,8 @@ extension View {
                 RequestDetailView(requestId: id)
             case let .inbox(item):
                 InboxDetailView(item: item)
+            case let .inboxRequest(id):
+                InboxRequestLoader(requestId: id)
             case .proSpace:
                 ProSpaceView()
             case .proProfileForm:

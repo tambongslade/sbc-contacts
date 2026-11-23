@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/core/theme/app_theme.dart';
@@ -12,15 +15,15 @@ class NotificationsScreen extends ConsumerWidget {
   const NotificationsScreen({super.key});
 
   IconData _iconFor(String type) => switch (type) {
-        'NEW_MATCH' => Icons.person_add_alt_1,
-        'NEW_CORRESPONDENCE' => Icons.group_add,
-        'SYNC_AVAILABLE' => Icons.sync,
-        'SYNC_ERROR' => Icons.sync_problem,
-        // "Quelqu'un t'a enregistré" (§21) — a person acting on you, which is
-        // why it gets the badge icon rather than the sync one.
-        'CONTACT_SAVED' => Icons.how_to_reg_rounded,
-        _ => Icons.notifications,
-      };
+    'NEW_MATCH' => Icons.person_add_alt_1,
+    'NEW_CORRESPONDENCE' => Icons.group_add,
+    'SYNC_AVAILABLE' => Icons.sync,
+    'SYNC_ERROR' => Icons.sync_problem,
+    // "Quelqu'un t'a enregistré" (§21) — a person acting on you, which is
+    // why it gets the badge icon rather than the sync one.
+    'CONTACT_SAVED' => Icons.how_to_reg_rounded,
+    _ => Icons.notifications,
+  };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -30,27 +33,33 @@ class NotificationsScreen extends ConsumerWidget {
         title: const Text('Notifications'),
         actions: [
           TextButton(
-            onPressed: () =>
-                ref.read(notificationsControllerProvider.notifier).markAllRead(),
+            onPressed: () => ref
+                .read(notificationsControllerProvider.notifier)
+                .markAllRead(),
             child: const Text('Tout lire'),
           ),
         ],
       ),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) =>
-            EmptyState(icon: Icons.error_outline, title: 'Erreur', message: e.toString()),
+        error: (e, _) => EmptyState(
+          icon: Icons.error_outline,
+          title: 'Erreur',
+          message: e.toString(),
+        ),
         data: (items) {
           if (items.isEmpty) {
             return const EmptyState(
               icon: Icons.notifications_none,
               title: 'Aucune notification',
-              message: 'Tu seras notifié quand un membre enregistre ton contact, et des '
-                    'nouveaux membres correspondant à tes critères.',
+              message:
+                  'Tu seras notifié quand un membre enregistre ton contact, et des '
+                  'nouveaux membres correspondant à tes critères.',
             );
           }
           return RefreshIndicator(
-            onRefresh: () async => ref.invalidate(notificationsControllerProvider),
+            onRefresh: () async =>
+                ref.invalidate(notificationsControllerProvider),
             child: ListView.separated(
               padding: EdgeInsets.only(bottom: AppTheme.navInsetOf(context)),
               itemCount: items.length,
@@ -70,12 +79,18 @@ class NotificationsScreen extends ConsumerWidget {
         backgroundColor: n.isRead
             ? theme.colorScheme.surfaceContainerHighest
             : theme.colorScheme.primary.withValues(alpha: 0.15),
-        child: Icon(_iconFor(n.type),
-            color: n.isRead ? theme.colorScheme.onSurfaceVariant : theme.colorScheme.primary),
+        child: Icon(
+          _iconFor(n.type),
+          color: n.isRead
+              ? theme.colorScheme.onSurfaceVariant
+              : theme.colorScheme.primary,
+        ),
       ),
       title: Text(
         n.title,
-        style: TextStyle(fontWeight: n.isRead ? FontWeight.w400 : FontWeight.w700),
+        style: TextStyle(
+          fontWeight: n.isRead ? FontWeight.w400 : FontWeight.w700,
+        ),
       ),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,9 +114,17 @@ class NotificationsScreen extends ConsumerWidget {
         DateFormat('dd/MM HH:mm').format(n.createdAt.toLocal()),
         style: theme.textTheme.labelSmall,
       ),
-      onTap: n.isRead
-          ? null
-          : () => ref.read(notificationsControllerProvider.notifier).markRead(n.id),
+      onTap: () {
+        if (!n.isRead) {
+          unawaited(
+            ref.read(notificationsControllerProvider.notifier).markRead(n.id),
+          );
+        }
+        // The screen the alert is about: the request, the member, who saved me.
+        if (n.link case final link?) {
+          unawaited(context.push(link));
+        }
+      },
     );
   }
 
@@ -136,8 +159,9 @@ class _SaveMatchButtonState extends ConsumerState<_SaveMatchButton> {
     setState(() => _busy = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final member =
-          await ref.read(directoryRepositoryProvider).profile(widget.sbcId);
+      final member = await ref
+          .read(directoryRepositoryProvider)
+          .profile(widget.sbcId);
       if (!mounted) return;
       await addMemberToPhone(context, ref, member);
       if (mounted) setState(() => _saved = true);
@@ -154,7 +178,10 @@ class _SaveMatchButtonState extends ConsumerState<_SaveMatchButton> {
       onPressed: _busy || _saved ? null : _save,
       icon: _busy
           ? const SizedBox(
-              width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
           : Icon(_saved ? Icons.check : Icons.person_add_alt_1, size: 18),
       label: Text(_saved ? 'Enregistré' : 'Enregistrer'),
     );

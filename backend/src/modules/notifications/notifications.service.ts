@@ -5,6 +5,10 @@ import { Queue } from 'bullmq';
 import { PaginatedResult, PaginationQueryDto, paginate } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { QUEUE_NAMES } from '../../infrastructure/queue/queue.module';
+import { notificationLink } from './routing/notification-link';
+
+/** A listed notification, with the app path a tap on it opens. */
+export type NotificationView = Notification & { link: string | null };
 
 export interface CreateNotificationInput {
   userId: string;
@@ -105,7 +109,7 @@ export class NotificationsService {
     userId: string,
     pagination: PaginationQueryDto,
     unreadOnly = false,
-  ): Promise<PaginatedResult<Notification>> {
+  ): Promise<PaginatedResult<NotificationView>> {
     const where = { userId, ...(unreadOnly ? { readAt: null } : {}) };
     return this.prisma
       .$transaction([
@@ -117,7 +121,17 @@ export class NotificationsService {
         }),
         this.prisma.notification.count({ where }),
       ])
-      .then(([items, total]) => paginate(items, total, pagination.page, pagination.limit));
+      .then(([items, total]) =>
+        paginate(
+          items.map((n) => ({
+            ...n,
+            link: notificationLink(n.type, n.data as Record<string, unknown> | null),
+          })),
+          total,
+          pagination.page,
+          pagination.limit,
+        ),
+      );
   }
 
   unreadCount(userId: string): Promise<number> {

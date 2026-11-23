@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/features/auth/domain/app_user.dart';
+import 'package:sbc_contacts/features/notifications/application/push_service.dart';
 
 /// Holds the authenticated user (null = signed out). On build it tries to
 /// restore a session from the stored token by calling `/auth/me`.
@@ -22,7 +23,9 @@ class AuthController extends AsyncNotifier<AppUser?> {
   Future<void> loginWithCode(String code, {String? deviceId}) async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(
-      () => ref.read(authRepositoryProvider).ssoCallback(code, deviceId: deviceId),
+      () => ref
+          .read(authRepositoryProvider)
+          .ssoCallback(code, deviceId: deviceId),
     );
   }
 
@@ -39,7 +42,9 @@ class AuthController extends AsyncNotifier<AppUser?> {
     required String profession,
     required List<String> interests,
   }) async {
-    final user = await ref.read(authRepositoryProvider).register(
+    final user = await ref
+        .read(authRepositoryProvider)
+        .register(
           name: name,
           country: country,
           phoneNumber: phoneNumber,
@@ -59,7 +64,9 @@ class AuthController extends AsyncNotifier<AppUser?> {
     required String phoneNumber,
     required String password,
   }) async {
-    final user = await ref.read(authRepositoryProvider).loginWithPhone(
+    final user = await ref
+        .read(authRepositoryProvider)
+        .loginWithPhone(
           country: country,
           phoneNumber: phoneNumber,
           password: password,
@@ -68,6 +75,8 @@ class AuthController extends AsyncNotifier<AppUser?> {
   }
 
   Future<void> logout() async {
+    // While the session still authorizes the call: stop this phone's pushes.
+    await ref.read(pushServiceProvider).signOut();
     await ref.read(authRepositoryProvider).logout();
     state = const AsyncValue.data(null);
   }
@@ -78,8 +87,9 @@ class AuthController extends AsyncNotifier<AppUser?> {
   }
 }
 
-final authControllerProvider =
-    AsyncNotifierProvider<AuthController, AppUser?>(AuthController.new);
+final authControllerProvider = AsyncNotifierProvider<AuthController, AppUser?>(
+  AuthController.new,
+);
 
 /// Convenience: is a user currently signed in?
 final isAuthenticatedProvider = Provider<bool>((ref) {

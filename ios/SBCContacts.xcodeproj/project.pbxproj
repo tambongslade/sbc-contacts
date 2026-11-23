@@ -250,6 +250,7 @@
 			buildSettings = {
 				API_BASE_URL = "https:/$()/contacts.sniperbusinesscenterlive.com/api/v1";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SBCContacts/SBCContacts.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 24;
 				DEVELOPMENT_TEAM = NWCTBTDXMX;
@@ -283,6 +284,7 @@
 			buildSettings = {
 				API_BASE_URL = "https:/$()/contacts.sniperbusinesscenterlive.com/api/v1";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SBCContacts/SBCContacts.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 24;
 				DEVELOPMENT_TEAM = NWCTBTDXMX;
