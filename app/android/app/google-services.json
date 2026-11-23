@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "617670789154",
+    "project_id": "sbc-network-754c0",
+    "storage_bucket": "sbc-network-754c0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:617670789154:android:1e06fe59d46505e735227b",
+        "android_client_info": {
+          "package_name": "com.sbc.sbc_contacts"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAp9zQzPSaBZKT_Qd0y8Hf3GhB6tUd-RPI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
