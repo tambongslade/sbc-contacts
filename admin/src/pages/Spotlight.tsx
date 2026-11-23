@@ -29,6 +29,7 @@ export function Spotlight() {
   const { data, error, loading, reload } = useLoad(
     () => api<Page<SpotlightRow>>('/spotlight/admin', { query: { search, featured, page, limit: 25 } }),
     [search, featured, page],
+    `spotlight:${featured}:${search}:${page}`,
   );
 
   return (

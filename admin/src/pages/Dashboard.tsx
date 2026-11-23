@@ -1,4 +1,4 @@
-import { AlertTriangle, ClipboardList, Percent, Send, Tags, Users } from 'lucide-react';
+import { AlertTriangle, ClipboardList, CreditCard, Percent, Send, Tags, Users } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { Card, ErrorNote, Loading, PageHeader } from '../components/ui';
 import { api } from '../lib/api';
@@ -9,6 +9,7 @@ import { pct } from '../lib/utils';
 interface Stats {
   requests: { total: number; last30Days: number; byStatus: Record<string, number> };
   pros: { total: number; receiving: number; services: number };
+  subscribers: { pro: number; spotlight: number; total: number };
   dispatches: { total: number; answered: number; selected: number; responseRate: number; conversionRate: number };
   reports: number;
   topServices: Array<{ name: string; count: number }>;
@@ -27,6 +28,7 @@ export function Dashboard() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Kpi icon={ClipboardList} label="Demandes" value={s.requests.total} detail={`${s.requests.last30Days} ces 30 derniers jours`} href="#/requests" />
         <Kpi icon={Users} label="Professionnels" value={s.pros.total} detail={`${s.pros.receiving} avec réception active`} href="#/pros" />
+        <Kpi icon={CreditCard} label="Abonnés" value={s.subscribers.total} detail={`${s.subscribers.pro} Pro · ${s.subscribers.spotlight} mise en avant`} href="#/subscribers" />
         <Kpi icon={Tags} label="Services actifs" value={s.pros.services} href="#/services" />
         <Kpi icon={Send} label="Taux de réponse" value={pct(s.dispatches.responseRate)} detail={`${s.dispatches.answered} réponses sur ${s.dispatches.total} envois`} />
         <Kpi icon={Percent} label="Conversion" value={pct(s.dispatches.conversionRate)} detail={`${s.dispatches.selected} pros retenus`} />

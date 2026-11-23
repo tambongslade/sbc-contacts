@@ -14,6 +14,7 @@ import { RequestDetail } from './pages/RequestDetail';
 import { Requests } from './pages/Requests';
 import { Services } from './pages/Services';
 import { Spotlight } from './pages/Spotlight';
+import { Subscribers } from './pages/Subscribers';
 
 type Session = { state: 'loading' } | { state: 'out'; error?: unknown; denied?: string | null } | { state: 'in'; user: AdminUser };
 
@@ -48,6 +49,7 @@ export function App() {
     switch (section) {
       case 'requests': return id ? <RequestDetail id={id} /> : <Requests />;
       case 'pros': return id ? <ProDetail userId={id} /> : <Pros />;
+      case 'subscribers': return <Subscribers />;
       case 'spotlight': return <Spotlight />;
       case 'services': return <Services />;
       case 'gaps': return <Gaps />;

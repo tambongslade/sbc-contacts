@@ -171,6 +171,23 @@ export class EnvironmentVariables {
   @IsOptional()
   DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
 
+  // --- Voyage AI (SBC Data: embeddings, the Gemini alternative) ---
+  // Anthropic has no embeddings model and recommends Voyage; this is the second
+  // embedding provider. Optional like Gemini: without it (or with the flag off)
+  // SBC Data embeds via Gemini or, if that is off too, matches on keywords
+  // alone. When both embedders are enabled, Voyage is preferred.
+  @IsString()
+  @IsOptional()
+  VOYAGE_API_KEY = '';
+
+  @IsString()
+  @IsOptional()
+  VOYAGE_EMBEDDING_MODEL = 'voyage-3.5';
+
+  @IsBoolean()
+  @Transform(toBool)
+  VOYAGE_EMBEDDINGS_ENABLED = false;
+
   // --- Firebase Cloud Messaging (push delivery) ---
   // All optional: with none set the push provider stays a no-op (logs only),
   // so the app boots and every other channel keeps working without FCM creds.
