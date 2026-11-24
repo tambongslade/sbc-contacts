@@ -64,6 +64,9 @@ struct RequestDetailView: View {
                             .foregroundStyle(SBCColors.onSurfaceVariant)
                     }
                 }
+                if !request.attachments.isEmpty {
+                    AttachmentGallery(attachments: request.attachments)
+                }
                 StatusTimeline(status: request.status)
 
                 switch request.status {
@@ -135,8 +138,8 @@ struct RequestDetailView: View {
                 title: response.status == .question ? "Répondre" : "Écrire à \(response.displayName)",
                 placeholder: "Ton message",
                 hint: "Reste dans l'application pour les détails ; tes coordonnées ne sont pas partagées."
-            ) { text in
-                await write(text, to: response)
+            ) { text, ids in
+                await write(text, ids, to: response)
             }
         }
         .navigationDestination(item: $relaunched) { RequestReviewView(request: $0) }
@@ -184,10 +187,12 @@ struct RequestDetailView: View {
         }
     }
 
-    private func write(_ text: String, to response: RequestResponse) async -> Bool {
+    private func write(_ text: String, _ attachmentIds: [String], to response: RequestResponse) async -> Bool {
         guard let request else { return false }
         do {
-            let updated = try await services.requests.sendMessage(requestId: request.id, dispatchId: response.id, text: text)
+            let updated = try await services.requests.sendMessage(
+                requestId: request.id, dispatchId: response.id, text: text, attachmentIds: attachmentIds
+            )
             self.request = updated
             store.upsert(updated)
             return true
@@ -337,6 +342,10 @@ private struct ResponseCard: View {
                         Fact(label: "Dispo", value: response.availability ?? "—")
                         Fact(label: "Durée", value: response.delay ?? "—")
                     }
+                }
+
+                if !response.attachments.isEmpty {
+                    AttachmentGallery(attachments: response.attachments, tile: 84)
                 }
 
                 if !response.messages.isEmpty {

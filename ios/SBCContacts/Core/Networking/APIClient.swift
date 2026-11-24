@@ -12,7 +12,7 @@ actor APIClient {
         case get = "GET", post = "POST", put = "PUT", patch = "PATCH", delete = "DELETE"
     }
 
-    private let baseURL: URL
+    nonisolated let baseURL: URL
     private let storage: TokenStorage
     private let session: URLSession
     private var refreshing: Task<Bool, Never>?
@@ -63,6 +63,42 @@ actor APIClient {
         _ = try await send(.delete, path)
     }
 
+    // MARK: - Uploads
+
+    /// Multipart upload of one file (field `file`) plus plain form fields.
+    /// Videos run up to 50 MB, hence the long timeout.
+    func upload<T: Decodable & Sendable>(
+        _ path: String,
+        file: Data,
+        fileName: String,
+        mimeType: String,
+        fields: [String: String] = [:]
+    ) async throws -> T {
+        let boundary = "sbc-\(UUID().uuidString)"
+        var body = Data()
+        func line(_ s: String) { body.append(Data(s.utf8)) }
+        for (name, value) in fields.sorted(by: { $0.key < $1.key }) {
+            line("--\(boundary)\r\nContent-Disposition: form-data; name=\"\(name)\"\r\n\r\n\(value)\r\n")
+        }
+        let safeName = fileName.replacingOccurrences(of: "\"", with: "")
+        line("--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"\(safeName)\"\r\n")
+        line("Content-Type: \(mimeType)\r\n\r\n")
+        body.append(file)
+        line("\r\n--\(boundary)--\r\n")
+        return try decode(try await send(
+            .post, path, body: body, timeout: 180,
+            contentType: "multipart/form-data; boundary=\(boundary)"
+        ))
+    }
+
+    /// A signed media path from the server ("/api/v1/media/<id>?exp=…&sig=…")
+    /// as a full URL on the API's host. The signature is the permission: no
+    /// token is sent with it.
+    nonisolated func mediaURL(_ path: String) -> URL? {
+        if let absolute = URL(string: path), absolute.scheme != nil { return absolute }
+        return URL(string: path, relativeTo: baseURL)?.absoluteURL
+    }
+
     // MARK: - Core
 
     /// Performs the request and returns the unwrapped `data` payload as JSON.
@@ -72,12 +108,13 @@ actor APIClient {
         query: [URLQueryItem] = [],
         body: Data? = nil,
         timeout: TimeInterval = 20,
+        contentType: String = "application/json",
         retried: Bool = false
     ) async throws -> Data {
         var request = URLRequest(url: url(for: path, query: query))
         request.httpMethod = method.rawValue
         request.timeoutInterval = timeout
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         // Lets the server apply iOS-only rules (receiving requests is free here).
         request.setValue("ios", forHTTPHeaderField: "X-Client-Platform")
@@ -96,7 +133,9 @@ actor APIClient {
 
         if status == 401, !Self.isAuthPath(path), !retried {
             if await refreshOnce() {
-                return try await send(method, path, query: query, body: body, timeout: timeout, retried: true)
+                return try await send(
+                    method, path, query: query, body: body, timeout: timeout, contentType: contentType, retried: true
+                )
             }
         }
 

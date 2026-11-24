@@ -12,6 +12,7 @@ struct RequestsRepository: Sendable {
         var budget: Int?
         var desiredDate: String?
         var mode: ServiceMode?
+        var attachmentIds: [String]?
     }
 
     /// Corrections to the AI's reading, or an answer to its question.
@@ -75,12 +76,27 @@ struct RequestsRepository: Sendable {
         try await api.delete("/data/requests/\(id)")
     }
 
-    private struct RequesterMessageBody: Encodable, Sendable { let dispatchId: String; let text: String }
-    private struct MessageBody: Encodable, Sendable { let text: String }
+    private struct RequesterMessageBody: Encodable, Sendable {
+        let dispatchId: String
+        let text: String?
+        let attachmentIds: [String]?
+    }
+    private struct MessageBody: Encodable, Sendable {
+        let text: String?
+        let attachmentIds: [String]?
+    }
 
-    /// Answer a pro's question, or write to a pro who answered.
-    func sendMessage(requestId: String, dispatchId: String, text: String) async throws -> ServiceRequestItem {
-        try await api.post("/data/requests/\(requestId)/messages", body: RequesterMessageBody(dispatchId: dispatchId, text: text))
+    /// Answer a pro's question, or write to a pro who answered. Text, attachments, or both.
+    func sendMessage(
+        requestId: String,
+        dispatchId: String,
+        text: String,
+        attachmentIds: [String] = []
+    ) async throws -> ServiceRequestItem {
+        try await api.post(
+            "/data/requests/\(requestId)/messages",
+            body: RequesterMessageBody(dispatchId: dispatchId, text: text.nilIfBlank, attachmentIds: attachmentIds.nilIfEmpty)
+        )
     }
 
     /// "Relancer cette demande": a new draft with the same need.
@@ -98,8 +114,11 @@ struct RequestsRepository: Sendable {
     }
 
     /// The pro writes to the requester in the request conversation.
-    func proSendMessage(requestId: String, text: String) async throws -> InboxItem {
-        try await api.post("/data/pro/inbox/\(requestId)/messages", body: MessageBody(text: text))
+    func proSendMessage(requestId: String, text: String, attachmentIds: [String] = []) async throws -> InboxItem {
+        try await api.post(
+            "/data/pro/inbox/\(requestId)/messages",
+            body: MessageBody(text: text.nilIfBlank, attachmentIds: attachmentIds.nilIfEmpty)
+        )
     }
 
     struct ServiceUpdate: Encodable, Sendable {
@@ -169,6 +188,7 @@ struct RequestsRepository: Sendable {
         var availability: String?
         var delay: String?
         var message: String?
+        var attachmentIds: [String]?
     }
 
     func proSpace() async throws -> ProSpace {
@@ -207,4 +227,9 @@ struct RequestsRepository: Sendable {
     func stats() async throws -> ProStats {
         try await api.get("/data/pro/stats")
     }
+}
+
+extension Array {
+    /// nil rather than [], so an empty list is left out of a request body.
+    var nilIfEmpty: Self? { isEmpty ? nil : self }
 }

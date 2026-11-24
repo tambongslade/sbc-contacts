@@ -28,7 +28,7 @@ struct CriteriaPayloadTests {
         let json = try #require(String(data: JSONEncoder().encode(payload), encoding: .utf8))
         #expect(json.contains("\"ageMin\":null"))
         #expect(json.contains("\"ageMax\":null"))
-        #expect(!json.contains("\"sex\""))
+        #expect(json.contains("\"sex\":null"))
     }
 }
 

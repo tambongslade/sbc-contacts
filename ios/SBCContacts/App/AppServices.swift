@@ -12,6 +12,7 @@ struct AppServices: Sendable {
     let sync: SyncRepository
     let notifications: NotificationsRepository
     let requests: RequestsRepository
+    let media: MediaRepository
 
     init(storage: TokenStorage = KeychainTokenStorage(), baseURL: URL = AppConfig.apiBaseURL, session: URLSession = .shared) {
         let api = APIClient(baseURL: baseURL, storage: storage, session: session)
@@ -24,5 +25,6 @@ struct AppServices: Sendable {
         sync = SyncRepository(api: api)
         notifications = NotificationsRepository(api: api)
         requests = RequestsRepository(api: api)
+        media = MediaRepository(api: api)
     }
 }

@@ -13,15 +13,21 @@ struct ConversationThread: View {
             ForEach(messages) { message in
                 let mine = message.author == me
                 VStack(alignment: mine ? .trailing : .leading, spacing: 2) {
-                    Text(message.text)
-                        .font(.sbc(.bodyMedium))
-                        .foregroundStyle(mine ? .white : SBCColors.onSurface)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(mine ? SBCColors.primary : SBCColors.background)
-                        )
+                    if !message.attachments.isEmpty {
+                        AttachmentGallery(attachments: message.attachments, tile: 108, compact: true)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
+                    if !message.text.isEmpty {
+                        Text(message.text)
+                            .font(.sbc(.bodyMedium))
+                            .foregroundStyle(mine ? .white : SBCColors.onSurface)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(mine ? SBCColors.primary : SBCColors.background)
+                            )
+                    }
                     Text("\(mine ? "Toi" : otherName) · \(message.createdAt.formatted(.relative(presentation: .named)))")
                         .font(.sbc(.labelSmall))
                         .foregroundStyle(SBCColors.onSurfaceVariant)
@@ -34,16 +40,23 @@ struct ConversationThread: View {
 }
 
 /// A short message sheet: answer a question or write to the other side.
+/// Words, photos, videos, a PDF — or any mix.
 struct MessageComposer: View {
     let title: String
     let placeholder: String
     var hint: String?
-    /// Returns true once sent, which closes the sheet.
-    let onSend: (String) async -> Bool
+    /// Text (maybe empty) and the attachment ids; returns true once sent,
+    /// which closes the sheet.
+    let onSend: (String, [String]) async -> Bool
 
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
     @State private var sending = false
+    @State private var draft = AttachmentDraft()
+
+    private var canSend: Bool {
+        !sending && !draft.isBusy && (text.nilIfBlank != nil || !draft.ids.isEmpty)
+    }
 
     var body: some View {
         NavigationStack {
@@ -52,6 +65,10 @@ struct MessageComposer: View {
                     TextField(placeholder, text: $text, axis: .vertical).lineLimit(3...8)
                 } footer: {
                     if let hint { Text(hint) }
+                }
+                Section {
+                    AttachButton(draft: draft, label: "Joindre une photo, une vidéo ou un PDF")
+                    PendingAttachmentsRow(draft: draft)
                 }
             }
             .font(.sbc(.bodyLarge))
@@ -63,15 +80,15 @@ struct MessageComposer: View {
                     Button("Envoyer") {
                         Task {
                             sending = true
-                            let ok = await onSend(text.trimmingCharacters(in: .whitespacesAndNewlines))
+                            let ok = await onSend(text.trimmingCharacters(in: .whitespacesAndNewlines), draft.ids)
                             sending = false
                             if ok { dismiss() }
                         }
                     }
-                    .disabled(text.nilIfBlank == nil || sending)
+                    .disabled(!canSend)
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
     }
 }

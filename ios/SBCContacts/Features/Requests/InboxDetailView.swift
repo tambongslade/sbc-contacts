@@ -37,6 +37,10 @@ struct InboxDetailView: View {
                     .font(.sbc(.bodyLarge))
                     .foregroundStyle(SBCColors.onSurface)
 
+                if !request.attachments.isEmpty {
+                    AttachmentGallery(attachments: request.attachments)
+                }
+
                 RequestPanel(padding: 14) {
                     VStack(spacing: 0) {
                         FactRow(label: "Lieu", value: [request.district, request.city].compactMap { $0 }.joined(separator: ", ").nilIfBlank ?? "Non précisé")
@@ -116,9 +120,9 @@ struct InboxDetailView: View {
             }
         }
         .sheet(isPresented: $writing) {
-            MessageComposer(title: "Écrire au client", placeholder: "Ton message") { text in
+            MessageComposer(title: "Écrire au client", placeholder: "Ton message") { text, ids in
                 do {
-                    item = try await services.requests.proSendMessage(requestId: request.id, text: text)
+                    item = try await services.requests.proSendMessage(requestId: request.id, text: text, attachmentIds: ids)
                     store.upsert(item)
                     return true
                 } catch {
@@ -128,8 +132,8 @@ struct InboxDetailView: View {
             }
         }
         .sheet(isPresented: $asking) {
-            QuestionSheet { question in
-                await respond(.init(action: .question, message: question))
+            QuestionSheet { question, ids in
+                await respond(.init(action: .question, message: question, attachmentIds: ids.nilIfEmpty))
             }
         }
     }
@@ -177,6 +181,9 @@ private struct AnswerSummary: View {
                 if let message = item.message {
                     Text("« \(message) »").font(.sbc(.bodyMedium))
                 }
+                if !item.attachments.isEmpty {
+                    AttachmentGallery(attachments: item.attachments, tile: 84)
+                }
             }
         }
     }
@@ -193,6 +200,7 @@ private struct ProposalSheet: View {
     @State private var delay = ""
     @State private var message = ""
     @State private var sending = false
+    @State private var draft = AttachmentDraft()
 
     var body: some View {
         NavigationStack {
@@ -216,6 +224,14 @@ private struct ProposalSheet: View {
                 Section("Message (facultatif)") {
                     TextField("Précisions pour le client", text: $message, axis: .vertical).lineLimit(3...6)
                 }
+                Section {
+                    AttachButton(draft: draft, label: "Joindre photos, vidéo ou devis PDF")
+                    PendingAttachmentsRow(draft: draft)
+                } header: {
+                    Text("Pièces jointes (facultatif)")
+                } footer: {
+                    Text("Des photos de tes réalisations ou un devis aident le client à choisir.")
+                }
             }
             .font(.sbc(.bodyLarge))
             .navigationTitle("Ta proposition")
@@ -231,13 +247,14 @@ private struct ProposalSheet: View {
                                 price: Int(price.filter(\.isNumber)),
                                 availability: availability.nilIfBlank,
                                 delay: delay.nilIfBlank,
-                                message: message.nilIfBlank
+                                message: message.nilIfBlank,
+                                attachmentIds: draft.ids.nilIfEmpty
                             ))
                             sending = false
                             if ok { dismiss() }
                         }
                     }
-                    .disabled(availability.nilIfBlank == nil || sending)
+                    .disabled(availability.nilIfBlank == nil || sending || draft.isBusy)
                 }
             }
         }
@@ -246,11 +263,12 @@ private struct ProposalSheet: View {
 }
 
 private struct QuestionSheet: View {
-    let onSend: (String) async -> Bool
+    let onSend: (String, [String]) async -> Bool
 
     @Environment(\.dismiss) private var dismiss
     @State private var question = ""
     @State private var sending = false
+    @State private var draft = AttachmentDraft()
 
     var body: some View {
         NavigationStack {
@@ -259,6 +277,10 @@ private struct QuestionSheet: View {
                     TextField("Ex. Les locks sont-elles longues ?", text: $question, axis: .vertical).lineLimit(3...6)
                 } footer: {
                     Text("Le client la voit avec ta réponse.")
+                }
+                Section {
+                    AttachButton(draft: draft, label: "Joindre une photo, une vidéo ou un PDF")
+                    PendingAttachmentsRow(draft: draft)
                 }
             }
             .font(.sbc(.bodyLarge))
@@ -270,16 +292,16 @@ private struct QuestionSheet: View {
                     Button("Envoyer") {
                         Task {
                             sending = true
-                            let ok = await onSend(question.trimmingCharacters(in: .whitespacesAndNewlines))
+                            let ok = await onSend(question.trimmingCharacters(in: .whitespacesAndNewlines), draft.ids)
                             sending = false
                             if ok { dismiss() }
                         }
                     }
-                    .disabled(question.nilIfBlank == nil || sending)
+                    .disabled(question.nilIfBlank == nil || sending || draft.isBusy)
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
     }
 }
 

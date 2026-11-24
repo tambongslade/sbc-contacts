@@ -109,15 +109,17 @@ struct ConversationMessage: Identifiable, Sendable, Equatable, Decodable {
     var id: String
     var author: Author
     var text: String
+    var attachments: [MediaAttachment] = []
     var createdAt: Date
 
-    private enum CodingKeys: String, CodingKey { case id, author, text, createdAt }
+    private enum CodingKeys: String, CodingKey { case id, author, text, attachments, createdAt }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = c.string(.id) ?? UUID().uuidString
         author = Author(rawValue: c.string(.author) ?? "") ?? .pro
         text = c.string(.text) ?? ""
+        attachments = c.attachments(.attachments)
         createdAt = c.date(.createdAt) ?? .now
     }
 }
@@ -145,6 +147,8 @@ struct ServiceRequestItem: Identifiable, Sendable, Hashable {
     var clarificationQuestion: String?
     var clarificationOptions: [String]
     var clarificationAnswer: String?
+    /// Photos, videos or files sent with the need.
+    var attachments: [MediaAttachment] = []
     var createdAt: Date
     var dispatchedCount: Int
     var responses: [RequestResponse]
@@ -202,6 +206,8 @@ struct RequestResponse: Identifiable, Sendable, Equatable {
     var availability: String?
     var delay: String?
     var message: String?
+    /// Photos of past work, a PDF quote: sent with the proposal.
+    var attachments: [MediaAttachment] = []
     var messages: [ConversationMessage] = []
 
     var displayName: String { name?.isEmpty == false ? name! : profession }
@@ -220,6 +226,8 @@ struct InboxItem: Identifiable, Sendable, Hashable {
     var availability: String?
     var delay: String?
     var message: String?
+    /// The pro's own proposal attachments.
+    var attachments: [MediaAttachment] = []
     var createdAt: Date
     var viewedAt: Date?
     var respondedAt: Date?
@@ -361,7 +369,7 @@ extension ServiceRequestItem: Decodable {
     private enum CodingKeys: String, CodingKey {
         case id, rawText, status, profession, service, specialties, city, district, mode, desiredDate,
              desiredTime, budget, constraints, clarificationQuestion, clarificationOptions,
-             clarificationAnswer, createdAt, dispatchedCount, responses
+             clarificationAnswer, attachments, createdAt, dispatchedCount, responses
     }
 
     init(from decoder: Decoder) throws {
@@ -382,6 +390,7 @@ extension ServiceRequestItem: Decodable {
         clarificationQuestion = c.string(.clarificationQuestion)
         clarificationOptions = c.strings(.clarificationOptions)
         clarificationAnswer = c.string(.clarificationAnswer)
+        attachments = c.attachments(.attachments)
         createdAt = c.date(.createdAt) ?? .now
         dispatchedCount = c.int(.dispatchedCount) ?? 0
         responses = ((try? c.decodeIfPresent([Lossy<RequestResponse>].self, forKey: .responses)) ?? []).compactMap(\.value)
@@ -390,7 +399,7 @@ extension ServiceRequestItem: Decodable {
 
 extension RequestResponse: Decodable {
     private enum CodingKeys: String, CodingKey {
-        case dispatchId, status, pro, serviceName, price, availability, delay, message, messages
+        case dispatchId, status, pro, serviceName, price, availability, delay, message, attachments, messages
     }
 
     private enum ProKeys: String, CodingKey {
@@ -418,14 +427,15 @@ extension RequestResponse: Decodable {
         availability = c.string(.availability)
         delay = c.string(.delay)
         message = c.string(.message)
+        attachments = c.attachments(.attachments)
         messages = ((try? c.decodeIfPresent([Lossy<ConversationMessage>].self, forKey: .messages)) ?? []).compactMap(\.value)
     }
 }
 
 extension InboxItem: Decodable {
     private enum CodingKeys: String, CodingKey {
-        case dispatchId, status, matchedService, distanceKm, request, price, availability, delay, message, createdAt,
-             viewedAt, respondedAt, messages
+        case dispatchId, status, matchedService, distanceKm, request, price, availability, delay, message, attachments,
+             createdAt, viewedAt, respondedAt, messages
     }
 
     init(from decoder: Decoder) throws {
@@ -439,6 +449,7 @@ extension InboxItem: Decodable {
         availability = c.string(.availability)
         delay = c.string(.delay)
         message = c.string(.message)
+        attachments = c.attachments(.attachments)
         createdAt = c.date(.createdAt) ?? .now
         viewedAt = c.date(.viewedAt)
         respondedAt = c.date(.respondedAt)

@@ -15,10 +15,11 @@ struct RequestComposerView: View {
     @State private var analysing = false
     @State private var error: String?
     @State private var draft: ServiceRequestItem?
+    @State private var attachments = AttachmentDraft()
     @FocusState private var focused: Bool
 
     private var canContinue: Bool {
-        text.trimmingCharacters(in: .whitespacesAndNewlines).count >= 8 && !analysing
+        text.trimmingCharacters(in: .whitespacesAndNewlines).count >= 8 && !analysing && !attachments.isBusy
     }
 
     var body: some View {
@@ -44,6 +45,22 @@ struct RequestComposerView: View {
                         .font(.sbc(.bodyLarge))
                         .lineLimit(4...8)
                         .focused($focused)
+                    }
+                }
+
+                RequestPanel {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            RequestSectionLabel(text: "Photos, vidéo ou PDF (facultatif)").padding(.leading, -4)
+                            Spacer()
+                            AttachButton(draft: attachments, label: "Ajouter")
+                        }
+                        if attachments.isEmpty {
+                            Text("Montre le problème ou ce que tu veux : les pros comprennent plus vite.")
+                                .font(.sbc(.bodySmall))
+                                .foregroundStyle(SBCColors.onSurfaceVariant)
+                        }
+                        PendingAttachmentsRow(draft: attachments)
                     }
                 }
 
@@ -104,8 +121,11 @@ struct RequestComposerView: View {
                 text: text.trimmingCharacters(in: .whitespacesAndNewlines),
                 city: city.nilIfBlank,
                 budget: Int(digits),
-                desiredDate: date.nilIfBlank
+                desiredDate: date.nilIfBlank,
+                attachmentIds: attachments.ids.nilIfEmpty
             ))
+            // Claimed by this draft now: a second "Continuer" must not resend them.
+            attachments.reset()
             store.upsert(created)
             draft = created
         } catch {
@@ -171,6 +191,10 @@ struct RequestReviewView: View {
                             FactRow(label: "Conditions", value: request.constraints.joined(separator: ", "))
                         }
                     }
+                }
+
+                if !request.attachments.isEmpty {
+                    AttachmentGallery(attachments: request.attachments, tile: 84)
                 }
 
                 if let question = request.clarificationQuestion {
