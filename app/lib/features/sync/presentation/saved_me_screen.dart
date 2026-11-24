@@ -96,7 +96,10 @@ class SavedMeScreen extends ConsumerWidget {
                     child: Center(child: CircularProgressIndicator()),
                   );
                 }
-                return _SavedMeTile(entry: page.items[i - 1]);
+                final entry = page.items[i - 1];
+                // Keyed by person: rows leave the list as they are saved back,
+                // and a row's state must not slide onto the next person.
+                return _SavedMeTile(key: ValueKey(entry.actorSbcId), entry: entry);
               },
             ),
           );
@@ -138,7 +141,7 @@ class _CountHeader extends StatelessWidget {
 }
 
 class _SavedMeTile extends ConsumerStatefulWidget {
-  const _SavedMeTile({required this.entry});
+  const _SavedMeTile({required this.entry, super.key});
   final SavedMeEntry entry;
 
   @override
@@ -252,7 +255,10 @@ class _SavedMeTileState extends ConsumerState<_SavedMeTile> {
       setState(() => _saved = true);
       ref
         ..invalidate(syncSummaryProvider)
-        ..invalidate(syncedContactsProvider);
+        ..invalidate(syncedContactsProvider)
+        // Saved back: they leave "Qui m'a enregistré" right away, so nobody is
+        // left wondering whether the add worked and taps it again.
+        ..read(savedMeProvider.notifier).remove(entry.actorSbcId);
       messenger.showSnackBar(
         SnackBar(
           content: Text(

@@ -64,7 +64,7 @@ struct SavedMeView: View {
                 FeaturedSection(model: spotlight)
                 Section {
                     ForEach(page.items) { entry in
-                        SavedMeRow(entry: entry)
+                        SavedMeRow(entry: entry) { remove(entry) }
                             // The list is paged: reaching the last row fetches the next page.
                             .onAppear {
                                 if entry.id == page.items.last?.id { Task { await loadMore() } }
@@ -94,13 +94,31 @@ struct SavedMeView: View {
         loadingMore = true
         defer { loadingMore = false }
         do {
-            let next = try await services.sync.savedMe(page: page.page + 1)
-            // A pull-to-refresh may have replaced the list meanwhile.
-            guard case let .loaded(current) = state, current.page == page.page else { return }
+            // Counted from the rows still shown, not page + 1: a row saved back
+            // leaves the list on the server too, so everything after it moved
+            // up one place. Refetching the overlap and dropping the rows we
+            // already hold keeps the list free of both gaps and repeats.
+            let limit = page.limit > 0 ? page.limit : 30
+            var next = try await services.sync.savedMe(page: page.items.count / limit + 1, limit: limit)
+            // A pull-to-refresh, or another save back, may have changed the list meanwhile.
+            guard case let .loaded(current) = state, current.items == page.items else { return }
+            let held = Set(current.items.map(\.actorSbcId))
+            next.items.removeAll { held.contains($0.actorSbcId) }
             state = .loaded(current.concat(next))
         } catch {
             // The spinner row stays; scrolling back to the end retries.
         }
+    }
+
+    /// Saved back: they have nothing left to do here, so the row goes at once
+    /// (the server leaves them out from now on as well).
+    private func remove(_ entry: SavedMeEntry) {
+        guard case var .loaded(page) = state,
+              let index = page.items.firstIndex(where: { $0.actorSbcId == entry.actorSbcId })
+        else { return }
+        page.items.remove(at: index)
+        page.total = max(0, page.total - 1)
+        withAnimation { state = .loaded(page) }
     }
 
     private func load() async {
@@ -119,6 +137,8 @@ private struct SavedMeRow: View {
     @Environment(SyncStore.self) private var sync
 
     let entry: SavedMeEntry
+    /// Called once they are saved back, so the list can drop the row.
+    var onSavedBack: () -> Void = {}
 
     /// Local so the row answers the tap immediately; the list is only refetched
     /// on a pull-to-refresh, and re-reading it just to flip one button would
@@ -228,12 +248,15 @@ private struct SavedMeRow: View {
         }
 
         saved = true
-        await sync.loadSummary()
         toasts.show(present
             ? "Déjà dans ton répertoire"
             : recorded
                 ? "Contact ajouté — visible dans « Mes contacts SBC »"
                 : "Contact ajouté au téléphone (pas encore synchronisé au serveur)")
+        // Saved back: they leave "Qui m'a enregistré" right away, so nobody is
+        // left wondering whether the add worked and taps it again.
+        onSavedBack()
+        await sync.loadSummary()
     }
 
     /// Relative for the recent past, absolute once "il y a N jours" stops being

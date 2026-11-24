@@ -26,7 +26,7 @@ export interface SavedMeEntry {
   avatarUrl: string | null;
   phoneNumber: string | null;
   savedAt: Date;
-  /** True once you have saved THEM back — the reciprocal of this whole list. */
+  /** Always false: people you saved back are left out of the list. Kept for older app builds. */
   alreadySaved: boolean;
 }
 
@@ -309,6 +309,35 @@ export class SyncService {
     userSbcId: string,
     pagination: PaginationQueryDto,
   ): Promise<PaginatedResult<SavedMeEntry>> {
+    const people = await this.savedMeOutstanding(userId, userSbcId);
+    const total = people.length;
+    const pageOf = people.slice(pagination.skip, pagination.skip + pagination.limit);
+
+    const items = pageOf.map(({ actor, profile, confirmedAt }) => ({
+      actorSbcId: actor.sbcUserId,
+      name: actor.name ?? ([profile?.firstName, profile?.name].filter(Boolean).join(' ') || null),
+      profession: profile?.profession ?? null,
+      city: profile?.city ?? null,
+      country: profile?.country ?? null,
+      avatarUrl: profile?.avatarUrl ?? null,
+      phoneNumber: actor.phoneNumber ?? profile?.phoneNumber ?? null,
+      savedAt: confirmedAt,
+      // Always false now that saved-back people are left out; kept so older
+      // app builds, which read it to pick the button, still decode the row.
+      alreadySaved: false,
+    }));
+    return paginate(items, total, pagination.page, pagination.limit);
+  }
+
+  /**
+   * The people who saved you and whom you have NOT saved back yet, newest
+   * save first, one row per person.
+   *
+   * Someone you added back has nothing left to do on this screen: leaving them
+   * in the list made members think the add had not worked and add them again.
+   * Filtered before paging, so the count and the pages agree.
+   */
+  private async savedMeOutstanding(userId: string, userSbcId: string) {
     // One row per person, at their latest save: older data holds a duplicate
     // event for every re-sync, which inflated the count and repeated rows.
     const people = await this.prisma.addedEvent.groupBy({
@@ -317,55 +346,39 @@ export class SyncService {
       _max: { confirmedAt: true },
       orderBy: { _max: { confirmedAt: 'desc' } },
     });
-    const total = people.length;
-    const pageOf = people.slice(pagination.skip, pagination.skip + pagination.limit);
-    const actors = pageOf.length
-      ? await this.prisma.user.findMany({
-          where: { id: { in: pageOf.map((p) => p.actorId) } },
-          select: { id: true, sbcUserId: true, name: true, phoneNumber: true },
-        })
-      : [];
-    const actorById = new Map(actors.map((a) => [a.id, a]));
-    const events = pageOf.flatMap((p) => {
-      const actor = actorById.get(p.actorId);
-      return actor ? [{ actor, confirmedAt: p._max.confirmedAt ?? new Date(0) }] : [];
+    if (!people.length) return [];
+
+    const actors = await this.prisma.user.findMany({
+      where: { id: { in: people.map((p) => p.actorId) } },
+      select: { id: true, sbcUserId: true, name: true, phoneNumber: true },
     });
+    const actorById = new Map(actors.map((a) => [a.id, a]));
 
     // The actor's directory profile, when we have mirrored it, adds the
-    // profession/location that make a name recognisable.
-    const sbcIds = events.map((e) => e.actor.sbcUserId);
-    const profiles = sbcIds.length
-      ? await this.prisma.member.findMany({ where: { sbcId: { in: sbcIds } } })
+    // profession/location that make a name recognisable — and is what a
+    // saved-back contact points at.
+    const profiles = actors.length
+      ? await this.prisma.member.findMany({
+          where: { sbcId: { in: actors.map((a) => a.sbcUserId) } },
+        })
       : [];
     const bySbcId = new Map(profiles.map((m) => [m.sbcId, m]));
 
-    // Which of them you have already saved back, so the row can offer the
-    // reciprocal without promising to add a contact that is already there.
-    const mirroredIds = profiles.map((m) => m.id);
-    const saved = mirroredIds.length
+    const saved = profiles.length
       ? await this.prisma.syncedContact.findMany({
-          where: { userId, status: 'SYNCED', memberId: { in: mirroredIds } },
+          where: { userId, status: 'SYNCED', memberId: { in: profiles.map((m) => m.id) } },
           select: { memberId: true },
         })
       : [];
     const savedMemberIds = new Set(saved.map((r) => r.memberId));
 
-    const items = events.map((e) => {
-      const profile = bySbcId.get(e.actor.sbcUserId);
-      return {
-        actorSbcId: e.actor.sbcUserId,
-        name:
-          e.actor.name ?? ([profile?.firstName, profile?.name].filter(Boolean).join(' ') || null),
-        profession: profile?.profession ?? null,
-        city: profile?.city ?? null,
-        country: profile?.country ?? null,
-        avatarUrl: profile?.avatarUrl ?? null,
-        phoneNumber: e.actor.phoneNumber ?? profile?.phoneNumber ?? null,
-        savedAt: e.confirmedAt,
-        alreadySaved: profile ? savedMemberIds.has(profile.id) : false,
-      };
+    return people.flatMap((p) => {
+      const actor = actorById.get(p.actorId);
+      if (!actor) return [];
+      const profile = bySbcId.get(actor.sbcUserId);
+      if (profile && savedMemberIds.has(profile.id)) return [];
+      return [{ actor, profile, confirmedAt: p._max.confirmedAt ?? new Date(0) }];
     });
-    return paginate(items, total, pagination.page, pagination.limit);
   }
 
   history(userId: string, page: number, limit: number) {
@@ -423,10 +436,9 @@ export class SyncService {
       // Who saved YOU (§21). Keyed on the SBC id, like the saved-me list: an
       // AddedEvent targets the member, not the local account row. Without the
       // id we cannot ask the question, so the tile reads 0 rather than lying.
+      // Same rule as the list: people you already saved back are not counted.
       userSbcId
-        ? this.prisma.addedEvent
-            .groupBy({ by: ['actorId'], where: { targetMemberSbcId: userSbcId } })
-            .then((people) => people.length)
+        ? this.savedMeOutstanding(userId, userSbcId).then((people) => people.length)
         : Promise.resolve(0),
     ]);
 

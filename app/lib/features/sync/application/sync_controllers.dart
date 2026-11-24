@@ -59,17 +59,50 @@ class SavedMeController extends AsyncNotifier<Paginated<SavedMeEntry>> {
     if (current == null || _loadingMore || !current.hasMore) return;
     _loadingMore = true;
     try {
-      final next =
-          await ref.read(syncRepositoryProvider).savedMe(page: current.page + 1);
-      // A pull-to-refresh may have replaced the list meanwhile.
-      if (state.asData?.value.page == current.page) {
-        state = AsyncData(current.concat(next));
+      // The next page is counted from the rows still shown, not page + 1: a
+      // row saved back leaves the list on the server too, so everything after
+      // it moved up one place. Refetching the overlap and dropping the rows we
+      // already hold keeps the list free of both gaps and repeats.
+      final limit = current.limit > 0 ? current.limit : 30;
+      final page = current.items.length ~/ limit + 1;
+      final next = await ref
+          .read(syncRepositoryProvider)
+          .savedMe(page: page, limit: limit);
+      // A pull-to-refresh, or another save back, may have replaced the list meanwhile.
+      final now = state.asData?.value;
+      if (now != null && identical(now, current)) {
+        final held = {for (final e in current.items) e.actorSbcId};
+        state = AsyncData(current.concat(Paginated(
+          items: next.items.where((e) => !held.contains(e.actorSbcId)).toList(),
+          total: next.total,
+          page: next.page,
+          limit: next.limit,
+          totalPages: next.totalPages,
+          hasMore: next.hasMore,
+        )));
       }
     } catch (_) {
       // Scrolling back to the end retries.
     } finally {
       _loadingMore = false;
     }
+  }
+
+  /// You saved [actorSbcId] back: they have nothing left to do here, so the
+  /// row goes at once (the server leaves them out from now on as well).
+  void remove(String actorSbcId) {
+    final current = state.asData?.value;
+    if (current == null) return;
+    final items = current.items.where((e) => e.actorSbcId != actorSbcId).toList();
+    if (items.length == current.items.length) return;
+    state = AsyncData(Paginated(
+      items: items,
+      total: current.total > 0 ? current.total - 1 : 0,
+      page: current.page,
+      limit: current.limit,
+      totalPages: current.totalPages,
+      hasMore: current.hasMore,
+    ));
   }
 }
 

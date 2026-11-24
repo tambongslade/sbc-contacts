@@ -149,3 +149,68 @@ describe('SyncService — a run started from a criteria alone', () => {
     expect(matched).toEqual(enqueued);
   });
 });
+
+/**
+ * "Qui m'a enregistré ?" (§21): once you save someone back they leave the
+ * list — keeping them there made members think the add had failed.
+ */
+describe('SyncService — saved-me', () => {
+  function build() {
+    const prisma = {
+      addedEvent: {
+        groupBy: jest.fn().mockResolvedValue([
+          { actorId: 'u-a', _max: { confirmedAt: new Date('2026-11-20') } },
+          { actorId: 'u-b', _max: { confirmedAt: new Date('2026-11-19') } },
+          { actorId: 'u-c', _max: { confirmedAt: new Date('2026-11-18') } },
+        ]),
+      },
+      user: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'u-a', sbcUserId: 'sbc-a', name: 'Alice', phoneNumber: '+1' },
+          { id: 'u-b', sbcUserId: 'sbc-b', name: 'Bob', phoneNumber: '+2' },
+          { id: 'u-c', sbcUserId: 'sbc-c', name: 'Chloé', phoneNumber: '+3' },
+        ]),
+      },
+      member: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'm-a', sbcId: 'sbc-a' },
+          { id: 'm-b', sbcId: 'sbc-b' },
+          // Chloé has no mirrored profile: she cannot have been saved back.
+        ]),
+      },
+      syncedContact: {
+        findMany: jest.fn().mockResolvedValue([{ memberId: 'm-b' }]),
+      },
+    };
+    const service = new SyncService(
+      prisma as never,
+      {} as never,
+      {} as never,
+      { record: jest.fn() } as never,
+      {} as never,
+      { hydrate: jest.fn() } as never,
+      new CriteriaMatchResolver({} as never),
+    );
+    return { service, prisma };
+  }
+
+  it('leaves out the people you already saved back, count included', async () => {
+    const { service, prisma } = build();
+    const result = await service.savedMe('me', 'sbc-me', { page: 1, limit: 30, skip: 0 } as never);
+
+    expect(result.items.map((i) => i.actorSbcId)).toEqual(['sbc-a', 'sbc-c']);
+    expect(result.total).toBe(2);
+    expect(prisma.syncedContact.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ userId: 'me', status: 'SYNCED' }),
+      }),
+    );
+  });
+
+  it('pages after the filter, so no page comes back short', async () => {
+    const { service } = build();
+    const second = await service.savedMe('me', 'sbc-me', { page: 2, limit: 1, skip: 1 } as never);
+    expect(second.items.map((i) => i.actorSbcId)).toEqual(['sbc-c']);
+    expect(second.total).toBe(2);
+  });
+});
