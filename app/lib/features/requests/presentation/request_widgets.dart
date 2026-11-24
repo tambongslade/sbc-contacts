@@ -5,6 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
+import 'package:sbc_contacts/features/media/data/media_repository.dart';
+import 'package:sbc_contacts/features/media/presentation/attachment_draft.dart';
+import 'package:sbc_contacts/features/media/presentation/attachment_widgets.dart';
 import 'package:sbc_contacts/features/requests/application/requests_controllers.dart';
 import 'package:sbc_contacts/features/requests/domain/request_models.dart';
 
@@ -170,18 +173,27 @@ class ConversationThread extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.7),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: mine ? SbcColors.primary : theme.scaffoldBackgroundColor,
-                      borderRadius: BorderRadius.circular(14),
+                  if (m.attachments.isNotEmpty)
+                    Padding(
+                      padding: EdgeInsets.only(bottom: m.text.isEmpty ? 0 : 4),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.7),
+                        child: AttachmentGallery(attachments: m.attachments, tileSize: 110, alignEnd: mine),
+                      ),
                     ),
-                    child: Text(
-                      m.text,
-                      style: theme.textTheme.bodyMedium?.copyWith(color: mine ? Colors.white : null),
+                  if (m.text.isNotEmpty)
+                    Container(
+                      constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.7),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: mine ? SbcColors.primary : theme.scaffoldBackgroundColor,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Text(
+                        m.text,
+                        style: theme.textTheme.bodyMedium?.copyWith(color: mine ? Colors.white : null),
+                      ),
                     ),
-                  ),
                   const Gap(2),
                   Text(
                     '${mine ? 'Toi' : otherName} · ${relativeTime(m.createdAt)}',
@@ -196,57 +208,115 @@ class ConversationThread extends StatelessWidget {
   }
 }
 
-/// A short message sheet: answer a question or write to the other side.
-/// [onSend] returns true once sent, which closes the sheet.
+/// A short message sheet: answer a question or write to the other side, with
+/// photos, videos or a PDF. [onSend] gets the text (maybe empty when files go
+/// with it) and the uploaded attachment ids; it returns true once sent, which
+/// closes the sheet. [textRequired]: a question needs words.
 Future<void> showMessageComposer(
   BuildContext context, {
   required String title,
-  required Future<bool> Function(String text) onSend,
+  required Future<bool> Function(String text, List<String> attachmentIds) onSend,
   String placeholder = 'Ton message',
   String? hint,
-}) {
-  final controller = TextEditingController();
-  var sending = false;
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (sheetContext) => StatefulBuilder(
-      builder: (context, setState) => Padding(
-        padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.viewInsetsOf(context).bottom + 20),
-        child: Column(
+  bool textRequired = false,
+}) =>
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _MessageComposerSheet(
+        title: title,
+        onSend: onSend,
+        placeholder: placeholder,
+        hint: hint,
+        textRequired: textRequired,
+      ),
+    );
+
+class _MessageComposerSheet extends ConsumerStatefulWidget {
+  const _MessageComposerSheet({
+    required this.title,
+    required this.onSend,
+    required this.placeholder,
+    required this.hint,
+    required this.textRequired,
+  });
+
+  final String title;
+  final Future<bool> Function(String text, List<String> attachmentIds) onSend;
+  final String placeholder;
+  final String? hint;
+  final bool textRequired;
+
+  @override
+  ConsumerState<_MessageComposerSheet> createState() => _MessageComposerSheetState();
+}
+
+class _MessageComposerSheetState extends ConsumerState<_MessageComposerSheet> {
+  final _text = TextEditingController();
+  late final AttachmentDraft _draft = AttachmentDraft(ref.read(mediaRepositoryProvider));
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _text.dispose();
+    _draft.dispose();
+    super.dispose();
+  }
+
+  bool get _canSend {
+    if (_sending || !_draft.ready) return false;
+    final hasText = _text.text.trim().isNotEmpty;
+    return widget.textRequired ? hasText : hasText || _draft.ids.isNotEmpty;
+  }
+
+  Future<void> _send() async {
+    setState(() => _sending = true);
+    final ok = await widget.onSend(_text.text.trim(), _draft.ids);
+    if (!mounted) return;
+    setState(() => _sending = false);
+    if (ok) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final problem = draftProblem(_draft);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.viewInsetsOf(context).bottom + 20),
+      child: ListenableBuilder(
+        listenable: _draft,
+        builder: (context, _) => Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(title, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+            Text(widget.title, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
             const Gap(12),
             TextField(
-              controller: controller,
+              controller: _text,
               autofocus: true,
               minLines: 3,
               maxLines: 8,
               maxLength: 1000,
-              decoration: InputDecoration(hintText: placeholder, helperText: hint, helperMaxLines: 2),
+              decoration: InputDecoration(hintText: widget.placeholder, helperText: widget.hint, helperMaxLines: 2),
               onChanged: (_) => setState(() {}),
             ),
-            const Gap(8),
+            AttachmentDraftStrip(draft: _draft),
+            Align(alignment: Alignment.centerLeft, child: AttachButton(draft: _draft)),
+            if (problem != null && !_draft.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(problem, style: Theme.of(context).textTheme.bodySmall),
+              ),
+            const Gap(4),
             FilledButton(
-              onPressed: controller.text.trim().isEmpty || sending
-                  ? null
-                  : () async {
-                      setState(() => sending = true);
-                      final ok = await onSend(controller.text.trim());
-                      if (!context.mounted) return;
-                      setState(() => sending = false);
-                      if (ok) Navigator.of(sheetContext).pop();
-                    },
-              child: Text(sending ? 'Envoi…' : 'Envoyer'),
+              onPressed: _canSend ? _send : null,
+              child: Text(_sending ? 'Envoi…' : 'Envoyer'),
             ),
           ],
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// Asks, then deletes a request and drops it from "Mes demandes".

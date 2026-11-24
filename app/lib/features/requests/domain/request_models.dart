@@ -1,4 +1,5 @@
 import 'package:intl/intl.dart';
+import 'package:sbc_contacts/features/media/domain/attachment.dart';
 
 /// How a service is delivered (backend `ServiceMode`).
 enum ServiceMode {
@@ -91,19 +92,25 @@ class ConversationMessage {
     required this.fromPro,
     required this.text,
     required this.createdAt,
+    this.attachments = const [],
   });
 
   factory ConversationMessage.fromJson(Map<String, dynamic> j) => ConversationMessage(
         id: _s(j['id']) ?? '',
         fromPro: j['author'] != 'REQUESTER',
-        text: _s(j['text']) ?? '',
+        // Not _s: an attachments-only message has empty text.
+        text: (j['text'] as String?)?.trim() ?? '',
         createdAt: _d(j['createdAt']) ?? DateTime.now(),
+        attachments: Attachment.listFrom(j['attachments']),
       );
 
   final String id;
   final bool fromPro;
+
+  /// Empty when the message is only attachments.
   final String text;
   final DateTime createdAt;
+  final List<Attachment> attachments;
 }
 
 /// One pro's answer, shown as a card to compare (backend `ResponseView`).
@@ -125,6 +132,7 @@ class RequestResponse {
     this.delay,
     this.message,
     this.messages = const [],
+    this.attachments = const [],
   });
 
   factory RequestResponse.fromJson(Map<String, dynamic> j) {
@@ -146,6 +154,7 @@ class RequestResponse {
       delay: _s(j['delay']),
       message: _s(j['message']),
       messages: _maps(j['messages']).map(ConversationMessage.fromJson).toList(),
+      attachments: Attachment.listFrom(j['attachments']),
     );
   }
 
@@ -167,6 +176,9 @@ class RequestResponse {
   final String? delay;
   final String? message;
   final List<ConversationMessage> messages;
+
+  /// Photos of past work, a PDF quote: sent with the proposal.
+  final List<Attachment> attachments;
 
   String get displayName => (proName ?? '').isNotEmpty ? proName! : profession;
 }
@@ -193,6 +205,7 @@ class ServiceRequestItem {
     this.clarificationAnswer,
     this.dispatchedCount = 0,
     this.responses = const [],
+    this.attachments = const [],
   });
 
   factory ServiceRequestItem.fromJson(Map<String, dynamic> j) => ServiceRequestItem(
@@ -215,6 +228,7 @@ class ServiceRequestItem {
         clarificationAnswer: _s(j['clarificationAnswer']),
         dispatchedCount: _i(j['dispatchedCount']) ?? 0,
         responses: _maps(j['responses']).map(RequestResponse.fromJson).toList(),
+        attachments: Attachment.listFrom(j['attachments']),
       );
 
   final String id;
@@ -236,6 +250,9 @@ class ServiceRequestItem {
   final String? clarificationAnswer;
   final int dispatchedCount;
   final List<RequestResponse> responses;
+
+  /// Photos, videos or files sent with the need.
+  final List<Attachment> attachments;
 
   /// What to call the request in a list: the AI's service name, else the text.
   String get title => (service ?? '').isNotEmpty ? service! : rawText;
@@ -278,6 +295,7 @@ class InboxItem {
     this.viewedAt,
     this.respondedAt,
     this.messages = const [],
+    this.attachments = const [],
   });
 
   factory InboxItem.fromJson(Map<String, dynamic> j) => InboxItem(
@@ -294,6 +312,7 @@ class InboxItem {
         viewedAt: _d(j['viewedAt']),
         respondedAt: _d(j['respondedAt']),
         messages: _maps(j['messages']).map(ConversationMessage.fromJson).toList(),
+        attachments: Attachment.listFrom(j['attachments']),
       );
 
   final String id; // dispatchId
@@ -311,6 +330,9 @@ class InboxItem {
   final DateTime? viewedAt;
   final DateTime? respondedAt;
   final List<ConversationMessage> messages;
+
+  /// The pro's own proposal attachments.
+  final List<Attachment> attachments;
 }
 
 /// What a pro adds on top of their SBC profile.

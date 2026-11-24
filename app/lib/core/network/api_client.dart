@@ -63,6 +63,47 @@ class ApiClient {
 
   Future<dynamic> delete(String path) => _send('DELETE', path);
 
+  /// Multipart upload (a photo, a video, a PDF), with progress from 0 to 1.
+  /// The form is rebuilt by [buildForm] on the retry after a token refresh,
+  /// since a sent FormData cannot be sent twice.
+  Future<dynamic> upload(
+    String path, {
+    required FormData Function() buildForm,
+    void Function(double progress)? onProgress,
+    CancelToken? cancelToken,
+    bool retried = false,
+  }) async {
+    Response<dynamic> res;
+    try {
+      res = await _dio.post<dynamic>(
+        path,
+        data: buildForm(),
+        cancelToken: cancelToken,
+        options: Options(
+          contentType: 'multipart/form-data',
+          sendTimeout: const Duration(minutes: 5),
+          receiveTimeout: const Duration(minutes: 1),
+        ),
+        onSendProgress: onProgress == null
+            ? null
+            : (sent, total) {
+                if (total > 0) onProgress(sent / total);
+              },
+      );
+    } on DioException catch (e) {
+      throw _toApiException(e);
+    }
+    final status = res.statusCode ?? 0;
+    if (status == 401 && !retried && await _refreshOnce()) {
+      return upload(path, buildForm: buildForm, onProgress: onProgress, cancelToken: cancelToken, retried: true);
+    }
+    if (status >= 200 && status < 300) {
+      final data = res.data;
+      return data is Map<String, dynamic> && data.containsKey('data') ? data['data'] : data;
+    }
+    throw _statusToApiException(res);
+  }
+
   Future<dynamic> _send(
     String method,
     String path, {

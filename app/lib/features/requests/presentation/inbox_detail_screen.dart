@@ -4,6 +4,9 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
+import 'package:sbc_contacts/features/media/data/media_repository.dart';
+import 'package:sbc_contacts/features/media/presentation/attachment_draft.dart';
+import 'package:sbc_contacts/features/media/presentation/attachment_widgets.dart';
 import 'package:sbc_contacts/features/requests/application/requests_controllers.dart';
 import 'package:sbc_contacts/features/requests/domain/request_models.dart';
 import 'package:sbc_contacts/features/requests/presentation/request_widgets.dart';
@@ -45,17 +48,29 @@ class _InboxDetailScreenState extends ConsumerState<InboxDetailScreen> {
     }
   }
 
-  Future<bool> _respond(String action, {int? price, String? availability, String? delay, String? message}) async {
+  Future<bool> _respond(
+    String action, {
+    int? price,
+    String? availability,
+    String? delay,
+    String? message,
+    List<String> attachmentIds = const [],
+  }) async {
     setState(() => _busy = true);
     try {
-      _set(await ref.read(requestsRepositoryProvider).respond(
-            widget.requestId,
-            action: action,
-            price: price,
-            availability: availability,
-            delay: delay,
-            message: message,
-          ));
+      _set(
+        await ref
+            .read(requestsRepositoryProvider)
+            .respond(
+              widget.requestId,
+              action: action,
+              price: price,
+              availability: availability,
+              delay: delay,
+              message: message,
+              attachmentIds: attachmentIds,
+            ),
+      );
       if (!mounted) return true;
       switch (action) {
         case 'INTERESTED':
@@ -104,6 +119,7 @@ class _InboxDetailScreenState extends ConsumerState<InboxDetailScreen> {
           ],
           const Gap(14),
           Text('« ${r.rawText} »', style: theme.textTheme.bodyLarge),
+          if (r.attachments.isNotEmpty) ...[const Gap(10), AttachmentGallery(attachments: r.attachments)],
           const Gap(14),
           RequestPanel(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
@@ -117,9 +133,12 @@ class _InboxDetailScreenState extends ConsumerState<InboxDetailScreen> {
                 const Divider(height: 1),
                 FactRow('Prestation', r.mode?.label ?? 'Indifférent'),
                 const Divider(height: 1),
-                FactRow('Date', [r.desiredDate, r.desiredTime].whereType<String>().join(' à ').isEmpty
-                    ? 'Flexible'
-                    : [r.desiredDate, r.desiredTime].whereType<String>().join(' à ')),
+                FactRow(
+                  'Date',
+                  [r.desiredDate, r.desiredTime].whereType<String>().join(' à ').isEmpty
+                      ? 'Flexible'
+                      : [r.desiredDate, r.desiredTime].whereType<String>().join(' à '),
+                ),
                 const Divider(height: 1),
                 FactRow('Budget', r.budget != null ? '${fcfa(r.budget!)} max' : 'Non précisé'),
                 if (r.constraints.isNotEmpty) ...[
@@ -146,9 +165,13 @@ class _InboxDetailScreenState extends ConsumerState<InboxDetailScreen> {
                       onPressed: () => showMessageComposer(
                         context,
                         title: 'Écrire au client',
-                        onSend: (text) async {
+                        onSend: (text, attachmentIds) async {
                           try {
-                            _set(await ref.read(requestsRepositoryProvider).proSendMessage(widget.requestId, text));
+                            _set(
+                              await ref
+                                  .read(requestsRepositoryProvider)
+                                  .proSendMessage(widget.requestId, text, attachmentIds: attachmentIds),
+                            );
                             return true;
                           } catch (e) {
                             if (mounted) showToast(context, e.toString());
@@ -175,6 +198,10 @@ class _InboxDetailScreenState extends ConsumerState<InboxDetailScreen> {
                   if (item.price != null) FactRow('Prix proposé', fcfa(item.price!)),
                   if (item.availability != null) FactRow('Disponibilité', item.availability!),
                   if (item.delay != null) FactRow('Durée', item.delay!),
+                  if (item.attachments.isNotEmpty) ...[
+                    const Gap(8),
+                    AttachmentGallery(attachments: item.attachments, tileSize: 72),
+                  ],
                 ],
               ),
             ),
@@ -199,12 +226,14 @@ class _InboxDetailScreenState extends ConsumerState<InboxDetailScreen> {
                       onPressed: _busy
                           ? null
                           : () => showMessageComposer(
-                                context,
-                                title: 'Poser une question',
-                                placeholder: 'Ex. Les locks sont-elles longues ?',
-                                hint: 'Le client la voit avec ta réponse.',
-                                onSend: (text) => _respond('QUESTION', message: text),
-                              ),
+                              context,
+                              title: 'Poser une question',
+                              placeholder: 'Ex. Les locks sont-elles longues ?',
+                              hint: 'Le client la voit avec ta réponse.',
+                              textRequired: true,
+                              onSend: (text, attachmentIds) =>
+                                  _respond('QUESTION', message: text, attachmentIds: attachmentIds),
+                            ),
                       child: const Text('Poser une question'),
                     ),
                     const Gap(8),
@@ -239,6 +268,7 @@ class _InboxDetailScreenState extends ConsumerState<InboxDetailScreen> {
     final availability = TextEditingController();
     final delay = TextEditingController();
     final message = TextEditingController();
+    final draft = AttachmentDraft(ref.read(mediaRepositoryProvider));
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -250,8 +280,10 @@ class _InboxDetailScreenState extends ConsumerState<InboxDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Ta proposition',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                Text(
+                  'Ta proposition',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                ),
                 const Gap(12),
                 TextField(
                   controller: price,
@@ -268,7 +300,10 @@ class _InboxDetailScreenState extends ConsumerState<InboxDetailScreen> {
                   decoration: const InputDecoration(labelText: 'Disponibilité', hintText: 'Ex. samedi 14h'),
                 ),
                 const Gap(10),
-                TextField(controller: delay, decoration: const InputDecoration(labelText: 'Durée (facultatif)')),
+                TextField(
+                  controller: delay,
+                  decoration: const InputDecoration(labelText: 'Durée (facultatif)'),
+                ),
                 const Gap(10),
                 TextField(
                   controller: message,
@@ -276,21 +311,44 @@ class _InboxDetailScreenState extends ConsumerState<InboxDetailScreen> {
                   maxLines: 5,
                   decoration: const InputDecoration(labelText: 'Message (facultatif)'),
                 ),
+                const Gap(8),
+                Text(
+                  'Photos de tes réalisations, devis PDF… (facultatif)',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                AttachmentDraftStrip(draft: draft),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: AttachButton(draft: draft, label: 'Ajouter des photos ou un devis'),
+                ),
+                ListenableBuilder(
+                  listenable: draft,
+                  builder: (context, _) {
+                    final problem = draftProblem(draft);
+                    return problem == null || draft.isEmpty
+                        ? const SizedBox.shrink()
+                        : Text(problem, style: Theme.of(context).textTheme.bodySmall);
+                  },
+                ),
                 const Gap(16),
-                FilledButton(
-                  onPressed: availability.text.trim().isEmpty
-                      ? null
-                      : () async {
-                          final ok = await _respond(
-                            'INTERESTED',
-                            price: int.tryParse(price.text.replaceAll(RegExp(r'\D'), '')),
-                            availability: availability.text.trim(),
-                            delay: delay.text.trim().isEmpty ? null : delay.text.trim(),
-                            message: message.text.trim().isEmpty ? null : message.text.trim(),
-                          );
-                          if (ok && sheet.mounted) Navigator.of(sheet).pop();
-                        },
-                  child: const Text('Envoyer ma proposition'),
+                ListenableBuilder(
+                  listenable: draft,
+                  builder: (context, _) => FilledButton(
+                    onPressed: availability.text.trim().isEmpty || !draft.ready
+                        ? null
+                        : () async {
+                            final ok = await _respond(
+                              'INTERESTED',
+                              price: int.tryParse(price.text.replaceAll(RegExp(r'\D'), '')),
+                              availability: availability.text.trim(),
+                              delay: delay.text.trim().isEmpty ? null : delay.text.trim(),
+                              message: message.text.trim().isEmpty ? null : message.text.trim(),
+                              attachmentIds: draft.ids,
+                            );
+                            if (ok && sheet.mounted) Navigator.of(sheet).pop();
+                          },
+                    child: const Text('Envoyer ma proposition'),
+                  ),
                 ),
               ],
             ),
@@ -298,6 +356,7 @@ class _InboxDetailScreenState extends ConsumerState<InboxDetailScreen> {
         ),
       ),
     );
+    draft.dispose();
   }
 }
 
@@ -311,22 +370,29 @@ class _ProTimeline extends StatelessWidget {
     final theme = Theme.of(context);
     final grey = Colors.grey.shade600;
     final outcome = switch (item.status) {
-      DispatchStatus.selected when item.request.status == RequestStatus.completed =>
-        ('Prestation terminée', true, SbcColors.success),
+      DispatchStatus.selected when item.request.status == RequestStatus.completed => (
+        'Prestation terminée',
+        true,
+        SbcColors.success,
+      ),
       DispatchStatus.selected => ('Tu as été retenu', true, SbcColors.success),
       DispatchStatus.lost => (
-          item.request.status == RequestStatus.cancelled ? 'Demande annulée' : 'Un autre professionnel a été retenu',
-          true,
-          grey
-        ),
+        item.request.status == RequestStatus.cancelled ? 'Demande annulée' : 'Un autre professionnel a été retenu',
+        true,
+        grey,
+      ),
       DispatchStatus.unavailable || DispatchStatus.declined => ('Tu as décliné', true, grey),
       _ => ('En attente du choix du client', false, SbcColors.primary),
     };
     final steps = [
       ('Demande reçue', item.createdAt as DateTime?, true, SbcColors.primary),
       ('Vue', item.viewedAt, item.viewedAt != null, SbcColors.primary),
-      (item.status == DispatchStatus.question ? 'Question posée' : 'Ta réponse', item.respondedAt, item.respondedAt != null,
-          SbcColors.primary),
+      (
+        item.status == DispatchStatus.question ? 'Question posée' : 'Ta réponse',
+        item.respondedAt,
+        item.respondedAt != null,
+        SbcColors.primary,
+      ),
       (outcome.$1, null, outcome.$2, outcome.$3),
     ];
     return Column(
@@ -352,7 +418,10 @@ class _ProTimeline extends StatelessWidget {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: steps[i].$3 ? steps[i].$4 : theme.colorScheme.surface,
-                              border: Border.all(color: steps[i].$3 ? steps[i].$4 : theme.colorScheme.outlineVariant, width: 2),
+                              border: Border.all(
+                                color: steps[i].$3 ? steps[i].$4 : theme.colorScheme.outlineVariant,
+                                width: 2,
+                              ),
                             ),
                           ),
                           if (i < steps.length - 1)
@@ -381,8 +450,12 @@ class _ProTimeline extends StatelessWidget {
                                 ),
                               ),
                               if (steps[i].$2 != null)
-                                Text(formatWhen(steps[i].$2!),
-                                    style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                                Text(
+                                  formatWhen(steps[i].$2!),
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
                             ],
                           ),
                         ),

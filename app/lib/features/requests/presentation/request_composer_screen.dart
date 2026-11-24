@@ -4,6 +4,9 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
+import 'package:sbc_contacts/features/media/data/media_repository.dart';
+import 'package:sbc_contacts/features/media/presentation/attachment_draft.dart';
+import 'package:sbc_contacts/features/media/presentation/attachment_widgets.dart';
 import 'package:sbc_contacts/features/requests/application/requests_controllers.dart';
 import 'package:sbc_contacts/features/requests/domain/request_models.dart';
 import 'package:sbc_contacts/features/requests/presentation/request_widgets.dart';
@@ -48,10 +51,24 @@ class _RequestComposerScreenState extends ConsumerState<RequestComposerScreen> {
   final _city = TextEditingController();
   final _date = TextEditingController();
   final _budget = TextEditingController();
+  late final AttachmentDraft _draft = AttachmentDraft(ref.read(mediaRepositoryProvider))
+    ..addListener(_redraw);
   bool _analysing = false;
   String? _error;
 
-  bool get _canContinue => _text.text.trim().length >= 8 && !_analysing;
+  bool get _canContinue => _text.text.trim().length >= 8 && !_analysing && _draft.ready;
+
+  void _redraw() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _draft
+      ..removeListener(_redraw)
+      ..dispose();
+    super.dispose();
+  }
 
   Future<void> _analyse() async {
     setState(() {
@@ -64,6 +81,7 @@ class _RequestComposerScreenState extends ConsumerState<RequestComposerScreen> {
             city: _nilIfBlank(_city.text),
             budget: int.tryParse(_budget.text.replaceAll(RegExp(r'\D'), '')),
             desiredDate: _nilIfBlank(_date.text),
+            attachmentIds: _draft.ids,
           );
       ref.read(myRequestsProvider.notifier).upsert(draft);
       if (mounted) context.pushReplacement('/requests/review', extra: draft);
@@ -129,6 +147,10 @@ class _RequestComposerScreenState extends ConsumerState<RequestComposerScreen> {
                     filled: false,
                   ),
                 ),
+                AttachmentDraftStrip(draft: _draft),
+                AttachButton(draft: _draft, label: 'Ajouter des photos, une vidéo ou un PDF'),
+                if (!_draft.isEmpty && draftProblem(_draft) != null)
+                  Text(draftProblem(_draft)!, style: theme.textTheme.bodySmall),
               ],
             ),
           ),
@@ -295,6 +317,12 @@ class _RequestReviewScreenState extends ConsumerState<RequestReviewScreen> {
               ],
             ),
           ),
+          if (r.attachments.isNotEmpty) ...[
+            const Gap(16),
+            const RequestSectionLabel('Pièces jointes'),
+            const Gap(8),
+            AttachmentGallery(attachments: r.attachments, tileSize: 72),
+          ],
           if (r.clarificationQuestion != null) ...[
             const Gap(16),
             Container(

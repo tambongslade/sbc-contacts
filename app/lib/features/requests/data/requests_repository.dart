@@ -19,12 +19,14 @@ class RequestsRepository {
     String? city,
     int? budget,
     String? desiredDate,
+    List<String> attachmentIds = const [],
   }) async =>
       _request(await _api.post('/data/requests', body: {
         'text': text,
         if (city != null) 'city': city,
         if (budget != null) 'budget': budget,
         if (desiredDate != null) 'desiredDate': desiredDate,
+        if (attachmentIds.isNotEmpty) 'attachmentIds': attachmentIds,
       }));
 
   /// Corrections to the AI's reading, or an answer to its question.
@@ -67,9 +69,19 @@ class RequestsRepository {
   /// Drafts are erased; anything else is cancelled if still open, then hidden.
   Future<void> remove(String id) => _api.delete('/data/requests/$id');
 
-  /// Answer a pro's question, or write to a pro who answered.
-  Future<ServiceRequestItem> sendMessage(String id, String dispatchId, String text) async =>
-      _request(await _api.post('/data/requests/$id/messages', body: {'dispatchId': dispatchId, 'text': text}));
+  /// Answer a pro's question, or write to a pro who answered. [text] may be
+  /// empty when [attachmentIds] carries something.
+  Future<ServiceRequestItem> sendMessage(
+    String id,
+    String dispatchId,
+    String text, {
+    List<String> attachmentIds = const [],
+  }) async =>
+      _request(await _api.post('/data/requests/$id/messages', body: {
+        'dispatchId': dispatchId,
+        if (text.isNotEmpty) 'text': text,
+        if (attachmentIds.isNotEmpty) 'attachmentIds': attachmentIds,
+      }));
 
   /// "Relancer cette demande": a new draft with the same need.
   Future<ServiceRequestItem> reopen(String id) async =>
@@ -123,6 +135,7 @@ class RequestsRepository {
     String? availability,
     String? delay,
     String? message,
+    List<String> attachmentIds = const [],
   }) async =>
       _inbox(await _api.post('/data/pro/inbox/$requestId/respond', body: {
         'action': action,
@@ -130,10 +143,14 @@ class RequestsRepository {
         if (availability != null) 'availability': availability,
         if (delay != null) 'delay': delay,
         if (message != null) 'message': message,
+        if (attachmentIds.isNotEmpty) 'attachmentIds': attachmentIds,
       }));
 
-  Future<InboxItem> proSendMessage(String requestId, String text) async =>
-      _inbox(await _api.post('/data/pro/inbox/$requestId/messages', body: {'text': text}));
+  Future<InboxItem> proSendMessage(String requestId, String text, {List<String> attachmentIds = const []}) async =>
+      _inbox(await _api.post('/data/pro/inbox/$requestId/messages', body: {
+        if (text.isNotEmpty) 'text': text,
+        if (attachmentIds.isNotEmpty) 'attachmentIds': attachmentIds,
+      }));
 
   Future<ProStats> stats() async =>
       ProStats.fromJson(await _api.get('/data/pro/stats') as Map<String, dynamic>);

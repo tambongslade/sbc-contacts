@@ -6,6 +6,7 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sbc_contacts/core/providers/core_providers.dart';
 import 'package:sbc_contacts/core/theme/sbc_colors.dart';
+import 'package:sbc_contacts/features/media/presentation/attachment_widgets.dart';
 import 'package:sbc_contacts/features/requests/application/requests_controllers.dart';
 import 'package:sbc_contacts/features/requests/domain/request_models.dart';
 import 'package:sbc_contacts/features/requests/presentation/request_widgets.dart';
@@ -103,9 +104,11 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
         context,
         title: response.status == DispatchStatus.question ? 'Répondre' : 'Écrire à ${response.displayName}',
         hint: "Reste dans l'application pour les détails ; tes coordonnées ne sont pas partagées.",
-        onSend: (text) async {
+        onSend: (text, attachmentIds) async {
           try {
-            _set(await ref.read(requestsRepositoryProvider).sendMessage(widget.requestId, response.id, text));
+            _set(await ref
+                .read(requestsRepositoryProvider)
+                .sendMessage(widget.requestId, response.id, text, attachmentIds: attachmentIds));
             return true;
           } catch (e) {
             if (mounted) showToast(context, e.toString());
@@ -184,6 +187,10 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
               [if (r.subtitle.isNotEmpty) r.subtitle, if (r.budget != null) '${fcfa(r.budget!)} max'].join(' · '),
               style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
+            if (r.attachments.isNotEmpty) ...[
+              const Gap(12),
+              AttachmentGallery(attachments: r.attachments, tileSize: 72),
+            ],
             const Gap(16),
             _StatusTimeline(status: r.status),
             const Gap(16),
@@ -450,6 +457,10 @@ class _ResponseCard extends StatelessWidget {
                 const Gap(8),
                 fact('Durée', a.delay ?? '—'),
               ]),
+            ],
+            if (a.attachments.isNotEmpty) ...[
+              const Gap(10),
+              AttachmentGallery(attachments: a.attachments),
             ],
             const Gap(10),
             if (a.messages.isNotEmpty) ...[
