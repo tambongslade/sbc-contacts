@@ -250,7 +250,7 @@ struct ProMembersOnlyView: View {
                 check("Développe ton réseau et multiplie tes opportunités.")
             }
             .padding(.top, 14)
-            Text("Pour créer ton profil professionnel, tu dois être membre de la SBC.")
+            Text("Pour créer ton compte pro, il te faut un compte SBC.")
                 .font(.sbc(.bodyMedium, weight: .bold))
                 .foregroundStyle(SBCColors.onSurface)
                 .padding(.top, 14)

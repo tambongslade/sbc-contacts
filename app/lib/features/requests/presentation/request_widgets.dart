@@ -380,7 +380,7 @@ class ProMembersOnly extends StatelessWidget {
         check('Développe ton réseau et multiplie tes opportunités.'),
         const Gap(14),
         Text(
-          'Pour créer ton profil professionnel, tu dois être membre de la SBC.',
+          'Pour créer ton compte pro, il te faut un compte SBC et l’abonnement Pro à 2 000 FCFA/mois.',
           style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
         ),
       ],

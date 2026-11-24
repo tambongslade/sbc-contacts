@@ -68,6 +68,9 @@ export interface ProStats {
   topServices: Array<{ name: string; count: number }>;
 }
 
+/** An SBC Network account asked to become a pro (only SBC members can). */
+export const PRO_SBC_ACCOUNT_REQUIRED = 'PRO_SBC_ACCOUNT_REQUIRED';
+
 /**
  * The professional's side of SBC Data: profile, services, inbox, answers,
  * statistics (Data §3, §4, §10, §18).
@@ -119,6 +122,7 @@ export class ProfessionalService {
     if (dto.priceMin != null && dto.priceMax != null && dto.priceMin > dto.priceMax) {
       throw new BadRequestException('priceMin must not exceed priceMax');
     }
+    await this.requireSbcAccount(userId);
     const data = {
       profession: dto.profession.trim(),
       description: dto.description.trim(),
@@ -171,6 +175,7 @@ export class ProfessionalService {
    * holds placeholders is only asked for what is really missing.
    */
   async assistantTurn(userId: string, dto: AssistantTurnDto): Promise<AssistantTurn> {
+    await this.requireSbcAccount(userId);
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
       select: {
@@ -534,6 +539,23 @@ export class ProfessionalService {
   }
 
   // ── helpers ───────────────────────────────────────────────────────────────
+
+  /**
+   * A pro account needs an SBC account (and the Pro subscription bought on
+   * SBC). An SBC Network account can send requests, never answer them.
+   */
+  private async requireSbcAccount(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { origin: true },
+    });
+    if (user.origin === 'NETWORK') {
+      throw new ForbiddenException({
+        code: PRO_SBC_ACCOUNT_REQUIRED,
+        message: 'Pour créer ton compte pro, il te faut un compte SBC avec l’abonnement Pro.',
+      });
+    }
+  }
 
   private async requireProfile(userId: string) {
     const pro = await this.prisma.proProfile.findUnique({ where: { userId } });
