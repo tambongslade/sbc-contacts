@@ -122,15 +122,22 @@ describe('MediaService', () => {
       where: {
         id: { in: ['a', 'b'] },
         uploaderId: 'u1',
-        requestId: null,
-        dispatchId: null,
-        messageId: null,
+        OR: [{ requestId: null, dispatchId: null, messageId: null }],
       },
-      data: { messageId: 'm1' },
+      data: { requestId: null, dispatchId: null, messageId: 'm1' },
     });
     await expect(
       service.claim(tx as never, 'u1', ['a', 'b', 'c', 'd', 'e', 'f'], { messageId: 'm1' }),
     ).rejects.toThrow('5 pièces jointes maximum');
+  });
+
+  it('lets a new draft take the photos of an unsent draft, nothing else', async () => {
+    const tx = { attachment: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) } };
+    await service.claim(tx as never, 'u1', ['a'], { requestId: 'r2' });
+    expect(tx.attachment.updateMany.mock.calls[0][0].where.OR).toEqual([
+      { requestId: null, dispatchId: null, messageId: null },
+      { request: { userId: 'u1', status: 'DRAFT' } },
+    ]);
   });
 
   it('serves nothing for a forged link', async () => {

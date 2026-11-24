@@ -12,7 +12,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AttachmentKind, Prisma } from '@prisma/client';
+import { AttachmentKind, Prisma, RequestStatus } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AttachmentView, configureMediaSigning, toAttachments, verifyMediaLink } from './media-url';
@@ -146,9 +146,19 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
     if (unique.length > MAX_ATTACHMENTS) {
       throw new BadRequestException(`${MAX_ATTACHMENTS} pièces jointes maximum`);
     }
+    const unsent = { requestId: null, dispatchId: null, messageId: null };
     const claimed = await tx.attachment.updateMany({
-      where: { id: { in: unique }, uploaderId, requestId: null, dispatchId: null, messageId: null },
-      data: target,
+      where: {
+        id: { in: unique },
+        uploaderId,
+        // A new draft of the same need may take over the photos of an earlier,
+        // never-sent draft (the requester went back and edited the text).
+        OR:
+          'requestId' in target
+            ? [unsent, { request: { userId: uploaderId, status: RequestStatus.DRAFT } }]
+            : [unsent],
+      },
+      data: { ...unsent, ...target },
     });
     if (claimed.count !== unique.length) {
       throw new BadRequestException('Pièce jointe introuvable ou déjà envoyée');
