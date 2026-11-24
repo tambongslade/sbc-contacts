@@ -144,7 +144,7 @@ export class ProController {
     @Param('requestId', ParseUUIDPipe) requestId: string,
     @Body() dto: MessageDto,
   ): Promise<InboxItemView> {
-    return this.pros.sendMessage(user.userId, requestId, dto.text);
+    return this.pros.sendMessage(user.userId, requestId, dto.text, dto.attachmentIds);
   }
 
   @Get('stats')

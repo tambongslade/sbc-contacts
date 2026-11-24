@@ -208,6 +208,13 @@ export class RespondDto {
   @IsString()
   @MaxLength(1000)
   message?: string;
+
+  @ApiPropertyOptional({ type: [String], description: 'Ids from POST /media (5 maximum)' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5)
+  @IsUUID('4', { each: true })
+  attachmentIds?: string[];
 }
 
 export class InboxQueryDto extends PaginationQueryDto {
@@ -231,6 +238,13 @@ export class CreateRequestDto {
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) budget?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(60) desiredDate?: string;
   @ApiPropertyOptional({ enum: ServiceMode }) @IsOptional() @IsEnum(ServiceMode) mode?: ServiceMode;
+
+  @ApiPropertyOptional({ type: [String], description: 'Ids from POST /media (5 maximum)' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5)
+  @IsUUID('4', { each: true })
+  attachmentIds?: string[];
 }
 
 /** "Envoyer ma demande", optionally from where the requester stands now. */
@@ -275,12 +289,20 @@ export class RequestsQueryDto extends PaginationQueryDto {
   status?: RequestStatus;
 }
 
+/** A line of the conversation: text, attachments, or both. */
 export class MessageDto {
-  @ApiProperty({ example: 'Oui, les locks font environ 30 cm.' })
+  @ApiPropertyOptional({ example: 'Oui, les locks font environ 30 cm.' })
+  @IsOptional()
   @IsString()
-  @MinLength(1)
   @MaxLength(1000)
-  text!: string;
+  text?: string;
+
+  @ApiPropertyOptional({ type: [String], description: 'Ids from POST /media (5 maximum)' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5)
+  @IsUUID('4', { each: true })
+  attachmentIds?: string[];
 }
 
 export class RequesterMessageDto extends MessageDto {

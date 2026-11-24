@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { DispatchStatus, RequestStatus } from '@prisma/client';
 import { RequestsService } from './requests.service';
 
@@ -22,6 +22,7 @@ describe('RequestsService.remove', () => {
     };
     const service = new RequestsService(
       prisma as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -107,9 +108,15 @@ describe('RequestsService conversation and relaunch', () => {
         findUnique: jest.fn().mockResolvedValue(dispatch),
         findMany: jest.fn().mockResolvedValue([]),
       },
-      dispatchMessage: { create: jest.fn().mockResolvedValue({}) },
+      dispatchMessage: { create: jest.fn().mockResolvedValue({ id: 'm1' }) },
       memberScore: { findMany: jest.fn().mockResolvedValue([]) },
+      attachment: { findMany: jest.fn().mockResolvedValue([]) },
+      $transaction: jest.fn(),
     };
+    prisma.$transaction.mockImplementation((fn: (tx: typeof prisma) => Promise<unknown>) =>
+      fn(prisma),
+    );
+    const media = { claim: jest.fn().mockResolvedValue(undefined) };
     const notifications = { create: jest.fn().mockResolvedValue({}) };
     const service = new RequestsService(
       prisma as never,
@@ -119,8 +126,9 @@ describe('RequestsService conversation and relaunch', () => {
       {} as never,
       {} as never,
       {} as never,
+      media as never,
     );
-    return { service, prisma, notifications };
+    return { service, prisma, notifications, media };
   }
 
   const request = (status: RequestStatus, over: Record<string, unknown> = {}) => ({
@@ -155,6 +163,31 @@ describe('RequestsService conversation and relaunch', () => {
       data: { dispatchId: 'd1', author: 'REQUESTER', text: 'Oui, 30 cm' },
     });
     expect(notifications.create).toHaveBeenCalledWith(expect.objectContaining({ userId: 'pro' }));
+  });
+
+  it('sends a photo on its own, and tells the pro what came', async () => {
+    const { service, prisma, notifications, media } = build(
+      request(RequestStatus.RESPONDED),
+      dispatch(DispatchStatus.INTERESTED),
+    );
+    await service.sendMessage('u1', 'r1', 'd1', undefined, ['a1']);
+    expect(prisma.dispatchMessage.create).toHaveBeenCalledWith({
+      data: { dispatchId: 'd1', author: 'REQUESTER', text: '' },
+    });
+    expect(media.claim).toHaveBeenCalledWith(prisma, 'u1', ['a1'], { messageId: 'm1' });
+    expect(notifications.create).toHaveBeenCalledWith(
+      expect.objectContaining({ body: '📎 Pièce jointe' }),
+    );
+  });
+
+  it('refuses an empty message', async () => {
+    const { service } = build(
+      request(RequestStatus.RESPONDED),
+      dispatch(DispatchStatus.INTERESTED),
+    );
+    await expect(service.sendMessage('u1', 'r1', 'd1', '  ', [])).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('refuses messages once the request is over', async () => {

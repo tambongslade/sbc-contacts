@@ -1,4 +1,5 @@
 import {
+  Attachment,
   DispatchMessage,
   Prisma,
   DispatchStatus,
@@ -9,7 +10,13 @@ import {
   ServiceMode,
   ServiceRequest,
 } from '@prisma/client';
+import { BadRequestException } from '@nestjs/common';
 import { approximateKm } from '../../common/utils/geo';
+import { AttachmentView, toAttachments } from '../media/media-url';
+
+export type { AttachmentView };
+
+type WithAttachments<T> = T & { attachments?: Attachment[] };
 
 /** What a pro sees of a request: the need, never who asked (Data §22). */
 export interface RequestPublicView {
@@ -26,6 +33,8 @@ export interface RequestPublicView {
   desiredTime: string | null;
   budget: number | null;
   constraints: string[];
+  /** Photos, videos or files the requester sent with the need. */
+  attachments: AttachmentView[];
   createdAt: Date;
 }
 
@@ -69,6 +78,8 @@ export interface ResponseView {
   availability: string | null;
   delay: string | null;
   message: string | null;
+  /** Photos, videos or a PDF quote sent with the proposal. */
+  attachments: AttachmentView[];
   respondedAt: Date | null;
   messages: MessageView[];
 }
@@ -93,18 +104,52 @@ export const CLOSED_REQUEST: RequestStatus[] = [
 export interface MessageView {
   id: string;
   author: 'PRO' | 'REQUESTER';
+  /** Empty when the message is only attachments. */
   text: string;
+  attachments: AttachmentView[];
   createdAt: Date;
 }
 
-export function toMessages(rows: DispatchMessage[] | undefined): MessageView[] {
+export function toMessages(rows: WithAttachments<DispatchMessage>[] | undefined): MessageView[] {
   return (rows ?? []).map((m) => ({
     id: m.id,
     author: m.author,
     text: m.text,
+    attachments: toAttachments(m.attachments),
     createdAt: m.createdAt,
   }));
 }
+
+/** A message's text, or what it carries when it has none (notifications). */
+export function messagePreview(text: string | undefined, attachmentCount: number): string {
+  const t = text?.trim() ?? '';
+  if (t) return t.slice(0, 140);
+  return attachmentCount > 1 ? `📎 ${attachmentCount} pièces jointes` : '📎 Pièce jointe';
+}
+
+/** A message needs words or something attached. */
+export function requireContent(
+  text: string | undefined,
+  attachmentIds: string[] | undefined,
+): void {
+  if (!text?.trim() && !attachmentIds?.length) {
+    throw new BadRequestException('Écris un message ou joins un fichier');
+  }
+}
+
+/** Prisma include for a conversation, with what each message carries. */
+export const MESSAGES_INCLUDE = {
+  orderBy: { createdAt: 'asc' },
+  include: { attachments: true },
+} satisfies Prisma.DispatchMessageFindManyArgs;
+
+/** Prisma include for a pro's dispatch: the request (and its media), the offer, the conversation. */
+export const INBOX_INCLUDE = {
+  request: { include: { attachments: true } },
+  service: true,
+  attachments: true,
+  messages: MESSAGES_INCLUDE,
+} satisfies Prisma.RequestDispatchInclude;
 
 export interface InboxItemView {
   dispatchId: string;
@@ -117,13 +162,15 @@ export interface InboxItemView {
   availability: string | null;
   delay: string | null;
   message: string | null;
+  /** The pro's own proposal attachments. */
+  attachments: AttachmentView[];
   viewedAt: Date | null;
   respondedAt: Date | null;
   createdAt: Date;
   messages: MessageView[];
 }
 
-export function toPublicView(r: ServiceRequest): RequestPublicView {
+export function toPublicView(r: WithAttachments<ServiceRequest>): RequestPublicView {
   return {
     id: r.id,
     rawText: r.rawText,
@@ -138,6 +185,7 @@ export function toPublicView(r: ServiceRequest): RequestPublicView {
     desiredTime: r.desiredTime,
     budget: r.budget,
     constraints: r.constraints,
+    attachments: toAttachments(r.attachments),
     createdAt: r.createdAt,
   };
 }
@@ -149,10 +197,10 @@ export function shownDistance(reasons: Prisma.JsonValue | null): number | null {
 }
 
 export function toInboxItem(
-  d: RequestDispatch & {
-    request: ServiceRequest;
+  d: WithAttachments<RequestDispatch> & {
+    request: WithAttachments<ServiceRequest>;
     service: ProService | null;
-    messages?: DispatchMessage[];
+    messages?: WithAttachments<DispatchMessage>[];
   },
 ): InboxItemView {
   return {
@@ -165,6 +213,7 @@ export function toInboxItem(
     availability: d.availability,
     delay: d.delay,
     message: d.message,
+    attachments: toAttachments(d.attachments),
     viewedAt: d.viewedAt,
     respondedAt: d.respondedAt,
     createdAt: d.createdAt,

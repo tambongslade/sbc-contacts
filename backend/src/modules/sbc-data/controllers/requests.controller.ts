@@ -117,7 +117,7 @@ export class RequestsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RequesterMessageDto,
   ): Promise<RequestView> {
-    return this.requests.sendMessage(user.userId, id, dto.dispatchId, dto.text);
+    return this.requests.sendMessage(user.userId, id, dto.dispatchId, dto.text, dto.attachmentIds);
   }
 
   @Post(':id/reopen')

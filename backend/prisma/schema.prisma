@@ -26,16 +26,16 @@ enum Role {
 }
 
 model User {
-  id        String   @id @default(uuid()) @db.Uuid
-  sbcUserId String   @unique // SBC's user id (source of truth for identity); `net_…` for an SBC Network account
-  role      Role     @default(USER)
+  id        String        @id @default(uuid()) @db.Uuid
+  sbcUserId String        @unique // SBC's user id (source of truth for identity); `net_…` for an SBC Network account
+  role      Role          @default(USER)
   /// SBC: signs in through SBC. NETWORK: an account of SBC Network's own,
   /// created in the app (WhatsApp number + password), with no SBC account
   /// behind it — so no SBC directory, only what SBC Network holds itself.
   origin    AccountOrigin @default(SBC)
   /// SBC Network accounts only: kept so the member's age stays current
   /// (SBC members' age comes from SBC).
-  birthDate DateTime? @db.Date
+  birthDate DateTime?     @db.Date
 
   // Cached profile snapshot from /api/sso/userinfo (refreshed on login).
   name              String?
@@ -61,22 +61,23 @@ model User {
   /// "Augmenter mes vues WhatsApp" until then. Bought on SBC; set by an admin
   /// while SBC does not report it as a subscription type yet.
   spotlightUntil DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime? // soft delete
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime? // soft delete
 
-  sbcToken       SbcToken?
-  sessions       AppSession[]
-  criteria       SyncCriteria[]
-  favorites      Favorite[]
-  syncRuns       SyncRun[]
-  syncedContacts SyncedContact[]
-  notifications  Notification[]
-  devices        Device[]
-  addedByMe      AddedEvent[]    @relation("actor")
-  reviews        MemberReview[]
+  sbcToken        SbcToken?
+  sessions        AppSession[]
+  criteria        SyncCriteria[]
+  favorites       Favorite[]
+  syncRuns        SyncRun[]
+  syncedContacts  SyncedContact[]
+  notifications   Notification[]
+  devices         Device[]
+  addedByMe       AddedEvent[]     @relation("actor")
+  reviews         MemberReview[]
   proProfile      ProProfile?
   serviceRequests ServiceRequest[]
+  attachments     Attachment[]
 
   @@index([deletedAt])
   @@index([statusBoostOptIn])
@@ -146,8 +147,8 @@ enum AccountOrigin {
 /// Authoritative data always lives in SBC; this is a queryable cache and the
 /// substrate for criteria-matching. TTL/`staleAfter` governs re-fetch.
 model Member {
-  id        String @id @default(uuid()) @db.Uuid
-  sbcId     String @unique // SBC member id
+  id    String @id @default(uuid()) @db.Uuid
+  sbcId String @unique // SBC member id
 
   name        String?
   firstName   String?
@@ -161,10 +162,10 @@ model Member {
   avatarUrl   String?
   phoneNumber String?
 
-  source      MemberSource @default(SEARCH_CACHE)
-  lastSeenAt  DateTime     @default(now()) // last time SBC confirmed this record
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  source     MemberSource @default(SEARCH_CACHE)
+  lastSeenAt DateTime     @default(now()) // last time SBC confirmed this record
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
 
   favoritedBy    Favorite[]
   syncedContacts SyncedContact[]
@@ -199,10 +200,10 @@ model SyncCriteria {
   /// filters above, which stay empty.
   statusBoost Boolean @default(false)
 
-  isActive        Boolean   @default(true)
-  lastCheckedAt   DateTime?
-  lastResultHash  String? // fingerprint of the last match set, for cheap diffing
-  lastMatchCount  Int       @default(0)
+  isActive       Boolean   @default(true)
+  lastCheckedAt  DateTime?
+  lastResultHash String? // fingerprint of the last match set, for cheap diffing
+  lastMatchCount Int       @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -356,11 +357,11 @@ model Notification {
   userId String @db.Uuid
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  type    NotificationType
-  title   String
-  body    String
-  data    Json?
-  readAt  DateTime?
+  type   NotificationType
+  title  String
+  body   String
+  data   Json?
+  readAt DateTime?
 
   createdAt DateTime @default(now())
 
@@ -383,15 +384,15 @@ model AddedEvent {
 
 /// Reusable audit trail for sensitive business actions (brief §11).
 model AuditLog {
-  id         String   @id @default(uuid()) @db.Uuid
-  actorId    String?  @db.Uuid
-  action     String // e.g. "criteria.update", "sync.run"
-  resource   String // e.g. "SyncCriteria:<id>"
-  before     Json?
-  after      Json?
-  metadata   Json?
-  ip         String?
-  createdAt  DateTime @default(now())
+  id        String   @id @default(uuid()) @db.Uuid
+  actorId   String?  @db.Uuid
+  action    String // e.g. "criteria.update", "sync.run"
+  resource  String // e.g. "SyncCriteria:<id>"
+  before    Json?
+  after     Json?
+  metadata  Json?
+  ip        String?
+  createdAt DateTime @default(now())
 
   @@index([actorId])
   @@index([action])
@@ -410,10 +411,10 @@ model Device {
   userId String @db.Uuid
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  platform  Platform
-  pushToken String?
+  platform   Platform
+  pushToken  String?
   lastSeenAt DateTime @default(now())
-  createdAt DateTime @default(now())
+  createdAt  DateTime @default(now())
 
   @@unique([userId, pushToken])
   @@map("devices")
@@ -422,14 +423,14 @@ model Device {
 /// Idempotency + audit for inbound SBC webhooks (cahier §11 / brief §20).
 /// Ready now; consumed once SBC emits new/updated-member events.
 model WebhookEvent {
-  id          String   @id @default(uuid()) @db.Uuid
-  externalId  String   @unique // provider event id — dedup key for idempotency
+  id          String    @id @default(uuid()) @db.Uuid
+  externalId  String    @unique // provider event id — dedup key for idempotency
   type        String
   payload     Json
   signature   String?
   processedAt DateTime?
   error       String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   @@index([type])
   @@map("webhook_events")
@@ -588,7 +589,8 @@ model ServiceRequest {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  dispatches RequestDispatch[]
+  dispatches  RequestDispatch[]
+  attachments Attachment[]
 
   @@index([userId, status])
   @@map("service_requests")
@@ -634,7 +636,9 @@ model RequestDispatch {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  messages DispatchMessage[]
+  messages    DispatchMessage[]
+  /// Photos, videos or a PDF quote sent with the proposal.
+  attachments Attachment[]
 
   @@unique([requestId, proId])
   @@index([proId, status])
@@ -682,9 +686,52 @@ model DispatchMessage {
   dispatchId String          @db.Uuid
   dispatch   RequestDispatch @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
   author     MessageAuthor
+  /// Empty when the message is only attachments.
   text       String
   createdAt  DateTime        @default(now())
 
+  attachments Attachment[]
+
   @@index([dispatchId, createdAt])
   @@map("dispatch_messages")
+}
+
+enum AttachmentKind {
+  IMAGE
+  VIDEO
+  FILE // PDF only
+}
+
+/// A photo, a video or a PDF sent with a request, a proposal or a message.
+/// Uploaded first, on its own, then claimed by what it is sent with: exactly
+/// one of requestId / dispatchId / messageId is set once claimed. Unclaimed
+/// uploads are swept after a day. The file itself is on disk (`storageKey`)
+/// and served through a signed link only the conversation receives.
+model Attachment {
+  id          String         @id @default(uuid()) @db.Uuid
+  uploaderId  String         @db.Uuid
+  uploader    User           @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  kind        AttachmentKind
+  mimeType    String
+  size        Int
+  fileName    String?
+  width       Int?
+  height      Int?
+  durationSec Float?
+  storageKey  String         @unique
+
+  requestId  String?          @db.Uuid
+  request    ServiceRequest?  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  dispatchId String?          @db.Uuid
+  dispatch   RequestDispatch? @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  messageId  String?          @db.Uuid
+  message    DispatchMessage? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([uploaderId, createdAt])
+  @@index([requestId])
+  @@index([dispatchId])
+  @@index([messageId])
+  @@map("attachments")
 }

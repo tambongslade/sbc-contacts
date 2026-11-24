@@ -20,6 +20,8 @@ import { PaginatedResult, paginate } from '../../../common/dto/pagination.dto';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { QUEUE_NAMES } from '../../../infrastructure/queue/queue.module';
 import { AuditService } from '../../audit/audit.service';
+import { MediaService } from '../../media/media.service';
+import { toAttachments } from '../../media/media-url';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { confidenceScore } from '../../reviews/confidence-score';
 import { ReviewsService } from '../../reviews/reviews.service';
@@ -43,6 +45,9 @@ import {
   ResponseView,
   shownDistance,
   toMessages,
+  MESSAGES_INCLUDE,
+  messagePreview,
+  requireContent,
   toPublicView,
 } from '../sbc-data.views';
 
@@ -88,22 +93,27 @@ export class RequestsService {
     private readonly reviews: ReviewsService,
     private readonly audit: AuditService,
     @InjectQueue(QUEUE_NAMES.SBC_DATA) private readonly queue: Queue,
+    private readonly media: MediaService,
   ) {}
 
   /** Analyse the free text and keep it as a draft to review (Data §6: summary before sending). */
   async create(userId: string, dto: CreateRequestDto): Promise<RequestView> {
     const analysis = await this.ai.analyzeRequest(dto.text);
-    const request = await this.prisma.serviceRequest.create({
-      data: {
-        userId,
-        rawText: dto.text.trim(),
-        ...analysisData(analysis),
-        // What the requester typed in the optional fields beats the AI's reading.
-        ...(dto.city ? { city: dto.city.trim() } : {}),
-        ...(dto.budget != null ? { budget: dto.budget } : {}),
-        ...(dto.desiredDate ? { desiredDate: dto.desiredDate.trim() } : {}),
-        ...(dto.mode ? { mode: dto.mode } : {}),
-      },
+    const request = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.serviceRequest.create({
+        data: {
+          userId,
+          rawText: dto.text.trim(),
+          ...analysisData(analysis),
+          // What the requester typed in the optional fields beats the AI's reading.
+          ...(dto.city ? { city: dto.city.trim() } : {}),
+          ...(dto.budget != null ? { budget: dto.budget } : {}),
+          ...(dto.desiredDate ? { desiredDate: dto.desiredDate.trim() } : {}),
+          ...(dto.mode ? { mode: dto.mode } : {}),
+        },
+      });
+      await this.media.claim(tx, userId, dto.attachmentIds, { requestId: created.id });
+      return created;
     });
     return this.view(request);
   }
@@ -352,8 +362,10 @@ export class RequestsService {
     userId: string,
     id: string,
     dispatchId: string,
-    text: string,
+    text: string | undefined,
+    attachmentIds?: string[],
   ): Promise<RequestView> {
+    requireContent(text, attachmentIds);
     const request = await this.own(userId, id);
     const dispatch = await this.prisma.requestDispatch.findUnique({
       where: { id: dispatchId },
@@ -366,14 +378,17 @@ export class RequestsService {
     ) {
       throw new ConflictException('Cette conversation est close');
     }
-    await this.prisma.dispatchMessage.create({
-      data: { dispatchId, author: MessageAuthor.REQUESTER, text: text.trim() },
+    await this.prisma.$transaction(async (tx) => {
+      const message = await tx.dispatchMessage.create({
+        data: { dispatchId, author: MessageAuthor.REQUESTER, text: text?.trim() ?? '' },
+      });
+      await this.media.claim(tx, userId, attachmentIds, { messageId: message.id });
     });
     await this.notifications.create({
       userId: dispatch.pro.userId,
       type: NotificationType.REQUEST_MESSAGE,
       title: `Réponse du client : ${request.service ?? 'demande'}`,
-      body: text.trim().slice(0, 140),
+      body: messagePreview(text, attachmentIds?.length ?? 0),
       data: { requestId: id },
     });
     return this.view(request);
@@ -516,7 +531,8 @@ export class RequestsService {
       where: { requestId: request.id },
       include: {
         service: { select: { name: true } },
-        messages: { orderBy: { createdAt: 'asc' } },
+        attachments: true,
+        messages: MESSAGES_INCLUDE,
         pro: {
           include: {
             user: { select: { sbcUserId: true, name: true, avatarUrl: true, phoneNumber: true } },
@@ -553,13 +569,15 @@ export class RequestsService {
         availability: d.availability,
         delay: d.delay,
         message: d.message,
+        attachments: toAttachments(d.attachments),
         respondedAt: d.respondedAt,
         messages: toMessages(d.messages),
       };
     });
 
+    const attachments = await this.prisma.attachment.findMany({ where: { requestId: request.id } });
     return {
-      ...toPublicView(request),
+      ...toPublicView({ ...request, attachments }),
       clarificationQuestion: request.clarificationQuestion,
       clarificationOptions: request.clarificationOptions,
       clarificationAnswer: request.clarificationAnswer,

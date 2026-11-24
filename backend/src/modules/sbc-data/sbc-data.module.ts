@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { MediaModule } from '../media/media.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ReviewsModule } from '../reviews/reviews.module';
 import { DeepseekClient } from './ai/deepseek.client';
@@ -21,7 +22,7 @@ import { RequestsService } from './services/requests.service';
  * requester chooses. Reception is the paid part (2 000 FCFA/mois).
  */
 @Module({
-  imports: [NotificationsModule, ReviewsModule],
+  imports: [NotificationsModule, ReviewsModule, MediaModule],
   controllers: [ProController, RequestsController, SbcDataAdminController],
   providers: [
     DeepseekClient,

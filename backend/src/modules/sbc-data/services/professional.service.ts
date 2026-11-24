@@ -16,6 +16,7 @@ import {
 import { PaginatedResult, paginate } from '../../../common/dto/pagination.dto';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
+import { MediaService } from '../../media/media.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { AssistantTurn, ProDraft, ProSetupAssistant, sanitise } from '../ai/pro-setup-assistant';
 import { SbcDataAiService, StructuredServices } from '../ai/sbc-data-ai.service';
@@ -38,6 +39,9 @@ import {
   isReceivingActive,
   stripService,
   toInboxItem,
+  INBOX_INCLUDE,
+  messagePreview,
+  requireContent,
 } from '../sbc-data.views';
 
 /** Dispatch states in which the pro can still answer. */
@@ -83,6 +87,7 @@ export class ProfessionalService {
     private readonly notifications: NotificationsService,
     private readonly audit: AuditService,
     private readonly assistant: ProSetupAssistant,
+    private readonly media: MediaService,
   ) {}
 
   async getProfile(userId: string): Promise<ProProfileView> {
@@ -293,7 +298,7 @@ export class ProfessionalService {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.requestDispatch.findMany({
         where,
-        include: { request: true, service: true, messages: { orderBy: { createdAt: 'asc' } } },
+        include: INBOX_INCLUDE,
         orderBy: { createdAt: 'desc' },
         skip: query.skip,
         take: query.limit,
@@ -370,15 +375,22 @@ export class ProfessionalService {
           respondedAt: new Date(),
           viewedAt: dispatch.viewedAt ?? new Date(),
         },
-        include: { request: true, service: true, messages: { orderBy: { createdAt: 'asc' } } },
+        include: INBOX_INCLUDE,
       });
       if (status === DispatchStatus.QUESTION) {
         // The question opens the conversation the requester can answer (Data §10).
-        row.messages.push(
-          await tx.dispatchMessage.create({
-            data: { dispatchId: row.id, author: MessageAuthor.PRO, text: dto.message!.trim() },
-          }),
-        );
+        const question = await tx.dispatchMessage.create({
+          data: { dispatchId: row.id, author: MessageAuthor.PRO, text: dto.message!.trim() },
+        });
+        await this.media.claim(tx, userId, dto.attachmentIds, { messageId: question.id });
+        row.messages.push({
+          ...question,
+          attachments: await tx.attachment.findMany({ where: { messageId: question.id } }),
+        });
+      } else if (status === DispatchStatus.INTERESTED) {
+        // Photos of past work, a PDF quote: part of the proposal itself.
+        await this.media.claim(tx, userId, dto.attachmentIds, { dispatchId: row.id });
+        row.attachments = await tx.attachment.findMany({ where: { dispatchId: row.id } });
       }
 
       let closed: Array<{ userId: string; respondedAt: Date | null }> = [];
@@ -460,7 +472,13 @@ export class ProfessionalService {
    * A message from the pro in the request conversation, after a question or
    * alongside a proposal. Closed once the pro bowed out or the request ended.
    */
-  async sendMessage(userId: string, requestId: string, text: string): Promise<InboxItemView> {
+  async sendMessage(
+    userId: string,
+    requestId: string,
+    text: string | undefined,
+    attachmentIds?: string[],
+  ): Promise<InboxItemView> {
+    requireContent(text, attachmentIds);
     const dispatch = await this.ownDispatch(userId, requestId);
     if (
       !CONVERSATION_DISPATCH.includes(dispatch.status) ||
@@ -468,8 +486,11 @@ export class ProfessionalService {
     ) {
       throw new ConflictException('Cette conversation est close');
     }
-    await this.prisma.dispatchMessage.create({
-      data: { dispatchId: dispatch.id, author: MessageAuthor.PRO, text: text.trim() },
+    await this.prisma.$transaction(async (tx) => {
+      const message = await tx.dispatchMessage.create({
+        data: { dispatchId: dispatch.id, author: MessageAuthor.PRO, text: text?.trim() ?? '' },
+      });
+      await this.media.claim(tx, userId, attachmentIds, { messageId: message.id });
     });
     const pro = await this.prisma.proProfile.findUniqueOrThrow({
       where: { id: dispatch.proId },
@@ -479,7 +500,7 @@ export class ProfessionalService {
       userId: dispatch.request.userId,
       type: NotificationType.REQUEST_MESSAGE,
       title: `Message de ${pro.user.name?.trim() || pro.profession}`,
-      body: text.trim().slice(0, 140),
+      body: messagePreview(text, attachmentIds?.length ?? 0),
       data: { requestId, dispatchId: dispatch.id },
     });
     return this.inboxItem(userId, requestId);
@@ -574,7 +595,7 @@ export class ProfessionalService {
     const pro = await this.requireProfile(userId);
     const dispatch = await this.prisma.requestDispatch.findUnique({
       where: { requestId_proId: { requestId, proId: pro.id } },
-      include: { request: true, service: true, messages: { orderBy: { createdAt: 'asc' } } },
+      include: INBOX_INCLUDE,
     });
     if (!dispatch) throw new NotFoundException('Demande introuvable');
     if (dispatch.request.status === RequestStatus.CANCELLED) {
