@@ -506,7 +506,9 @@ export class SyncService {
           )?.id ?? null)
         : null;
       if (dto.criteriaId && !criteriaId) throw new NotFoundException('Criteria not found');
-      const members = await this.members.findManyBySbcIds(dto.memberSbcIds);
+      // Mirrors app accounts with no directory row yet: that is who "Qui m'a
+      // enregistré" saves back, and without a row the save went unrecorded.
+      const members = await this.members.findOrMirrorBySbcIds(dto.memberSbcIds);
       return { members, criteriaId };
     }
     if (dto.criteriaId) {

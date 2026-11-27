@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Member } from '@prisma/client';
+import { toIsoCountry } from '../../common/utils/country';
 import { RegionGroupRow } from '../../common/utils/regions';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { SbcContact } from '../sbc-client/interfaces/sbc.interface';
@@ -48,6 +49,44 @@ export class MembersService {
   async findManyBySbcIds(sbcIds: string[]): Promise<Member[]> {
     if (sbcIds.length === 0) return [];
     return this.prisma.member.findMany({ where: { sbcId: { in: sbcIds } } });
+  }
+
+  /**
+   * Like [findManyBySbcIds], but an id that belongs to an app account with no
+   * directory row yet gets one, built from that account.
+   *
+   * A member can only be saved back through a mirror row. Someone who saved you
+   * but never turned up in a directory search had none, so tapping "Ajouter" in
+   * "Qui m'a enregistré" wrote them to the phone while the server recorded
+   * nothing, and they stayed in the list for good.
+   */
+  async findOrMirrorBySbcIds(sbcIds: string[]): Promise<Member[]> {
+    const found = await this.findManyBySbcIds(sbcIds);
+    const known = new Set(found.map((m) => m.sbcId));
+    const missing = Array.from(new Set(sbcIds.filter((id) => !known.has(id))));
+    if (!missing.length) return found;
+
+    const users = await this.prisma.user.findMany({
+      where: { sbcUserId: { in: missing }, deletedAt: null },
+      select: { sbcUserId: true, name: true, phoneNumber: true, country: true, avatarUrl: true },
+    });
+    const mirrored = await Promise.all(
+      users.map((u) =>
+        this.prisma.member.upsert({
+          where: { sbcId: u.sbcUserId },
+          // Raced by another request: the row that won is SBC's data, keep it.
+          update: {},
+          create: {
+            sbcId: u.sbcUserId,
+            name: u.name,
+            phoneNumber: u.phoneNumber,
+            country: toIsoCountry(u.country) ?? u.country,
+            avatarUrl: u.avatarUrl,
+          },
+        }),
+      ),
+    );
+    return [...found, ...mirrored];
   }
 
   /**
